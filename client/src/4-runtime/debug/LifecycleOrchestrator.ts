@@ -260,7 +260,7 @@ export class LifecycleOrchestrator {
     }
 
     const guard = this.guards.get(targetPhase);
-    if (!guard?.canEnter() ?? false) {
+    if (!(guard?.canEnter() ?? false)) {
       Logger.warn('LifecycleOrchestrator', 'Guard blocked transition', {
         from: this.currentPhase,
         to: targetPhase,

@@ -4,7 +4,7 @@ import type { DebugManager } from './DebugManager';
 import type { RuntimeDiagnosticsCoordinator } from './RuntimeDiagnosticsCoordinator';
 import { registerRuntimeDiagnosticsDebugBindings } from './registerRuntimeDiagnosticsDebugBindings';
 
-type HudPlayerMode = 'hidden' | 'play' | 'editor' | 'spectator';
+type HudPlayerMode = 'hidden' | 'play' | 'editor' | 'spectator' | 'loading';
 
 interface EngineControllerDebugAdapter {
   is(state: string): boolean;

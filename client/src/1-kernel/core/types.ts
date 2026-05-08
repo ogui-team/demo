@@ -619,6 +619,10 @@ export interface GameEvents {
     status: 'waiting_to_start' | 'waiting' | 'active' | 'stopped' | 'initiated' | 'victory';
     enemyCount?: number;
     kills?: number;
+    points?: number;
+    streak?: number;
+    maxStreak?: number;
+    lastAward?: number;
     nextWaveIn?: number;
   };
 

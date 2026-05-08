@@ -1830,6 +1830,10 @@ export function setRuntimePlayerId(playerId: string | null): void {
   }
 }
 
+export function getRuntimePlayerId(): string | null {
+  return resolveInventoryPlayerId();
+}
+
 export function ensureGameplayUiActive(): void {
   inventoryGridUI?.enable();
   if (toolbarSystem) {

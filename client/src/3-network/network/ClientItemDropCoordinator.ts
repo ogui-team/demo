@@ -113,6 +113,7 @@ export class ClientItemDropCoordinator {
       };
 
       // Temporary listener for this specific drop
+      let unsubscribe: (() => void) | undefined;
       const listener = (data: any) => {
         if (data.type === 'AUTHORITATIVE_SNAPSHOT') {
           onSnapshotReceived(data);
@@ -121,12 +122,12 @@ export class ClientItemDropCoordinator {
             return;
           }
           // Remove listener once confirmed
-          gameBus.emit('_removeSnapshot Listener' as any, listener);
+          unsubscribe?.();
         }
       };
 
       // Listen to snapshots
-      gameBus.on?.(('authority_snapshot' as any) || 'action', listener);
+      unsubscribe = gameBus.on('authority_snapshot' as any, listener);
     });
   }
 

@@ -14,7 +14,7 @@ import { EntityRegistry } from './EntityRegistry';
  * Bulk data sections use typed array views for maximum throughput.
  */
 export class BinaryTraceCoordinator {
-  private buffer: ArrayBuffer;
+  private buffer: ArrayBufferLike;
   private dataView: DataView;
   private uint8View: Uint8Array;
   private currentFrameIndex: number = 0;
