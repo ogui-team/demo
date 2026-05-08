@@ -3,6 +3,9 @@
   "version": "0.3.0",
   "description": "3D game engine for the browser with multiplayer support",
   "private": true,
+  "engines": {
+    "node": "20.x"
+  },
   "workspaces": [
     "client",
     "server",
@@ -12,6 +15,8 @@
     "dev": "concurrently \"npm --prefix server run dev\" \"npm --prefix client run dev\"",
     "debug:driftbomb": "node scripts/debug-driftbomb.mjs",
     "build": "npm --prefix packages/shared-contracts run build && npm --prefix server run build && npm --prefix client run build",
+    "build:server:prod": "npm --prefix packages/shared-contracts run build && npm --prefix server run build",
+    "build:client:prod": "npm --prefix packages/shared-contracts run build && npm --prefix client run build",
     "start": "npm --prefix server run start",
     "type-check": "npm --prefix server run type-check && npm --prefix client run type-check",
     "validate:authority": "node scripts/validate-authority-enforcement.mjs",
