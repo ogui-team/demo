@@ -2,6 +2,7 @@ import express from 'express';
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer } from 'http';
 import * as path from 'node:path';
+import * as fs from 'fs';
 import { GameSession, sanitizePlayerAppearancePayload } from './core/GameSession';
 import { LobbyManager } from './system/LobbyManager';
 import { type RoomCreateOptions } from './sessionContracts';
@@ -46,7 +47,7 @@ const WS_MAX_PAYLOAD_BYTES = Number(process.env.WS_MAX_PAYLOAD_BYTES ?? 64 * 102
 const wss    = new WebSocketServer({ server, maxPayload: WS_MAX_PAYLOAD_BYTES });
 const PORT   = process.env.PORT || 8080;
 const HTTP_JSON_LIMIT = process.env.HTTP_JSON_LIMIT ?? '128kb';
-const CLIENT_DIST_DIR = path.resolve(__dirname, '..', '..', 'client', 'dist');
+const CLIENT_DIST_DIR = path.resolve(__dirname, '..', '..', '..', 'client', 'dist');
 const MAX_MALFORMED_MESSAGES = 3;
 const MAX_RATE_LIMIT_VIOLATIONS = 5;
 const DEFAULT_ALLOWED_ORIGINS = [
@@ -570,13 +571,29 @@ wss.on('connection', (ws: WebSocket, req) => {
 
 // ─── HTTP routes ──────────────────────────────────────────────────────────────
 
-app.use(express.static(CLIENT_DIST_DIR, {
-  setHeaders: (res) => {
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
-  },
-}));
+// Serve client static files and SPA index.html
+if (fs.existsSync(CLIENT_DIST_DIR)) {
+  app.use(express.static(CLIENT_DIST_DIR, {
+    setHeaders: (res) => {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    },
+  }));
+  console.log(`[Server] Serving static files from ${CLIENT_DIST_DIR}`);
+  
+  // Fallback: serve index.html for any unmatched route (SPA routing)
+  app.get('*', (_req, res) => {
+    res.sendFile(path.join(CLIENT_DIST_DIR, 'index.html'));
+  });
+} else {
+  console.log(`[Server] Client dist directory not found at ${CLIENT_DIST_DIR} (expected on Render with separate static service)`);
+  
+  // Fallback health check if client not available
+  app.get('/', (_req, res) => {
+    res.json({ status: 'ok', service: 'game-server', version: '0.3.0' });
+  });
+}
 
 // ─── Inventory HTTP API ───────────────────────────────────────────────────────
 

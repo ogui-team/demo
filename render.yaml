@@ -1,10 +1,10 @@
 services:
   - type: web
-    name: demo-server
+    name: demo
     env: node
     plan: free
     rootDir: .
-    buildCommand: npm ci && npm run build:server:prod
+    buildCommand: npm ci && npm run build:server:prod && NODE_OPTIONS=--max-old-space-size=2048 npm run build:client:prod
     startCommand: npm --prefix server run start
     autoDeploy: true
     envVars:
@@ -12,20 +12,7 @@ services:
         value: 20.19.0
       - key: NODE_ENV
         value: production
-
-  - type: web
-    name: demo-client
-    env: static
-    rootDir: .
-    buildCommand: npm ci && NODE_OPTIONS=--max-old-space-size=2048 npm run build:client:prod
-    staticPublishPath: client/dist
-    autoDeploy: true
-    envVars:
-      - key: NODE_VERSION
-        value: 20.19.0
-      - key: NODE_ENV
-        value: production
       - key: SERVER_HTTP_URL
-        value: https://demo-server.onrender.com
+        value: https://demo.onrender.com
       - key: SERVER_WS_URL
-        value: wss://demo-server.onrender.com
+        value: wss://demo.onrender.com
