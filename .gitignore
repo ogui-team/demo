@@ -40,6 +40,7 @@ tmp/
 data/inventories/*.json
 server/data/inventories/*.json
 server/data/runtime_metrics/**/*.json
+*session*
 
 # Local git metadata backups created during recovery
 .git_backup_*/

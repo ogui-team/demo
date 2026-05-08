@@ -10,6 +10,7 @@
     "type-check": "node ../node_modules/typescript/bin/tsc --noEmit"
   },
   "dependencies": {
+    "@shared/contracts": "file:../packages/shared-contracts",
     "express": "^4.18.2",
     "ws": "^8.14.2"
   },

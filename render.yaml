@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: demo-server
+    env: node
+    plan: free
+    rootDir: .
+    buildCommand: npm install ; npm --prefix packages/shared-contracts run build ; npm --prefix server run build
+    startCommand: npm --prefix server run start
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+  - type: web
+    name: demo-client
+    env: static
+    rootDir: .
+    buildCommand: npm install ; npm --prefix packages/shared-contracts run build ; npm --prefix client run build
+    staticPublishPath: client/dist
+    autoDeploy: true
