@@ -1,0 +1,10 @@
+{
+  "name": "health_shrine_test",
+  "entityType": "Prefab_HealthShrineTest",
+  "assetKey": "model_medkit_pickup",
+  "color": 16777215,
+  "networked": false,
+  "collider": { "shape": "box", "size": { "width": 1.0, "height": 0.6, "depth": 1.0 } },
+  "interactable": { "interactionType": "item", "pickupable": true, "highlightable": true, "itemId": "health_small", "quantity": 1, "prompt": "HEALTH SHRINE" },
+  "tags": ["test", "health", "shrine"]
+}

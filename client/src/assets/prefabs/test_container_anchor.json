@@ -1,0 +1,9 @@
+{
+  "name": "test_container_anchor",
+  "entityType": "Prefab_TestContainerAnchor",
+  "assetKey": "model_crate_supply",
+  "color": 16777215,
+  "networked": false,
+  "collider": { "shape": "box", "size": { "width": 1.6, "height": 1.6, "depth": 1.6 } },
+  "tags": ["test", "container", "anchor"]
+}

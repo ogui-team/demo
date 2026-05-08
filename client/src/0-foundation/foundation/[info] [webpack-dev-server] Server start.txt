@@ -1,0 +1,4 @@
+[info] [webpack-dev-server] Server started: Hot Module Replacement enabled, Live Reloading enabled, Progress disabled, Overlay enabled.
+[info] [HMR] Waiting for update signal from WDS...
+[info] [CrunchyModern] Module loaded
+[error] Uncaught ReferenceError: process is not defined

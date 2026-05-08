@@ -1,0 +1,20 @@
+{
+  "name": "dungeon_corridor",
+  "entityType": "Prefab_DungeonCorridor",
+  "assetKey": "model_dungeon_corridor",
+  "color": 5263441,
+  "networked": true,
+  "collider": { "shape": "box", "size": { "width": 4.0, "height": 3.0, "depth": 2.0 } },
+  "tags": ["dungeon", "corridor", "environment", "modular"],
+  "metadata": {
+    "biomeCompatibility": ["dungeon", "dark_fantasy"],
+    "collisionClass": "static",
+    "traversal": { "walkable": true, "climbable": false },
+    "aiMetadata": { "pathing": true, "ambush": true },
+    "streamingCost": 1,
+    "gpuInstancing": true,
+    "audioSurfaceType": "stone",
+    "renderCompatibility": ["3d", "orthographic", "top-down", "side-scroller"],
+    "gameplay": { "encounterRoute": true }
+  }
+}

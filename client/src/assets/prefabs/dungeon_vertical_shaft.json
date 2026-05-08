@@ -1,0 +1,20 @@
+{
+  "name": "dungeon_vertical_shaft",
+  "entityType": "Prefab_DungeonVerticalShaft",
+  "assetKey": "model_dungeon_vertical_shaft",
+  "color": 3355443,
+  "networked": true,
+  "collider": { "shape": "box", "size": { "width": 3.0, "height": 6.0, "depth": 3.0 } },
+  "tags": ["dungeon", "shaft", "vertical", "environment", "modular"],
+  "metadata": {
+    "biomeCompatibility": ["dungeon", "dark_fantasy"],
+    "collisionClass": "static",
+    "traversal": { "walkable": true, "climbable": true, "drop": true },
+    "aiMetadata": { "verticalRoute": true, "ambush": true },
+    "streamingCost": 2,
+    "gpuInstancing": false,
+    "audioSurfaceType": "stone",
+    "renderCompatibility": ["3d", "top-down"],
+    "gameplay": { "verticalTraversal": true }
+  }
+}

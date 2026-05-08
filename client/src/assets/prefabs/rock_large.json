@@ -1,0 +1,9 @@
+{
+  "name": "rock_large",
+  "entityType": "Prefab_RockLarge",
+  "assetKey": "model_rock_large",
+  "color": 16777215,
+  "networked": true,
+  "collider": { "shape": "box", "size": { "width": 2.4, "height": 1.6, "depth": 2.1 } },
+  "tags": ["prop", "rock"]
+}

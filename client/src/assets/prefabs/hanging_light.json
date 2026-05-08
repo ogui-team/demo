@@ -1,0 +1,27 @@
+{
+  "name": "hanging_light",
+  "entityType": "Prefab_HangingLight",
+  "assetKey": "model_hanging_light",
+  "color": 16777215,
+  "networked": true,
+  "collider": { "shape": "box", "size": { "width": 0.8, "height": 1.2, "depth": 0.8 } },
+  "components": [
+    {
+      "name": "light",
+      "data": {
+        "type": "spot",
+        "color": 16768826,
+        "intensity": 2.2,
+        "distance": 18,
+        "decay": 2,
+        "angle": 1.05,
+        "penumbra": 0.45,
+        "castShadow": true,
+        "shadowBias": -0.001,
+        "shadowRadius": 2,
+        "targetOffset": { "x": 0, "y": -1, "z": 0 }
+      }
+    }
+  ],
+  "tags": ["light", "fixture"]
+}

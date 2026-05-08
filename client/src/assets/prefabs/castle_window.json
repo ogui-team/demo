@@ -1,0 +1,20 @@
+{
+  "name": "castle_window",
+  "entityType": "Prefab_CastleWindow",
+  "assetKey": "model_structural_block",
+  "color": 12303291,
+  "networked": true,
+  "collider": { "shape": "box", "size": { "width": 1.2, "height": 2.0, "depth": 0.5 } },
+  "tags": ["castle", "window", "architecture", "modular"],
+  "metadata": {
+    "biomeCompatibility": ["medieval", "dark_fantasy"],
+    "collisionClass": "static",
+    "traversal": { "walkable": false, "climbable": false },
+    "aiMetadata": { "lineOfSight": true },
+    "streamingCost": 1,
+    "gpuInstancing": true,
+    "audioSurfaceType": "stone",
+    "renderCompatibility": ["3d", "orthographic", "top-down"],
+    "gameplay": { "visibility": true }
+  }
+}

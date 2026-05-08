@@ -1,0 +1,11 @@
+{
+  "name": "pickup_tome_ice_golem",
+  "entityType": "Prefab_PickupTomeIceGolem",
+  "assetKey": "model_tome_dark",
+  "color": 11206655,
+  "networked": true,
+  "collider": { "shape": "box", "size": { "width": 0.6, "height": 0.8, "depth": 0.1 } },
+  "pickup": { "pickupKind": "item", "itemId": "tome_ice_golem", "autoPickup": true },
+  "interactable": { "interactionType": "item", "pickupable": true, "highlightable": true, "itemId": "tome_ice_golem", "quantity": 1, "prompt": "FROSTBOUND GRIMOIRE" },
+  "tags": ["pickup", "tome"]
+}

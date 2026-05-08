@@ -1,0 +1,11 @@
+{
+  "name": "pickup_tome_poison",
+  "entityType": "Prefab_PickupTomePoison",
+  "assetKey": "model_arcane_orb",
+  "color": 3407872,
+  "networked": true,
+  "collider": { "shape": "box", "size": { "width": 0.6, "height": 0.8, "depth": 0.1 } },
+  "pickup": { "pickupKind": "item", "itemId": "tome_poison", "autoPickup": true },
+  "interactable": { "interactionType": "item", "pickupable": true, "highlightable": true, "itemId": "tome_poison", "quantity": 1, "prompt": "TOME OF PLAGUES" },
+  "tags": ["pickup", "tome"]
+}

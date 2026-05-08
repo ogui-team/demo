@@ -1,0 +1,54 @@
+{
+  "id": "adaptive-runtime-pack",
+  "tags": ["runtime", "procedural", "modding"],
+  "derivedItems": [
+    {
+      "id": "runtime_precision_sidearm",
+      "baseItemId": "base_pistol",
+      "label": "Precision Sidearm",
+      "passiveEffectIds": ["stat_pistol_accuracy", "affix_swift"],
+      "affixPool": ["affix_swift", "affix_piercing", "affix_chilling"],
+      "descriptionSuffix": "Adaptive runtime variant tuned for long sightlines."
+    },
+    {
+      "id": "runtime_bastion_sidearm",
+      "baseItemId": "base_pistol",
+      "label": "Bastion Sidearm",
+      "passiveEffectIds": ["stat_base_health", "affix_fortified"],
+      "affixPool": ["affix_fortified", "affix_reinforced", "affix_bastion"],
+      "descriptionSuffix": "Adaptive runtime variant for defensive loops."
+    }
+  ],
+  "encounterProfiles": [
+    {
+      "id": "adaptive_flank_skirmish",
+      "tags": ["precision", "stable_health", "freeplay"],
+      "enemyBudget": 4,
+      "preferredEnemyTypes": ["shooter", "crawler", "ambusher"]
+    },
+    {
+      "id": "adaptive_pressure_wave",
+      "tags": ["low_health", "ffa", "burst"],
+      "enemyBudget": 6,
+      "preferredEnemyTypes": ["zombie", "shooter", "ghost"]
+    }
+  ],
+  "lootThemes": [
+    {
+      "id": "precision_sidearms",
+      "tags": ["precision", "pistol", "stable_health"],
+      "baseItems": ["base_pistol"],
+      "preferredAffixes": ["affix_swift", "affix_piercing", "affix_chilling"],
+      "labelPrefix": "Precision",
+      "maxSuggestions": 3
+    },
+    {
+      "id": "survival_sidearms",
+      "tags": ["low_health", "pistol", "freeplay"],
+      "baseItems": ["base_pistol"],
+      "preferredAffixes": ["affix_fortified", "affix_reinforced", "affix_bastion"],
+      "labelPrefix": "Bastion",
+      "maxSuggestions": 3
+    }
+  ]
+}

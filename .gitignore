@@ -1,0 +1,47 @@
+node_modules
+dist/*
+dist
+.tmp/*
+*.log
+tmp/*
+tmp
+
+# Build outputs - TypeScript compilation artifacts
+client/src/**/*.js
+client/src/**/*.d.ts
+!client/src/**/*.config.js
+!client/src/**/webpack.config.js
+
+coverage/*
+.webpack_cache/*
+client/.webpack_cache/
+# OS/editor noise
+.DS_Store
+Thumbs.db
+
+# Node and build artifacts
+node_modules/
+dist/
+build/
+.cache/
+
+# Test and coverage output
+coverage/
+vitest-report.log
+
+# Runtime/temp files
+tmp/
+*.log
+*.tmp
+*.pid
+*.seed
+
+# Local game saves and runtime metrics
+data/inventories/*.json
+server/data/inventories/*.json
+server/data/runtime_metrics/**/*.json
+*session*
+
+# Local git metadata backups created during recovery
+.git_backup_*/
+.git_reset_tmp_*/

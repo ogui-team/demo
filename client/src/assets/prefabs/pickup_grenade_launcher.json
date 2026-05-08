@@ -1,0 +1,11 @@
+{
+  "name": "pickup_grenade_launcher",
+  "entityType": "Prefab_PickupGrenadeLauncher",
+  "assetKey": "model_grenade_launcher",
+  "color": 16777215,
+  "networked": true,
+  "collider": { "shape": "box", "size": { "width": 1.4, "height": 0.3, "depth": 0.3 } },
+  "pickup": { "pickupKind": "weapon", "itemId": "weapon_grenade_launcher", "autoEquip": true, "autoPickup": true },
+  "interactable": { "interactionType": "item", "pickupable": true, "highlightable": true, "itemId": "weapon_grenade_launcher", "quantity": 1, "prompt": "GRENADE LAUNCHER" },
+  "tags": ["pickup", "weapon"]
+}

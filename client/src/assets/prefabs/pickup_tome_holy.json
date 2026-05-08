@@ -1,0 +1,11 @@
+{
+  "name": "pickup_tome_holy",
+  "entityType": "Prefab_PickupTomeHoly",
+  "assetKey": "model_arcane_orb",
+  "color": 16777164,
+  "networked": true,
+  "collider": { "shape": "box", "size": { "width": 0.6, "height": 0.8, "depth": 0.1 } },
+  "pickup": { "pickupKind": "item", "itemId": "tome_holy", "autoPickup": true },
+  "interactable": { "interactionType": "item", "pickupable": true, "highlightable": true, "itemId": "tome_holy", "quantity": 1, "prompt": "HOLY SCRIPTURE" },
+  "tags": ["pickup", "tome"]
+}

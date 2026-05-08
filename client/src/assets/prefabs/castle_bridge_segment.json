@@ -1,0 +1,21 @@
+{
+  "name": "castle_bridge_segment",
+  "entityType": "Prefab_CastleBridgeSegment",
+  "assetKey": "model_castle_bridge_segment",
+  "color": 13421772,
+  "networked": true,
+  "collider": { "shape": "box", "size": { "width": 3.5, "height": 0.5, "depth": 2.0 } },
+  "tags": ["castle", "bridge", "traversal", "modular"],
+  "metadata": {
+    "biomeCompatibility": ["medieval", "dark_fantasy"],
+    "collisionClass": "static",
+    "traversal": { "walkable": true, "climbable": false },
+    "aiMetadata": { "funnel": true },
+    "destruction": { "variants": ["intact", "cracked"] },
+    "streamingCost": 2,
+    "gpuInstancing": true,
+    "audioSurfaceType": "stone",
+    "renderCompatibility": ["3d", "top-down", "side-scroller"],
+    "gameplay": { "route": true }
+  }
+}

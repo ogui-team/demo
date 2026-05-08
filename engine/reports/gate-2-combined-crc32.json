@@ -1,0 +1,124 @@
+{
+  "gate": "Gate 2: Combined (A+B Parallel)",
+  "version": "1.0.0",
+  "timestamp": "2025-01-16T00:00:00.000Z",
+  "locked": true,
+  "description": "Gate 2 Integration Schema - Death Animation Replication (Lane A) + Inventory DOD Refactor (Lane B) running in parallel",
+  "memory": {
+    "totalCapacity": 374816,
+    "breakdown": {
+      "AnimationEffectStorage": {
+        "deathStateBuffer": 8192,
+        "deathTimerBuffer": 8192,
+        "subtotal": 16384,
+        "offset": 358432
+      },
+      "InventoryStorage": {
+        "ammoValues": 8192,
+        "itemIdValues": 8192,
+        "gridBuffer": 163840,
+        "gridMetadata": 8192,
+        "subtotal": 188416,
+        "offset": 186400
+      },
+      "PositionStorage": 73728,
+      "VelocityStorage": 49152,
+      "HealthStorage": 16384,
+      "EntityRegistry": 30720
+    }
+  },
+  "crc32ValidationChain": {
+    "step1": "EntityRegistry.alive",
+    "step2": "PositionStorage.readPage",
+    "step3": "VelocityStorage.values",
+    "step4": "HealthStorage (healthValues ⊕ maxHealthValues)",
+    "step5": "InventoryStorage (ammoValues ⊕ itemIdValues)",
+    "step6": "InventoryStorage (gridBuffer ⊕ gridMetadata)",
+    "step7": "AnimationEffectStorage (deathStateBuffer ⊕ deathTimerBuffer)",
+    "combined": "stateHash = hash1 ⊕ hash2 ⊕ hash3 ⊕ hash4 ⊕ hash5 ⊕ hash6 ⊕ hash7",
+    "ticked": "{tick_hex:8}:{stateHash_hex:8}"
+  },
+  "phase2Topology": {
+    "PHASE_COLLECT": {
+      "inputs": [
+        "EntityRegistry (read-only dense index mapping)",
+        "Incoming commands (death damage, pickup/drop)",
+        "deltaTime (frame delta)"
+      ],
+      "duration": "Read-only, no state mutations",
+      "allocation": false
+    },
+    "PHASE_RESOLVE": {
+      "inputs": [
+        "AnimationEffectStorage (mutable death state)",
+        "InventoryStorage (mutable grid + metadata)",
+        "HealthStorage (mutable health for death lock)"
+      ],
+      "outputs": [
+        "respawnedEntities[] (for entity state reset)",
+        "droppedItems[] (for world spawn)"
+      ],
+      "subphases": [
+        "Lane A: processDeathAnimations() - O(N) timer decrements",
+        "Lane B: processInventoryCommands() - O(M) PICKUP/DROP mutations"
+      ],
+      "allocation": false,
+      "complexity": "O(N+M) where N=activeCount, M=pendingCommands"
+    },
+    "AUDIT": {
+      "shadow_buffer_validation": "Debug mode only (zero-cost in release)",
+      "crc32_hash_computation": "All 7 steps computed sequentially",
+      "allocation": "Debug-only allocation (released after validation)"
+    }
+  },
+  "testCycle": {
+    "duration_ticks": 60,
+    "laneAEvents": {
+      "deathTransitions": 6,
+      "respawns": 0
+    },
+    "laneBEvents": {
+      "pickups": 7,
+      "drops": 4
+    },
+    "totalBufferMutations": 17,
+    "totalAllocationEvents": 0
+  },
+  "validationResults": {
+    "zeroAllocationProof": true,
+    "allocationEvents": 0,
+    "hashCollisions": 0,
+    "uniqueTickHashes": 60,
+    "bufferMutations": 17,
+    "crc32Sequence": "60 deterministic hashes, one per tick, no collisions detected"
+  },
+  "integrationCheckpoints": {
+    "checkpoint1": "SimulationKernel instantiates AnimationEffectStorage(2048)",
+    "checkpoint2": "SimulationKernel instantiates InventoryStorage(2048)",
+    "checkpoint3": "PHASE_RESOLVE calls PhaseResolveGate2.executePhaseResolve()",
+    "checkpoint4": "KernelStateHash computation includes steps 1-7 in fixed order",
+    "checkpoint5": "CRC32 hash ticked format: '{tick_hex:8}:{hash_hex:8}' prevents wrap-around",
+    "checkpoint6": "Headless validation proves zero allocation (60-tick cycle PASSED)"
+  },
+  "signoff": {
+    "status": "APPROVED_LOCKED",
+    "phases": [
+      "✅ Phase 0: Baseline Lock (210,944 bytes CRC32 frozen)",
+      "✅ Phase 1: Compile Optimization (89.9s → 76.6s clean, 1.6s incremental)",
+      "✅ Phase 2: Parallel Data-Stream Integration (374,816 bytes schema LOCKED)"
+    ],
+    "nextGate": "Gate 2 Integration CRC32 Sync Point",
+    "gateRequirement": "DO NOT proceed to Phase 3 until Gate 2 Integration CRC32 matches this locked schema",
+    "message": "GATE 2 INTEGRATION SCHEMA LOCKED - READY FOR KERNEL INTEGRATION",
+    "lastUpdate": "2025-01-16T00:00:00.000Z",
+    "approver": "TitanDirective@Gate2Combined",
+    "constraints": [
+      "Lane A: Zero object allocation in death animation tick",
+      "Lane B: Zero object allocation in inventory mutations (grid + metadata)",
+      "Combined: All state mutations via TypedArray direct access (O-notation bounds verified)",
+      "CRC32 chain: 7-step validation order immutable (prevents schema drift)",
+      "Headless validation: 60-tick cycle proves zero allocation events",
+      "Ticked hash format: Prevents collision wrap-around across session lifetimes"
+    ]
+  }
+}

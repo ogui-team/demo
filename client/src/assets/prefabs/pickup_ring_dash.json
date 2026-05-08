@@ -1,0 +1,11 @@
+{
+  "name": "pickup_ring_dash",
+  "entityType": "Prefab_PickupRingDash",
+  "assetKey": "model_ring",
+  "color": 16776960,
+  "networked": true,
+  "collider": { "shape": "box", "size": { "width": 0.4, "height": 0.1, "depth": 0.4 } },
+  "pickup": { "pickupKind": "item", "itemId": "ring_dash", "autoPickup": true },
+  "interactable": { "interactionType": "item", "pickupable": true, "highlightable": true, "itemId": "ring_dash", "quantity": 1, "prompt": "RING OF MOMENTUM" },
+  "tags": ["pickup", "accessory"]
+}

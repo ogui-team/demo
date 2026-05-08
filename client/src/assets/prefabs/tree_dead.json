@@ -1,0 +1,9 @@
+{
+  "name": "tree_dead",
+  "entityType": "Prefab_TreeDead",
+  "assetKey": "model_tree_dead",
+  "color": 16777215,
+  "networked": true,
+  "collider": { "shape": "box", "size": { "width": 0.9, "height": 3.8, "depth": 0.9 } },
+  "tags": ["foliage", "tree"]
+}

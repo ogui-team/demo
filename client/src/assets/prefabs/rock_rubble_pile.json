@@ -1,0 +1,20 @@
+{
+  "name": "rock_rubble_pile",
+  "entityType": "Prefab_RockRubblePile",
+  "assetKey": "model_rock_rubble_pile",
+  "color": 6184544,
+  "networked": true,
+  "collider": { "shape": "box", "size": { "width": 2.4, "height": 1.2, "depth": 2.4 } },
+  "tags": ["rock", "rubble", "environment", "modular"],
+  "metadata": {
+    "biomeCompatibility": ["volcanic", "ruins", "dungeon"],
+    "collisionClass": "static",
+    "traversal": { "walkable": false, "climbable": false },
+    "aiMetadata": { "cover": true, "obstacle": true },
+    "streamingCost": 1,
+    "gpuInstancing": true,
+    "audioSurfaceType": "stone",
+    "renderCompatibility": ["3d", "top-down"],
+    "gameplay": { "debris": true }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "name": "castle_battlement",
+  "entityType": "Prefab_CastleBattlement",
+  "assetKey": "model_structural_block",
+  "color": 15461360,
+  "networked": true,
+  "collider": { "shape": "box", "size": { "width": 4.0, "height": 1.2, "depth": 0.8 } },
+  "tags": ["castle", "battlement", "cover", "modular"],
+  "metadata": {
+    "biomeCompatibility": ["medieval", "dark_fantasy", "ruins"],
+    "collisionClass": "static",
+    "traversal": { "walkable": true, "climbable": false },
+    "aiMetadata": { "cover": true, "flankRoute": true },
+    "destruction": { "variants": ["intact", "collapsed"] },
+    "streamingCost": 1,
+    "gpuInstancing": true,
+    "audioSurfaceType": "stone",
+    "renderCompatibility": ["3d", "orthographic", "top-down"],
+    "gameplay": { "defensive": true }
+  }
+}

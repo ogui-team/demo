@@ -1,0 +1,11 @@
+{
+  "name": "pickup_medkit",
+  "entityType": "Prefab_PickupMedkit",
+  "assetKey": "model_medkit_pickup",
+  "color": 16777215,
+  "networked": true,
+  "collider": { "shape": "box", "size": { "width": 0.9, "height": 0.45, "depth": 0.9 } },
+  "pickup": { "pickupKind": "health", "itemId": "health_small", "amount": 25, "autoPickup": true },
+  "interactable": { "interactionType": "item", "pickupable": true, "highlightable": true, "itemId": "health_small", "quantity": 1, "prompt": "MEDKIT" },
+  "tags": ["pickup", "health"]
+}

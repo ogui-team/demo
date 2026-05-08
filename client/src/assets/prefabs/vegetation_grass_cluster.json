@@ -1,0 +1,19 @@
+{
+  "name": "vegetation_grass_cluster",
+  "entityType": "Prefab_VegetationGrassCluster",
+  "assetKey": "model_vegetation_grass_cluster",
+  "color": 4731391,
+  "networked": true,
+  "collider": { "shape": "box", "size": { "width": 1.0, "height": 0.5, "depth": 1.0 } },
+  "tags": ["vegetation", "grass", "cover", "modular"],
+  "metadata": {
+    "biomeCompatibility": ["swamp", "overgrown", "medieval"],
+    "collisionClass": "static",
+    "traversal": { "walkable": false, "climbable": false },
+    "streamingCost": 0.5,
+    "gpuInstancing": true,
+    "audioSurfaceType": "foliage",
+    "renderCompatibility": ["3d", "orthographic", "top-down"],
+    "gameplay": { "cover": true, "density": true }
+  }
+}

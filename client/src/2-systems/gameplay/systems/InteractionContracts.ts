@@ -1,0 +1,6 @@
+export const INTERACTION_PRIORITY = {
+  PHYSGUN_HELD: 100,
+  PHYSGUN_HOVER: 50,
+  RAYCAST: 40,
+  PROXIMITY: 10,
+} as const;

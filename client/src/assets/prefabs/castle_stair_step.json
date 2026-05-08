@@ -1,0 +1,20 @@
+{
+  "name": "castle_stair_step",
+  "entityType": "Prefab_CastleStairStep",
+  "assetKey": "model_structural_block",
+  "color": 13038236,
+  "networked": true,
+  "collider": { "shape": "box", "size": { "width": 1.2, "height": 0.45, "depth": 1.5 } },
+  "tags": ["castle", "stair", "traversal", "modular"],
+  "metadata": {
+    "biomeCompatibility": ["medieval", "dark_fantasy", "ruins"],
+    "collisionClass": "static",
+    "traversal": { "walkable": true, "climbable": false, "jumpable": false },
+    "destruction": { "variants": ["intact", "broken"] },
+    "streamingCost": 1,
+    "gpuInstancing": true,
+    "audioSurfaceType": "stone",
+    "renderCompatibility": ["3d", "side-scroller", "top-down"],
+    "gameplay": { "path": true }
+  }
+}

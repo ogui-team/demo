@@ -1,0 +1,11 @@
+{
+  "name": "pickup_assault_rifle",
+  "entityType": "Prefab_PickupAssaultRifle",
+  "assetKey": "model_assault_rifle",
+  "color": 16777215,
+  "networked": true,
+  "collider": { "shape": "box", "size": { "width": 1.4, "height": 0.25, "depth": 0.25 } },
+  "pickup": { "pickupKind": "weapon", "itemId": "weapon_assault_rifle", "autoEquip": true, "autoPickup": true },
+  "interactable": { "interactionType": "item", "pickupable": true, "highlightable": true, "itemId": "weapon_assault_rifle", "quantity": 1, "prompt": "ASSAULT RIFLE" },
+  "tags": ["pickup", "weapon"]
+}

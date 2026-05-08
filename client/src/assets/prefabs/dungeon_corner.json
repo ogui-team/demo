@@ -1,0 +1,20 @@
+{
+  "name": "dungeon_corner",
+  "entityType": "Prefab_DungeonCorner",
+  "assetKey": "model_dungeon_corridor",
+  "color": 3947584,
+  "networked": true,
+  "collider": { "shape": "box", "size": { "width": 2.5, "height": 3.0, "depth": 2.5 } },
+  "tags": ["dungeon", "corner", "environment", "modular"],
+  "metadata": {
+    "biomeCompatibility": ["dungeon", "dark_fantasy"],
+    "collisionClass": "static",
+    "traversal": { "walkable": true, "climbable": false },
+    "aiMetadata": { "pathing": true, "funnel": true },
+    "streamingCost": 1,
+    "gpuInstancing": true,
+    "audioSurfaceType": "stone",
+    "renderCompatibility": ["3d", "orthographic", "top-down"],
+    "gameplay": { "navigation": true }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "name": "pickup_prism_guardian",
+  "entityType": "Prefab_PickupPrismGuardian",
+  "assetKey": "model_ring",
+  "color": 8421504,
+  "networked": true,
+  "collider": { "shape": "box", "size": { "width": 0.4, "height": 0.1, "depth": 0.4 } },
+  "pickup": { "pickupKind": "item", "itemId": "prism_guardian", "autoPickup": true },
+  "interactable": { "interactionType": "item", "pickupable": true, "highlightable": true, "itemId": "prism_guardian", "quantity": 1, "prompt": "GUARDIAN PRISM" },
+  "tags": ["pickup", "accessory"]
+}

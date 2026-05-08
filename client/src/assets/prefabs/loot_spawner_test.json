@@ -1,0 +1,10 @@
+{
+  "name": "loot_spawner_test",
+  "entityType": "Prefab_LootSpawnerTest",
+  "assetKey": "model_ammo_box",
+  "color": 16777215,
+  "networked": false,
+  "collider": { "shape": "box", "size": { "width": 0.9, "height": 0.5, "depth": 0.6 } },
+  "interactable": { "interactionType": "item", "pickupable": true, "highlightable": true, "itemId": "ammo_shells", "quantity": 12, "prompt": "LOOT SPAWNER" },
+  "tags": ["test", "loot", "spawner"]
+}

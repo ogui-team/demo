@@ -1,0 +1,21 @@
+{
+  "name": "pillar_gothic",
+  "entityType": "Prefab_PillarGothic",
+  "assetKey": "model_pillar_gothic",
+  "color": 7895162,
+  "networked": true,
+  "collider": { "shape": "box", "size": { "width": 0.8, "height": 4.2, "depth": 0.8 } },
+  "tags": ["pillar", "gothic", "support", "modular"],
+  "metadata": {
+    "biomeCompatibility": ["medieval", "dark_fantasy", "ruins"],
+    "collisionClass": "static",
+    "traversal": { "walkable": false, "climbable": false },
+    "aiMetadata": { "cover": true },
+    "destruction": { "variants": ["intact", "broken"] },
+    "streamingCost": 1,
+    "gpuInstancing": true,
+    "audioSurfaceType": "stone",
+    "renderCompatibility": ["3d", "top-down"],
+    "gameplay": { "support": true }
+  }
+}

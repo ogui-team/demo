@@ -1,0 +1,15 @@
+{
+  "name": "player_prefab",
+  "entityType": "Prefab_Player",
+  "assetKey": "model_player_avatar",
+  "color": 16777215,
+  "networked": true,
+  "collider": {
+    "shape": "capsule",
+    "size": {
+      "capsuleRadius": 0.4,
+      "capsuleHeight": 1
+    }
+  },
+  "tags": ["player", "runtime"]
+}

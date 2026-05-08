@@ -1,0 +1,24 @@
+{
+  "id": "player_v1",
+  "entityType": "player",
+  "flags": {
+    "isPlayerControlled": true
+  },
+  "dodComponents": {
+    "health": {
+      "maxHp": 100,
+      "hp": 100
+    },
+    "inventory": {
+      "loadout": ["pistol", "knife"],
+      "equipped": "pistol"
+    },
+    "movement": {
+      "velocityBuffer": true
+    },
+    "ability": {
+      "gasEnabled": true,
+      "primaryAbilityId": 1
+    }
+  }
+}

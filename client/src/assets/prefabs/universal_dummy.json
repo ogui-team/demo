@@ -1,0 +1,21 @@
+{
+  "name": "universal_dummy",
+  "entityType": "Prefab_UniversalDummy",
+  "assetKey": "placeholder_dummy",
+  "color": 16777215,
+  "networked": false,
+  "collider": { "shape": "box", "size": { "width": 0.9, "height": 1.9, "depth": 0.7 } },
+  "aiBehavior": {
+    "enabled": true,
+    "state": "linger",
+    "defaultState": "linger",
+    "behaviorId": "universal_dummy",
+    "detectionRange": 14,
+    "moveSpeed": 2.2,
+    "lingerRadius": 2.2,
+    "supportRange": 3.4,
+    "flyingHeight": 2.1,
+    "hoverAmplitude": 0.4
+  },
+  "tags": ["test", "dummy", "actor"]
+}

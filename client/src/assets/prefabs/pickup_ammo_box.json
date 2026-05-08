@@ -1,0 +1,11 @@
+{
+  "name": "pickup_ammo_box",
+  "entityType": "Prefab_PickupAmmoBox",
+  "assetKey": "model_ammo_box",
+  "color": 16777215,
+  "networked": true,
+  "collider": { "shape": "box", "size": { "width": 0.9, "height": 0.5, "depth": 0.6 } },
+  "pickup": { "pickupKind": "ammo", "itemId": "shotgun_shells", "weaponName": "shotgun", "amount": 8, "autoPickup": true },
+  "interactable": { "interactionType": "item", "pickupable": true, "highlightable": true, "itemId": "shotgun_shells", "quantity": 8, "prompt": "AMMO" },
+  "tags": ["pickup", "ammo"]
+}

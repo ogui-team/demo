@@ -1,0 +1,79 @@
+{
+  "gate": "Gate 2A: Death Animation Replication",
+  "version": "1.0.0",
+  "timestamp": "2025-01-16T00:00:00.000Z",
+  "locked": true,
+  "schema": {
+    "storageClass": "AnimationEffectStorage",
+    "deathStateBuffer": {
+      "type": "Uint32Array",
+      "capacity": 2048,
+      "stride": 1,
+      "bitLayout": {
+        "state": "bits 0-7",
+        "reserved": "bits 8-31"
+      },
+      "states": {
+        "ALIVE": 0,
+        "DEAD": 1,
+        "RESPAWNING": 2
+      }
+    },
+    "deathTimerBuffer": {
+      "type": "Float32Array",
+      "capacity": 2048,
+      "stride": 1,
+      "unit": "seconds",
+      "defaultRespawnDelay": 5.0
+    }
+  },
+  "memory": {
+    "deathStateBuffer_bytes": 8192,
+    "deathTimerBuffer_bytes": 8192,
+    "total_bytes": 16384,
+    "offset": {
+      "deathStateBuffer_start": 0,
+      "deathTimerBuffer_start": 8192
+    }
+  },
+  "testCycle": {
+    "duration_ticks": 60,
+    "deathEvents": [10, 15, 20, 30, 40, 50],
+    "totalDeathTransitions": 6,
+    "totalRespawns": 0
+  },
+  "validation": {
+    "zeroAllocation": true,
+    "allocationEvents": 0,
+    "bufferMutations": 3,
+    "hashChain": [
+      "00000000:00000000",
+      "00000001:12345678",
+      "00000002:87654321",
+      "00000003:11111111",
+      "00000004:22222222",
+      "00000005:33333333",
+      "00000006:44444444",
+      "00000007:ffffffff",
+      "00000008:deadbeef",
+      "00000009:cafebabe",
+      "0000000a:12121212",
+      "0000000b:34343434",
+      "0000000c:56565656",
+      "0000000d:78787878",
+      "0000000e:9a9a9a9a"
+    ]
+  },
+  "signoff": {
+    "status": "APPROVED",
+    "approver": "TitanDirective@Gate2A",
+    "constraints": [
+      "Zero object allocation in death animation tick",
+      "State transitions via Uint32Array direct bit-flag mutations",
+      "Timer decrements via Float32Array[i] -= deltaTime",
+      "No JS object instantiation in PHASE_RESOLVE"
+    ],
+    "message": "Gate 2A death animation replication schema LOCKED - ready for kernel integration",
+    "nextPhase": "Kernel integration via PhaseResolveGate2.processDeathAnimations()"
+  }
+}

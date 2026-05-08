@@ -1,0 +1,72 @@
+{
+  "capturedAt": "2026-05-08T18:10:04.429Z",
+  "sessionId": "multiplayer:lobby_4",
+  "scenarioClass": null,
+  "performanceMode": "stable",
+  "frameTimeAvgMs": 29.73,
+  "frameTimePeakMs": 66.59,
+  "cpuFrameAvgMs": 20.463,
+  "cpuFramePeakMs": 37.425,
+  "worldObjectCount": 2,
+  "visibleRenderables": 0,
+  "snapshotPayloadBytes": 0,
+  "snapshotBytesPerSnapshot": 0,
+  "replicationUpdatesPerTick": 0,
+  "actorReplicationCount": 0,
+  "sampleQuality": {
+    "focused": false,
+    "visible": true,
+    "valid": true,
+    "reasons": []
+  },
+  "frameCostBreakdown": [
+    {
+      "name": "render:frame",
+      "avgMs": 6.955,
+      "peakMs": 14.945,
+      "sharePct": 33.99
+    },
+    {
+      "name": "update:hudSystem",
+      "avgMs": 6.58,
+      "peakMs": 15.735,
+      "sharePct": 32.16
+    },
+    {
+      "name": "update:dodStateBridge",
+      "avgMs": 2.278,
+      "peakMs": 12.8,
+      "sharePct": 11.13
+    },
+    {
+      "name": "update:multiplayerInput",
+      "avgMs": 1.242,
+      "peakMs": 8.735,
+      "sharePct": 6.07
+    },
+    {
+      "name": "update:toolbarSystem",
+      "avgMs": 0.757,
+      "peakMs": 2.1,
+      "sharePct": 3.7
+    },
+    {
+      "name": "update:localCamera",
+      "avgMs": 0.509,
+      "peakMs": 11.345,
+      "sharePct": 2.49
+    },
+    {
+      "name": "update:gameModeSystem",
+      "avgMs": 0.455,
+      "peakMs": 2.445,
+      "sharePct": 2.22
+    },
+    {
+      "name": "update:gameplayRuntime",
+      "avgMs": 0.263,
+      "peakMs": 0.735,
+      "sharePct": 1.29
+    }
+  ]
+}

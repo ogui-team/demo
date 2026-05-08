@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TITAN - Bootloader Test</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 50%, #0a0e27 100%);
+      color: #00d9ff;
+      overflow: hidden;
+    }
+
+    #canvas {
+      display: block;
+      width: 100%;
+      height: 100vh;
+    }
+
+    #test-panel {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      background: rgba(0, 20, 40, 0.95);
+      border: 2px solid #00d4ff;
+      border-radius: 8px;
+      padding: 1em;
+      max-width: 300px;
+      font-size: 0.85em;
+      line-height: 1.6;
+      z-index: 10000;
+      max-height: 80vh;
+      overflow-y: auto;
+      font-family: 'Courier New', monospace;
+    }
+
+    #test-panel h3 {
+      margin: 0 0 0.5em 0;
+      color: #00d4ff;
+      font-size: 1.1em;
+      letter-spacing: 1px;
+    }
+
+    #test-panel button {
+      display: block;
+      width: 100%;
+      padding: 0.5em;
+      margin-top: 0.5em;
+      background: rgba(0, 212, 255, 0.1);
+      border: 1px solid #00d4ff;
+      color: #00d4ff;
+      border-radius: 4px;
+      cursor: pointer;
+      font-family: 'Courier New', monospace;
+      font-size: 0.85em;
+      transition: all 0.2s ease;
+    }
+
+    #test-panel button:hover {
+      background: rgba(0, 212, 255, 0.2);
+      box-shadow: 0 0 10px rgba(0, 212, 255, 0.3);
+    }
+
+    #test-panel button.active {
+      background: rgba(0, 212, 255, 0.3);
+      border-color: #00ff00;
+      color: #00ff00;
+    }
+
+    #test-log {
+      background: rgba(0, 0, 0, 0.5);
+      border: 1px solid rgba(0, 212, 255, 0.3);
+      border-radius: 4px;
+      padding: 0.5em;
+      margin-top: 0.5em;
+      max-height: 300px;
+      overflow-y: auto;
+      font-size: 0.75em;
+    }
+
+    .log-entry {
+      margin: 0.2em 0;
+      color: #a0d4ff;
+    }
+
+    .log-entry.error {
+      color: #ff6b6b;
+    }
+
+    .log-entry.success {
+      color: #00ff00;
+    }
+
+    .log-entry.warning {
+      color: #ffb84d;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+
+  <!-- Test Panel for Bootloader Validation -->
+  <div id="test-panel">
+    <h3>🧪 BOOTLOADER TEST</h3>
+    
+    <div>
+      <strong>Mode Selection:</strong>
+      <button id="btn-multiplayer">1: Multiplayer</button>
+      <button id="btn-freeplay">2: Freeplay</button>
+      <button id="btn-editor">3: Editor</button>
+    </div>
+
+    <div style="margin-top: 1em;">
+      <strong>Testing:</strong>
+      <button id="btn-check-kernel">✓ Check Kernel</button>
+      <button id="btn-memory">📊 Memory</button>
+      <button id="btn-fallback">🔄 Test Fallback</button>
+      <button id="btn-bundle">📦 Use Bundle</button>
+    </div>
+
+    <div id="test-log"></div>
+  </div>
+
+  <!-- Load Bootloader (PHASE 3) -->
+  <script src="/dist/bootloader.js"></script>
+
+  <!-- Test Utilities -->
+  <script>
+    const log = (msg, type = 'info') => {
+      console.log(`[Test] ${msg}`);
+      const logEl = document.getElementById('test-log');
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${type}`;
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      logEl.appendChild(entry);
+      logEl.scrollTop = logEl.scrollHeight;
+    };
+
+    // Test: Check if kernel is running
+    document.getElementById('btn-check-kernel').onclick = () => {
+      log('Checking kernel state...', 'info');
+      try {
+        if (window.__engine) {
+          log('✓ Kernel loaded', 'success');
+        } else {
+          log('⚠ Kernel not yet loaded', 'warning');
+        }
+      } catch (e) {
+        log(`✗ Error: ${e.message}`, 'error');
+      }
+    };
+
+    // Test: Show memory usage
+    document.getElementById('btn-memory').onclick = () => {
+      if (performance.memory) {
+        const used = (performance.memory.usedJSHeapSize / 1048576).toFixed(2);
+        const total = (performance.memory.totalJSHeapSize / 1048576).toFixed(2);
+        const limit = (performance.memory.jsHeapSizeLimit / 1048576).toFixed(2);
+        log(`Memory: ${used}MB / ${total}MB (limit: ${limit}MB)`, 'info');
+      } else {
+        log('⚠ Memory API not available', 'warning');
+      }
+    };
+
+    // Test: Simulate network-engine failure for fallback
+    document.getElementById('btn-fallback').onclick = async () => {
+      log('Simulating network-engine load failure...', 'warning');
+      const evt = new CustomEvent('game-system-error', {
+        detail: {
+          error: new Error('Simulated network timeout'),
+          gameMode: 'multiplayer',
+          fallback: () => Promise.resolve(),
+        },
+      });
+      window.dispatchEvent(evt);
+    };
+
+    // Test: Switch to legacy bundle
+    document.getElementById('btn-bundle').onclick = () => {
+      log('Switching to legacy bundle...', 'warning');
+      // Remove bootloader
+      const bootloader = document.querySelector('script[src*="bootloader"]');
+      if (bootloader) bootloader.remove();
+      // Load bundle instead
+      const bundleScript = document.createElement('script');
+      bundleScript.src = '/dist/bundle.js';
+      document.body.appendChild(bundleScript);
+      log('Bundle loading...', 'info');
+    };
+
+    // Mode selection shortcuts
+    document.getElementById('btn-multiplayer').onclick = () => {
+      log('Mode: Multiplayer selected (simulated click)', 'info');
+      const buttons = document.querySelectorAll('#test-panel button');
+      buttons.forEach(b => b.classList.remove('active'));
+      document.getElementById('btn-multiplayer').classList.add('active');
+    };
+
+    document.getElementById('btn-freeplay').onclick = () => {
+      log('Mode: Freeplay selected (simulated click)', 'info');
+      const buttons = document.querySelectorAll('#test-panel button');
+      buttons.forEach(b => b.classList.remove('active'));
+      document.getElementById('btn-freeplay').classList.add('active');
+    };
+
+    document.getElementById('btn-editor').onclick = () => {
+      log('Mode: Editor selected (simulated click)', 'info');
+      const buttons = document.querySelectorAll('#test-panel button');
+      buttons.forEach(b => b.classList.remove('active'));
+      document.getElementById('btn-editor').classList.add('active');
+    };
+
+    // Log bootloader lifecycle
+    window.addEventListener('game-system-error', (e) => {
+      log(`✗ Game system error: ${e.detail.gameMode}`, 'error');
+    });
+
+    log('Test panel ready. Click buttons to test bootloader.', 'success');
+  </script>
+</body>
+</html>

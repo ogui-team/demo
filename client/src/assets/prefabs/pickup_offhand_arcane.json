@@ -1,0 +1,11 @@
+{
+  "name": "pickup_offhand_arcane",
+  "entityType": "Prefab_PickupOffhandArcane",
+  "assetKey": "model_arcane_orb",
+  "color": 8388863,
+  "networked": true,
+  "collider": { "shape": "box", "size": { "width": 0.5, "height": 0.5, "depth": 0.5 } },
+  "pickup": { "pickupKind": "item", "itemId": "offhand_arcane", "autoPickup": true },
+  "interactable": { "interactionType": "item", "pickupable": true, "highlightable": true, "itemId": "offhand_arcane", "quantity": 1, "prompt": "ARCANE FOCUS" },
+  "tags": ["pickup", "tome"]
+}

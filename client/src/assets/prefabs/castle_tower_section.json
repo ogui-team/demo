@@ -1,0 +1,21 @@
+{
+  "name": "castle_tower_section",
+  "entityType": "Prefab_CastleTowerSection",
+  "assetKey": "model_structural_block",
+  "color": 1193046,
+  "networked": true,
+  "collider": { "shape": "box", "size": { "width": 2.5, "height": 5.5, "depth": 2.5 } },
+  "tags": ["castle", "tower", "structure", "environment"],
+  "metadata": {
+    "biomeCompatibility": ["medieval", "dark_fantasy", "ruins"],
+    "collisionClass": "static",
+    "traversal": { "walkable": true, "climbable": false },
+    "aiMetadata": { "overwatch": true, "cover": true },
+    "destruction": { "variants": ["intact", "cracked"] },
+    "streamingCost": 2,
+    "gpuInstancing": true,
+    "audioSurfaceType": "stone",
+    "renderCompatibility": ["3d", "top-down"],
+    "gameplay": { "lofted": true }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "name": "pickup_tome_fire_imp",
+  "entityType": "Prefab_PickupTomeFireImp",
+  "assetKey": "model_tome_dark",
+  "color": 16737280,
+  "networked": true,
+  "collider": { "shape": "box", "size": { "width": 0.6, "height": 0.8, "depth": 0.1 } },
+  "pickup": { "pickupKind": "item", "itemId": "tome_fire_imp", "autoPickup": true },
+  "interactable": { "interactionType": "item", "pickupable": true, "highlightable": true, "itemId": "tome_fire_imp", "quantity": 1, "prompt": "INFERNAL GRIMOIRE" },
+  "tags": ["pickup", "tome"]
+}

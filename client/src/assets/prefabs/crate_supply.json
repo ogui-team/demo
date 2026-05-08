@@ -1,0 +1,10 @@
+{
+  "name": "crate_supply",
+  "entityType": "Prefab_CrateSupply",
+  "assetKey": "model_crate_supply",
+  "color": 16777215,
+  "networked": true,
+  "collider": { "shape": "box", "size": { "width": 1.6, "height": 1.6, "depth": 1.6 } },
+  "interactable": { "interactionType": "physics", "pickupable": false, "highlightable": true },
+  "tags": ["prop", "crate"]
+}

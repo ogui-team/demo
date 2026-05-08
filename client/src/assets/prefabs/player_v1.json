@@ -1,0 +1,32 @@
+{
+  "name": "player_v1",
+  "entityType": "player",
+  "assetKey": "model_player_avatar",
+  "color": 16777215,
+  "networked": true,
+  "collider": {
+    "shape": "capsule",
+    "size": {
+      "capsuleRadius": 0.4,
+      "capsuleHeight": 1
+    }
+  },
+  "tags": ["player", "runtime", "dod_native"],
+  "dodComponents": {
+    "health": {
+      "maxHp": 100,
+      "hp": 100
+    },
+    "inventory": {
+      "loadout": ["pistol", "knife"],
+      "equipped": "pistol"
+    },
+    "movement": {
+      "velocityBuffer": true
+    },
+    "ability": {
+      "gasEnabled": true,
+      "primaryAbilityId": 1
+    }
+  }
+}

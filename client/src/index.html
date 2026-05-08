@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NEXUS Engine</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Courier New', monospace;
+      background: linear-gradient(135deg, #0a0e27 0%, #1a1f3a 50%, #0a0e27 100%);
+      color: #00d9ff;
+      overflow: hidden;
+    }
+
+    #canvas {
+      display: block;
+      width: 100%;
+      height: 100vh;
+    }
+
+    #ui {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      z-index: 100;
+      pointer-events: none;
+    }
+
+    #ui p {
+      text-align: center;
+      text-shadow: 0 0 20px #00d9ff, 0 0 40px rgba(0, 217, 255, 0.5);
+      letter-spacing: 3px;
+      font-weight: bold;
+      animation: glow 2s ease-in-out infinite;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+  <div id="ui"></div>
+
+  <!-- 
+    PHASE 3: Bootloader Entry Point
+    Webpack HtmlPlugin will auto-inject bootloader.js script.
+    Dev server serves from root, not /dist/
+  -->
+</body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "name": "castle_floor_tile",
+  "entityType": "Prefab_CastleFloorTile",
+  "assetKey": "model_castle_floor_tile",
+  "color": 11119017,
+  "networked": true,
+  "collider": { "shape": "box", "size": { "width": 2.0, "height": 0.2, "depth": 2.0 } },
+  "tags": ["castle", "floor", "modular"],
+  "metadata": {
+    "biomeCompatibility": ["medieval", "dark_fantasy", "ruins"],
+    "collisionClass": "static",
+    "traversal": { "walkable": true, "climbable": false },
+    "audioSurfaceType": "stone",
+    "streamingCost": 1,
+    "gpuInstancing": true,
+    "renderCompatibility": ["3d", "orthographic", "top-down"],
+    "gameplay": { "walkableSurface": true }
+  }
+}

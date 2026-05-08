@@ -1,0 +1,9 @@
+{
+  "name": "locker_rust",
+  "entityType": "Prefab_LockerRust",
+  "assetKey": "model_locker_rust",
+  "color": 16777215,
+  "networked": true,
+  "collider": { "shape": "box", "size": { "width": 1.2, "height": 2.8, "depth": 1.0 } },
+  "tags": ["prop", "locker"]
+}

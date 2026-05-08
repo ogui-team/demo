@@ -1,0 +1,21 @@
+{
+  "name": "castle_arch",
+  "entityType": "Prefab_CastleArch",
+  "assetKey": "model_castle_arch",
+  "color": 13038236,
+  "networked": true,
+  "collider": { "shape": "box", "size": { "width": 3.2, "height": 2.8, "depth": 1.0 } },
+  "tags": ["castle", "arch", "environment", "modular"],
+  "metadata": {
+    "biomeCompatibility": ["medieval", "dark_fantasy"],
+    "collisionClass": "static",
+    "traversal": { "walkable": true, "climbable": false, "jumpable": false },
+    "aiMetadata": { "pathing": true, "ambush": true },
+    "destruction": { "variants": ["intact", "broken"] },
+    "streamingCost": 1,
+    "gpuInstancing": true,
+    "audioSurfaceType": "stone",
+    "renderCompatibility": ["3d", "orthographic", "top-down"],
+    "gameplay": { "gate": true }
+  }
+}

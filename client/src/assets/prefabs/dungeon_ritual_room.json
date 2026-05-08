@@ -1,0 +1,21 @@
+{
+  "name": "dungeon_ritual_room",
+  "entityType": "Prefab_DungeonRitualRoom",
+  "assetKey": "model_dungeon_ritual_room",
+  "color": 4873151,
+  "networked": true,
+  "collider": { "shape": "box", "size": { "width": 5.5, "height": 3.5, "depth": 5.5 } },
+  "tags": ["dungeon", "ritual", "room", "environment", "modular"],
+  "metadata": {
+    "biomeCompatibility": ["dungeon", "dark_fantasy"],
+    "collisionClass": "static",
+    "traversal": { "walkable": true, "climbable": false },
+    "aiMetadata": { "encounter": true, "spawnPoint": true },
+    "destruction": { "variants": ["intact", "corrupted"] },
+    "streamingCost": 2,
+    "gpuInstancing": false,
+    "audioSurfaceType": "stone",
+    "renderCompatibility": ["3d", "orthographic"],
+    "gameplay": { "encounterArea": true }
+  }
+}

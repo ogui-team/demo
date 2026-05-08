@@ -1,0 +1,21 @@
+{
+  "name": "pillar_industrial_beam",
+  "entityType": "Prefab_PillarIndustrialBeam",
+  "assetKey": "model_pillar_industrial_beam",
+  "color": 4473924,
+  "networked": true,
+  "collider": { "shape": "box", "size": { "width": 1.0, "height": 4.0, "depth": 1.0 } },
+  "tags": ["pillar", "industrial", "support", "modular"],
+  "metadata": {
+    "biomeCompatibility": ["industrial", "volcanic"],
+    "collisionClass": "static",
+    "traversal": { "walkable": false, "climbable": false },
+    "aiMetadata": { "cover": true },
+    "destruction": { "variants": ["intact", "damaged"] },
+    "streamingCost": 1,
+    "gpuInstancing": true,
+    "audioSurfaceType": "metal",
+    "renderCompatibility": ["3d", "top-down"],
+    "gameplay": { "support": true }
+  }
+}

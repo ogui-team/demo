@@ -1,0 +1,10 @@
+{
+  "name": "ctf_flag_test",
+  "entityType": "Prefab_CtfFlagTest",
+  "assetKey": "model_hanging_light",
+  "color": 16777215,
+  "networked": false,
+  "collider": { "shape": "box", "size": { "width": 0.8, "height": 1.8, "depth": 0.8 } },
+  "interactable": { "interactionType": "custom", "pickupable": false, "highlightable": true, "prompt": "CTF FLAG" },
+  "tags": ["test", "ctf", "objective"]
+}

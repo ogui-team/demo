@@ -1,0 +1,20 @@
+{
+  "name": "vegetation_vine",
+  "entityType": "Prefab_VegetationVine",
+  "assetKey": "model_vegetation_vine",
+  "color": 5478347,
+  "networked": true,
+  "collider": { "shape": "box", "size": { "width": 0.5, "height": 3.5, "depth": 0.5 } },
+  "tags": ["vegetation", "vine", "climbable", "modular"],
+  "metadata": {
+    "biomeCompatibility": ["swamp", "overgrown", "dark_fantasy"],
+    "collisionClass": "static",
+    "traversal": { "walkable": false, "climbable": true },
+    "aiMetadata": { "cover": true },
+    "streamingCost": 1,
+    "gpuInstancing": true,
+    "audioSurfaceType": "foliage",
+    "renderCompatibility": ["3d", "orthographic", "top-down", "side-scroller"],
+    "gameplay": { "climbable": true }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "name": "vegetation_mushroom_cluster",
+  "entityType": "Prefab_VegetationMushroomCluster",
+  "assetKey": "model_vegetation_mushroom_cluster",
+  "color": 6039797,
+  "networked": true,
+  "collider": { "shape": "box", "size": { "width": 0.9, "height": 1.0, "depth": 0.9 } },
+  "tags": ["vegetation", "mushroom", "swamp", "modular"],
+  "metadata": {
+    "biomeCompatibility": ["swamp", "overgrown", "dark_fantasy"],
+    "collisionClass": "static",
+    "traversal": { "walkable": false },
+    "streamingCost": 0.5,
+    "gpuInstancing": true,
+    "audioSurfaceType": "foliage",
+    "renderCompatibility": ["3d", "top-down"],
+    "gameplay": { "spawnable": true }
+  }
+}

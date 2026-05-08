@@ -1,0 +1,99 @@
+{
+  "generatedAt": "2026-04-28T19:06:29.959Z",
+  "reports": [
+    {
+      "file": "ENGINE_CAPABILITY_LATEST.json",
+      "exists": true,
+      "keys": [
+        "generatedAt",
+        "reports"
+      ],
+      "sizeBytes": 1794
+    },
+    {
+      "file": "baseline-crc32-gate-1a.json",
+      "exists": true,
+      "keys": [
+        "version",
+        "phase",
+        "timestamp",
+        "gate",
+        "status",
+        "kernelConfiguration",
+        "memoryTopology",
+        "crc32ValidationChain",
+        "baselineProof",
+        "validation",
+        "notes"
+      ],
+      "sizeBytes": 2767
+    },
+    {
+      "file": "gate-2-combined-crc32.json",
+      "exists": true,
+      "keys": [
+        "gate",
+        "version",
+        "timestamp",
+        "locked",
+        "description",
+        "memory",
+        "crc32ValidationChain",
+        "phase2Topology",
+        "testCycle",
+        "validationResults",
+        "integrationCheckpoints",
+        "signoff"
+      ],
+      "sizeBytes": 4898
+    },
+    {
+      "file": "gate-2-zero-allocation-proof.json",
+      "exists": true,
+      "keys": [
+        "version",
+        "gate",
+        "timestamp",
+        "validation",
+        "tickSequence",
+        "bufferMutations",
+        "zeroAllocationProof",
+        "signoff"
+      ],
+      "sizeBytes": 15954
+    },
+    {
+      "file": "gate-2a-death-animation-crc32.json",
+      "exists": true,
+      "keys": [
+        "gate",
+        "version",
+        "timestamp",
+        "locked",
+        "schema",
+        "memory",
+        "testCycle",
+        "validation",
+        "signoff"
+      ],
+      "sizeBytes": 2155
+    },
+    {
+      "file": "gate-2b-inventory-refactor-crc32.json",
+      "exists": true,
+      "keys": [
+        "gate",
+        "version",
+        "timestamp",
+        "locked",
+        "schema",
+        "memory",
+        "operations",
+        "testCycle",
+        "validation",
+        "signoff"
+      ],
+      "sizeBytes": 3634
+    }
+  ]
+}

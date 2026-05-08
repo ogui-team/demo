@@ -1,0 +1,32 @@
+{
+  "name": "ps1-game-client",
+  "version": "0.3.0",
+  "description": "Browser-based PS1 game engine with Three.js",
+  "main": "index.html",
+  "scripts": {
+    "dev": "webpack serve --mode development",
+    "build": "webpack --mode production",
+    "type-check": "tsc --noEmit",
+    "test:stress": "node ../scripts/stress-test.mjs",
+    "test:stress:modes": "node ../scripts/stress-test.mjs --test modes",
+    "test:stress:5knpc": "node ../scripts/stress-test.mjs --test 5knpc",
+    "test:stress:multiplayer": "node ../scripts/stress-test.mjs --test multiplayer",
+    "test:stress:quick": "node ../scripts/stress-test.mjs --quick"
+  },
+  "dependencies": {
+    "@dimforge/rapier3d-compat": "^0.19.3",
+    "happy-dom": "20.9.0",
+    "three": "^0.152.0"
+  },
+  "devDependencies": {
+    "@types/three": "^0.152.0",
+    "html-webpack-plugin": "^5.5.3",
+    "speed-measure-webpack-plugin": "^1.6.0",
+    "ts-loader": "^9.5.0",
+    "typescript": "^5.2.2",
+    "webpack": "^5.89.0",
+    "webpack-bundle-analyzer": "^5.3.0",
+    "webpack-cli": "^5.1.4",
+    "webpack-dev-server": "^5.2.3"
+  }
+}

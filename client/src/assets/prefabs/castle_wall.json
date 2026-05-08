@@ -1,0 +1,21 @@
+{
+  "name": "castle_wall",
+  "entityType": "Prefab_CastleWall",
+  "assetKey": "model_castle_wall",
+  "color": 14277081,
+  "networked": true,
+  "collider": { "shape": "box", "size": { "width": 4.0, "height": 2.5, "depth": 0.75 } },
+  "tags": ["castle", "wall", "environment", "modular"],
+  "metadata": {
+    "biomeCompatibility": ["medieval", "dark_fantasy", "ruins"],
+    "collisionClass": "static",
+    "traversal": { "walkable": false, "climbable": false, "occludesSight": true },
+    "aiMetadata": { "cover": true, "ambush": true },
+    "destruction": { "variants": ["intact", "cracked", "collapsed"] },
+    "streamingCost": 1,
+    "gpuInstancing": true,
+    "audioSurfaceType": "stone",
+    "renderCompatibility": ["3d", "orthographic", "top-down", "side-scroller"],
+    "gameplay": { "static": true, "cover": true }
+  }
+}

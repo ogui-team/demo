@@ -1,0 +1,1144 @@
+import * as THREE from 'three';
+import * as Engine from '../../0-foundation/foundation/Engine';
+import { initDebugManager } from '../diagnostics/debug';
+import { FeatureManager } from '../../1-kernel/core/FeatureManager';
+import { MultiplayerClient } from '../../3-network/network/MultiplayerClient';
+import { GameModeManager } from '../../2-systems/gameplay/game/GameModeManager';
+import { GameModeSystem, FFAMode, FreeplayMode, RoundBasedMode, SandboxMode } from '../../2-systems/gameplay/game/GameModeSystem';
+import { PlayerModelSystem } from '../../2-systems/gameplay/game/PlayerModelSystem';
+import { ViewModelSystem } from '../../2-systems/gameplay/game/ViewModelSystem';
+import { MenuIdentitySystem } from '../ui/MenuIdentitySystem';
+import { CharacterActorSystem } from '../../2-systems/gameplay/game/CharacterActorSystem';
+import { GameLaunchCoordinator } from '../../2-systems/gameplay/game/GameLaunchCoordinator';
+import { SessionLifecycleCoordinator } from '../../2-systems/gameplay/game/SessionLifecycleCoordinator';
+import { WorldObjectAuthorityService } from '../../2-systems/gameplay/game/WorldObjectAuthorityService';
+import { RuntimeDiagnosticsCoordinator } from '../diagnostics/debug/RuntimeDiagnosticsCoordinator';
+import type { RuntimeMetricsReporter } from '../diagnostics/debug/RuntimeMetricsReporter';
+import { WeaponPresentationSystem } from '../../2-systems/gameplay/game/WeaponPresentationSystem';
+import { HUDSystem } from '../../2-systems/gameplay/systems/HUDSystem';
+import { PhysicsSystem } from '../../2-systems/gameplay/systems/PhysicsSystem';
+import { HealthSystem } from '../../2-systems/gameplay/systems/HealthSystem';
+import { WeaponSystem } from '../../2-systems/gameplay/systems/WeaponSystem';
+import { InventorySystem } from '../../2-systems/gameplay/systems/InventorySystem';
+import { PrefabSystem } from '../../2-systems/gameplay/systems/PrefabSystem';
+import { MaterialManager } from '../../2-systems/gameplay/systems/MaterialManager';
+import { AudioSystem } from '../../2-systems/gameplay/systems/AudioSystem';
+import { PathfindingSystem } from '../../2-systems/gameplay/systems/PathfindingSystem';
+import { VFXMaker } from '../../2-systems/gameplay/systems/VFXMaker';
+import { VFXSystem } from '../../2-systems/gameplay/systems/VFXSystem';
+import { AdaptiveRuntimeLayer, type AdaptiveContentPack } from '../../2-systems/gameplay/systems/AdaptiveRuntimeLayer';
+import { GameAudioManager } from '../../2-systems/gameplay/systems/GameAudioManager';
+import { SpriteAtlasSystem } from '../../2-systems/gameplay/systems/2d/SpriteAtlasSystem';
+import { Camera2DSystem } from '../../2-systems/gameplay/systems/2d/Camera2DSystem';
+import { SpriteAnimationSystem } from '../../2-systems/gameplay/systems/2d/SpriteAnimationSystem';
+import { Physics2DSystem } from '../../2-systems/gameplay/systems/2d/Physics2DSystem';
+import { Input2DAdapterSystem } from '../../2-systems/gameplay/systems/2d/Input2DAdapterSystem';
+import { TilemapSystem } from '../../2-systems/gameplay/systems/2d/TilemapSystem';
+import { ParallaxSystem } from '../../2-systems/gameplay/systems/2d/ParallaxSystem';
+import { SpriteRenderSystem } from '../../2-systems/gameplay/systems/2d/SpriteRenderSystem';
+import { UI2DSystem } from '../../2-systems/gameplay/systems/2d/UI2DSystem';
+import { SpritePrefabExtension } from '../../2-systems/gameplay/systems/2d/SpritePrefabExtension';
+import { UndoRedoSystem } from '../../1-kernel/core/UndoRedoSystem';
+import { SpawnSystem } from '../../2-systems/gameplay/systems/SpawnSystem';
+import { HordeSystem } from '../../2-systems/gameplay/systems/HordeSystem';
+import { ReplaySystem } from '../../1-kernel/core/ReplaySystem';
+import { ObjectCreatorSystem } from '../../2-systems/gameplay/game/ObjectCreatorSystem';
+import { ScriptedLevelSystem } from '../../2-systems/gameplay/game/ScriptedLevelSystem';
+import { V010_LEVELS } from '../../2-systems/gameplay/game/levels/v010Levels';
+import { logEvent } from '../../1-kernel/core/EventLogger';
+import { gameBus } from '../../1-kernel/core/EventBus';
+import { EventListenerRegistry } from '../../1-kernel/core/EventListenerRegistry';
+import { CollisionAuthoritySystem } from '../../3-network/network/CollisionAuthoritySystem';
+import { AbilitySystem } from '../../2-systems/gameplay/systems/gas/AbilitySystem';
+import { GASBridge } from '../../2-systems/gameplay/systems/gas/GASBridge';
+import { runDOD_HealthBufferTest } from '../tests/DOD_HealthBufferTest';
+import { registerRuntimeSystems, registerSaveLoadHandlers } from './bootstrap/systemRegistration';
+import { bootstrapRuntimeEventHandlers, bootstrapDebugTestEntitiesIfEnabled } from './bootstrap/runtimeEventHandlers';
+import { initDebugMenu } from './DebugMenu';
+import adaptiveRuntimePack from '../../2-systems/gameplay/game/data/adaptiveRuntimePack.json';
+import { createGameLaunchCoordinator } from './bootstrap/createGameLaunchCoordinator';
+import { createSessionLifecycleCoordinator } from './bootstrap/createSessionLifecycleCoordinator';
+import { createRuntimeUiCompositionCoordinator } from './bootstrap/createRuntimeUiCompositionCoordinator';
+import { createMultiplayerRuntimeCoordinator, createRuntimeAuxiliaryAssembly } from './bootstrap/runtimeAssemblies';
+import { bootstrapRuntimeMetricsReporter } from './bootstrap/runtimeMetrics';
+import { Phase3_GameplayRuntime, Phase4_NetworkingRuntime, Phase5_UIRuntime } from './bootstrap/phases';
+import { wireRuntimeAssemblies } from './bootstrap/wireRuntimeAssemblies';
+import { setupGameModeContext } from './bootstrap/gameModeContextSetup';
+import { ClientWorldRuntimeCoordinator } from './coordinators/ClientWorldRuntimeCoordinator';
+import { MultiplayerRuntimeCoordinator } from './coordinators/MultiplayerRuntimeCoordinator';
+import { EditorAuthorityCoordinator } from './EditorAuthorityCoordinator';
+import { SceneSerializationSystem } from '../editor/SceneSerializationSystem';
+import { TitanContentPipeline } from '../content/TitanContentPipeline';
+import { RuntimeAuxiliaryAssembly } from './RuntimeAuxiliaryAssembly';
+import { RuntimeOverlayCoordinator } from './coordinators/RuntimeOverlayCoordinator';
+import { LifecycleOrchestrator } from '../debug/LifecycleOrchestrator';
+import { KernelMovementIntegration } from './bootstrap/KernelMovementIntegration';
+import { InventoryHudSyncHub } from './bootstrap/InventoryHudSyncHub';
+import { DODStateBridge } from './bootstrap/DODStateBridge';
+import { TitanBenchmarkOverlay } from '../diagnostics/debug/TitanBenchmarkOverlay';
+import { createEditorAuthorityCoordinator, createRuntimeDiagnosticsCoordinator } from './bootstrap/coordinatorFactories';
+import {
+  cloneTropicalHorrorArchetypeAppearance,
+  getTropicalHorrorArchetype,
+  listTropicalHorrorArchetypes,
+  mergeSpawnLoadoutWithArchetype,
+  persistTropicalHorrorArchetypeSelection,
+  resolveTropicalHorrorArchetypeId,
+  resolveTropicalHorrorArchetypeSelection,
+  type TropicalHorrorArchetypeId,
+} from '../../2-systems/ArchetypeDefinitions';
+import {
+  SCHEMA_PATHS,
+  StateHydrationGuard,
+  STATE_LOADING,
+} from '../../0-foundation/foundation/state/hydrateStateManager';
+import {
+  getContextDeps,
+  getDefaultServerHttpUrl,
+  getDefaultServerWsUrl,
+  getHalfExtentsFromRenderData,
+  readNumber,
+} from './bootstrap/support';
+
+// Guard against multiple calls to bootstrapRuntime
+let isRuntimeInitialized = false;
+
+function parseGameplayDebugAutostart(): {
+  enabled: boolean;
+  backend: 'legacy' | 'rapier' | null;
+  seed: string | null;
+} {
+  try {
+    const query = new URLSearchParams(window.location.search);
+    const autostart = query.get('autostart');
+    const enabled = autostart === 'driftbomb' || autostart === 'driftbomb_debug';
+    const backendRaw = (query.get('physicsBackend') ?? '').toLowerCase();
+    const backend = backendRaw === 'rapier' || backendRaw === 'legacy'
+      ? backendRaw
+      : null;
+    const seed = query.get('seed');
+    return { enabled, backend, seed };
+  } catch {
+    return { enabled: false, backend: null, seed: null };
+  }
+}
+
+export function bootstrapRuntime(): void {
+  // Only initialize once
+  if (isRuntimeInitialized) {
+    console.log('[Titan Engine] Runtime already initialized, skipping bootstrap');
+    return;
+  }
+  
+  isRuntimeInitialized = true;
+  
+  const defaultServerHttpUrl = getDefaultServerHttpUrl();
+  const defaultServerWsUrl = getDefaultServerWsUrl();
+
+  // Engine is already initialized by bootstrapMinimalRuntime during kernel bootstrap
+  // Do NOT call Engine.init() again or it will throw "Engine already initialized"
+  const stateManager = Engine.getStateManagerInstance();
+  if (!stateManager) {
+    throw new Error('State manager not initialized - kernel may not be initialized');
+  }
+
+  // StateManager hydration is performed inside initStateManager() during
+  // Engine.init(). At this point we only need a read guard for UI bindings.
+  const stateHydrationGuard = new StateHydrationGuard(stateManager);
+  const storage = typeof window !== 'undefined' ? window.localStorage : null;
+  const applyLocalArchetypeSelection = (rawArchetypeId: unknown): TropicalHorrorArchetypeId => {
+    const archetypeId = resolveTropicalHorrorArchetypeId(rawArchetypeId)
+      ?? resolveTropicalHorrorArchetypeId(stateManager.getRaw(SCHEMA_PATHS.PLAYER_LOCAL_ARCHETYPE))
+      ?? resolveTropicalHorrorArchetypeSelection(typeof window !== 'undefined' ? window.location.search : '', storage);
+
+    persistTropicalHorrorArchetypeSelection(storage, archetypeId);
+    stateManager.set(SCHEMA_PATHS.LOBBY_LOCAL_PLAYER_ARCHETYPE, archetypeId);
+    stateManager.set(SCHEMA_PATHS.PLAYER_LOCAL_ARCHETYPE, archetypeId);
+    stateManager.set(SCHEMA_PATHS.PLAYERS_LOCAL_ARCHETYPE, archetypeId);
+    stateManager.set(SCHEMA_PATHS.LOBBY_LOCAL_PLAYER_APPEARANCE, cloneTropicalHorrorArchetypeAppearance(archetypeId));
+    stateManager.set(SCHEMA_PATHS.PLAYER_LOCAL_APPEARANCE, cloneTropicalHorrorArchetypeAppearance(archetypeId));
+    return archetypeId;
+  };
+  let selectedArchetypeId = applyLocalArchetypeSelection(
+    resolveTropicalHorrorArchetypeSelection(typeof window !== 'undefined' ? window.location.search : '', storage),
+  );
+
+  (window as any).__tropicalHorrorArchetypes = listTropicalHorrorArchetypes().map((archetype) => ({
+    id: archetype.id,
+    displayName: archetype.displayName,
+    title: archetype.title,
+    subtitle: archetype.subtitle,
+    weaponIds: [...archetype.spawn.weapons],
+  }));
+  (window as any).__selectTropicalHorrorArchetype = (rawArchetypeId: unknown) => {
+    selectedArchetypeId = applyLocalArchetypeSelection(rawArchetypeId);
+    return getTropicalHorrorArchetype(selectedArchetypeId);
+  };
+
+  const engineController = Engine.getEngineController();
+  if (!engineController) {
+    throw new Error('EngineController not initialized');
+  }
+
+  const networkSyncSystem = Engine.getNetworkSyncSystem();
+  if (!networkSyncSystem) {
+    throw new Error('NetworkSyncSystem not initialized');
+  }
+
+  const liveCullingSystem = Engine.getCullingSystem();
+  if (!liveCullingSystem) {
+    throw new Error('CullingSystem not initialized');
+  }
+
+  const appSystemContext = Engine.getSystemContext();
+  if (!appSystemContext) {
+    throw new Error('Engine system context not initialized');
+  }
+
+  const debugManager = initDebugManager();
+  const replaySystem = new ReplaySystem();
+  const undoRedoSystem = new UndoRedoSystem();
+  const modeManager = Engine.getModeManger?.() ?? null;
+  // gameHUD will be created by Phase 5
+  const gameModeManager = new GameModeManager(stateManager);
+  const engineGameModes = new GameModeSystem();
+  const saveLoadManager = Engine.getSaveLoadManager();
+
+  // ─ DEBUG MENU: Initialize F6-toggled debug UI
+  initDebugMenu();
+  
+  // ─ EXPOSE ENGINE: Make Engine available to debug menu and global scope
+  (window as any).__Engine = Engine;
+
+  // gameHUD will be mounted by Phase 5
+
+  let pendingMatchResetMode: 'soft' | 'full' = 'full';
+  let runtimeMetricsReporter: RuntimeMetricsReporter | null = null;
+  let prefabSystem!: PrefabSystem;
+  let hordeSystem!: HordeSystem;
+  let spawnSystem!: SpawnSystem;
+  let scriptedLevelSystem: ScriptedLevelSystem | null = null;
+  let sessionLifecycleCoordinator!: SessionLifecycleCoordinator;
+  let gameLaunchCoordinator!: GameLaunchCoordinator;
+  let multiplayerRuntime!: MultiplayerRuntimeCoordinator;
+  let auxiliaryAssembly!: RuntimeAuxiliaryAssembly;
+  let worldRuntime!: ClientWorldRuntimeCoordinator;
+  let lifecycleOrchestrator: LifecycleOrchestrator | null = null;
+  let gameHUD!: HUDSystem;
+  let inventorySystem!: InventorySystem;
+
+  // Create minimal Phase context for phases
+  const phaseCtx = {
+    stateManager,
+    systemContext: Engine.getSystemContext()!,
+    engineController: Engine.getEngineController(),
+    listenerRegistry: new EventListenerRegistry(),
+  };
+
+  // Store phase results for hot reload capability
+  const phaseResults = new Map<string, any>();
+
+  // Execute Phase 4: Networking Runtime FIRST (Phase 3 needs mpClient)
+  const phase4Result = Phase4_NetworkingRuntime(phaseCtx);
+  phaseResults.set('phase4', phase4Result);
+  
+  // Register Phase 4 systems
+  const systemRegistry = Engine.getSystemRegistry();
+  (window as any).__engine = {
+    registry: systemRegistry,
+    eventBus: gameBus,
+    getSystemRegistry: () => Engine.getSystemRegistry(),
+    getBootstrapState: () => (window as any).__bootstrapState ?? null,
+  };
+
+  (window as any).__runTier0Tests = async function() {
+    const { tier0ValidationSuite } = await import('../testing/Tier0ValidationSuite');
+    return tier0ValidationSuite.runAllTests();
+  };
+
+  console.log('[Titan Engine] __runTier0Tests exposed to window');
+
+  if (systemRegistry) {
+    Object.entries(phase4Result.systems).forEach(([id, system]) => {
+      Engine.registerRuntimeSystem(id, system, 'phase4');
+    });
+    console.log('[Phase 4] ✓ Registered Phase 4 systems via registry');
+  }
+
+  // Extract networking systems for use in bootstrap
+  const mpClient = phase4Result.systems.multiplayerClient as MultiplayerClient;
+  const collisionAuthoritySystem = phase4Result.systems.collisionAuthority as CollisionAuthoritySystem;
+  engineGameModes.setSpawnLoadoutResolver((playerId, baseLoadout) => {
+    const activeMode = typeof stateManager.getRaw === 'function'
+      ? stateManager.getRaw('game.mode')
+      : stateManager.get('game.mode');
+    const localRuntimePlayerId = worldRuntime?.getActiveRuntimePlayerId()
+      ?? mpClient.playerId
+      ?? ClientWorldRuntimeCoordinator.LOCAL_FREEPLAY_PLAYER_ID;
+    const shouldApplyArchetype = !mpClient.connected
+      ? true
+      : playerId === localRuntimePlayerId;
+
+    // Freeplay should keep its base dummy/default loadout and not inherit the
+    // last selected Horde/class archetype from persisted menu state.
+    if (!mpClient.connected && activeMode === 'freeplay') {
+      return baseLoadout;
+    }
+
+    if (!shouldApplyArchetype) {
+      return baseLoadout;
+    }
+
+    const resolvedArchetypeId = resolveTropicalHorrorArchetypeId(stateManager.getRaw(SCHEMA_PATHS.PLAYER_LOCAL_ARCHETYPE))
+      ?? selectedArchetypeId;
+    return mergeSpawnLoadoutWithArchetype(baseLoadout, resolvedArchetypeId);
+  });
+
+  // Wire multiplayer client into system context
+  Engine.attachMultiplayerClientToSystemContext(mpClient);
+  mpClient.setCollisionAuthoritySystem(collisionAuthoritySystem);
+
+  // Execute Phase 3: Gameplay Runtime (with mpClient dependency)
+  const phase3Result = Phase3_GameplayRuntime(phaseCtx, mpClient);
+  phaseResults.set('phase3', phase3Result);
+  
+  // Register Phase 3 systems
+  if (systemRegistry) {
+    Object.entries(phase3Result.systems).forEach(([id, system]) => {
+      Engine.registerRuntimeSystem(id, system, 'phase3');
+    });
+    console.log('[Phase 3] ✓ Registered Phase 3 systems via registry');
+  }
+
+  // Extract systems for use in rest of bootstrap (backwards compatibility)
+  const playerModelSystem = phase3Result.systems.playerModel as PlayerModelSystem;
+  const menuIdentitySystem = phase3Result.systems.menuIdentity as MenuIdentitySystem;
+  const characterActorSystem = phase3Result.systems.characterActor as CharacterActorSystem;
+  const physicsSystem = phase3Result.systems.physics as PhysicsSystem;
+  const healthSystem = phase3Result.systems.health as HealthSystem;
+  const objectCreator = phase3Result.systems.objectCreator as ObjectCreatorSystem;
+  prefabSystem = phase3Result.systems.prefab as PrefabSystem;
+  spawnSystem = phase3Result.systems.spawn as SpawnSystem;
+  const weaponSystem = phase3Result.systems.weapon as WeaponSystem;
+  const abilitySystem = phase3Result.systems.ability as AbilitySystem;
+  
+  // Additional setup for extracted systems
+  weaponSystem.registerPresets();
+
+  // Execute Phase 5: UI Runtime (with Phase 3 dependencies)
+  const phase5Result = Phase5_UIRuntime(phaseCtx, healthSystem, weaponSystem, prefabSystem);
+  phaseResults.set('phase5', phase5Result);
+  
+  // Register Phase 5 systems
+  if (systemRegistry) {
+    Object.entries(phase5Result.systems).forEach(([id, system]) => {
+      Engine.registerRuntimeSystem(id, system, 'phase5');
+    });
+    console.log('[Phase 5] ✓ Registered Phase 5 systems via registry');
+  }
+
+  // Extract UI systems for use in rest of bootstrap
+  gameHUD = phase5Result.systems.hud as HUDSystem;
+  inventorySystem = phase5Result.systems.inventory as InventorySystem;
+  
+  // Create materialization and level systems (not part of Phase 3 pure gameplay)
+  const materialManager = new MaterialManager();
+  const vfxMaker = new VFXMaker(Engine.getEngineScene()!, Engine.getEngineCamera());
+  const vfxSystem = new VFXSystem(Engine.getEngineScene()!, Engine.getEngineCamera());
+  const audioManager = new GameAudioManager();
+  const audioSystem = new AudioSystem();
+  const pathfindingSystem = new PathfindingSystem({
+    cellSize: 1,
+    width: 128,
+    height: 128,
+  });
+  audioManager.registerDefaults();
+  audioManager.attachCamera(Engine.getEngineCamera());
+  vfxSystem.setSystemContext(appSystemContext);
+  audioSystem.setSystemContext(appSystemContext);
+  pathfindingSystem.setSystemContext(appSystemContext);
+  scriptedLevelSystem = new ScriptedLevelSystem({
+    scene: Engine.getEngineScene()!,
+    prefabSystem,
+    materialManager,
+    vfxMaker,
+    audioManager,
+  });
+  scriptedLevelSystem.registerLevels(V010_LEVELS);
+  
+  const worldObjectAuthorityService = new WorldObjectAuthorityService({
+    entityManager: Engine.getEntityManager()!,
+    entityRenderer: Engine.getEntityRenderer()!,
+    prefabSystem: {
+      createByEntityType: (...args) => prefabSystem.createByEntityType(...args),
+    },
+    collisionAuthority: collisionAuthoritySystem,
+    stateStore: stateManager,
+    readHalfExtents: (entity) => {
+      const colliderData = entity.getComponent('collider')?.data as Record<string, unknown> | undefined;
+      const halfExtentsData = colliderData?.halfExtents as { x?: unknown; y?: unknown; z?: unknown } | undefined;
+      return halfExtentsData
+        ? {
+            x: readNumber(halfExtentsData.x, 0.5),
+            y: readNumber(halfExtentsData.y, 0.5),
+            z: readNumber(halfExtentsData.z, 0.5),
+          }
+        : getHalfExtentsFromRenderData(entity.getComponent('render')?.data as Record<string, unknown> | undefined);
+    },
+  });
+
+  // Note: CharacterActorSystem needs worldRuntime which isn't available yet
+  // It will need to be finalized after worldRuntime is created
+  
+  const weaponPresentationSystem = new WeaponPresentationSystem({
+    scene: Engine.getEngineScene()!,
+    getCamera: () => Engine.getEngineCamera(),
+    getLocalPlayerId: () => worldRuntime.getActiveRuntimePlayerId(),
+    weaponSystem,
+    playerModels: playerModelSystem,
+    vfxMaker,
+  });
+  const viewModelSystem = new ViewModelSystem({
+    getCamera: () => Engine.getEngineCamera(),
+    getScene: () => Engine.getEngineScene(),
+    getLocalPlayerId: () => worldRuntime.getActiveRuntimePlayerId(),
+  });
+  const adaptiveRuntime = new AdaptiveRuntimeLayer(stateManager, Engine.getGasDataRegistry()!);
+  adaptiveRuntime.loadContentPack(adaptiveRuntimePack as AdaptiveContentPack);
+  adaptiveRuntime.attachDebugControls(debugManager);
+
+  const spriteAtlasSystem = new SpriteAtlasSystem();
+  const camera2DSystem = new Camera2DSystem(Engine.getEngineRenderer()!);
+  const spriteAnimationSystem = new SpriteAnimationSystem(Engine.getEntityManager()!);
+  const physics2DSystem = new Physics2DSystem(Engine.getEntityManager()!);
+  const input2DAdapterSystem = new Input2DAdapterSystem(Engine.getEntityManager()!);
+  const tilemapSystem = new TilemapSystem(Engine.getEntityManager()!);
+  const parallax2DSystem = new ParallaxSystem();
+  const spriteRenderSystem = new SpriteRenderSystem(Engine.getEntityManager()!);
+  const ui2DSystem = new UI2DSystem(Engine.getEntityManager()!, Engine.getEngineRenderer()!);
+  const spritePrefabExtension = new SpritePrefabExtension();
+
+  // inventorySystem created by Phase 5
+  // inventorySystem.defineDefaults() already called in Phase 5
+  gameHUD.setGameplaySystems(healthSystem, weaponSystem);
+
+  let gasBridge = new GASBridge(
+    Engine.getGasDataRegistry()!,
+    Engine.getGasItemSystem()!,
+    Engine.getGasAttributeStore()!,
+    (text, duration) => gameHUD.showNotification(text, duration),
+  );
+
+  // Kernel bridge: keep network entity IDs mapped into DOD handles for snapshot reconciliation.
+  const kernelMovementIntegration = new KernelMovementIntegration();
+  kernelMovementIntegration.getDamageNumberUISystem().setCamera(Engine.getEngineCamera());
+  networkSyncSystem.setNetworkEntityIdRegistrar(kernelMovementIntegration.getNetworkEntityIdRegistrar());
+  const dummyEnemySystem = kernelMovementIntegration.getDummyEnemySystem();
+  dummyEnemySystem.setEntityManager(Engine.getEntityManager());
+  dummyEnemySystem.setHealthSystem(healthSystem);
+  dummyEnemySystem.setPhysicsSystem(physicsSystem);
+  dummyEnemySystem.setCollisionAuthoritySystem(collisionAuthoritySystem);
+  dummyEnemySystem.setPathfindingSystem(pathfindingSystem);
+  spawnSystem.setEnemySpawner({
+    spawnEnemy: (position, enemyType, variantId) => (
+      enemyType === 'flyingMask'
+        ? dummyEnemySystem.spawnFlyingMask(position.x, position.y, position.z, variantId)
+        : dummyEnemySystem.spawnDummy(position.x, position.y, position.z, enemyType, variantId)
+    ),
+  });
+  hordeSystem = new HordeSystem({
+    spawnSystem,
+    gameModeSystem: engineGameModes,
+  });
+  console.log('[RuntimeBootstrap] Active enemy runtime path: DummyEnemySystem + PathfindingSystem');
+
+  const applyArchetypePresentation = (rawArchetypeId: unknown, options: { announce?: boolean } = {}) => {
+    selectedArchetypeId = applyLocalArchetypeSelection(rawArchetypeId);
+    const archetype = getTropicalHorrorArchetype(selectedArchetypeId);
+    gameHUD.setArchetypePresentation(archetype);
+    kernelMovementIntegration.getDamageNumberUISystem().setTheme(archetype.damageTheme);
+    if (options.announce) {
+      gameHUD.showNotification(`${archetype.displayName.toUpperCase()}  ·  ${archetype.title.toUpperCase()}`, 4);
+    }
+    return archetype;
+  };
+
+  applyArchetypePresentation(selectedArchetypeId);
+  (window as any).__selectTropicalHorrorArchetype = (rawArchetypeId: unknown) => {
+    const archetype = applyArchetypePresentation(rawArchetypeId, { announce: true });
+    return archetype;
+  };
+
+  worldRuntime = new ClientWorldRuntimeCoordinator({
+    stateManager,
+    engineController,
+    networkSyncSystem,
+    collisionAuthoritySystem,
+    worldObjectAuthorityService,
+    mpClient,
+    playerModelSystem,
+    characterActorSystem,
+    prefabSystem,
+    gameHUD,
+    spawnSystem,
+    scriptedLevelSystem,
+    camera2DSystem,
+    healthSystem,
+    weaponSystem,
+    inventorySystem,
+    gasBridge,
+    abilitySystem,
+    adaptiveRuntime,
+    engineGameModes,
+    gameModeManager,
+    saveLoadManager,
+    vfxMaker,
+    kernelBridge: kernelMovementIntegration,
+    dummyEnemySystem,
+    pathfindingSystem,
+  });
+  worldRuntime.attachCollisionResolver();
+
+  const inventoryHudSyncHub = new InventoryHudSyncHub({
+    kernel: kernelMovementIntegration,
+    getPlayerId: () => worldRuntime.getActiveRuntimePlayerId(),
+    getActivePhase: () => lifecycleOrchestrator?.getPhase() ?? 'BOOT',
+  });
+  const dodStateBridge = new DODStateBridge({
+    kernelBridge: kernelMovementIntegration,
+    stateManager,
+    getPlayerId: () => worldRuntime.getActiveRuntimePlayerId(),
+    getActivePhase: () => lifecycleOrchestrator?.getPhase() ?? 'BOOT',
+  });
+
+  const runtimeDiagnosticsCoordinator = createRuntimeDiagnosticsCoordinator({
+    defaultBaseUrl: defaultServerHttpUrl,
+    search: typeof window !== 'undefined' ? window.location.search : '',
+    multiplayerClient: mpClient,
+    stateManager,
+    renderingDiagnostics: liveCullingSystem,
+    isDebugEnabled: () => debugManager.isEnabled(),
+    isDebugOverlayVisible: () => Engine.getDebugOverlay()?.isVisible() === true,
+  });
+
+  const editorMenu = Engine.getEditorMenu();
+  const gizmoSystem = Engine.getGizmoSystem();
+  const componentInspector = Engine.getComponentInspector();
+  const editorToolCoordinator = Engine.getEditorToolCoordinator();
+  const prefabPlacementSystem = Engine.getPrefabPlacementSystem();
+  const editorPainterSystem = Engine.getEditorPainterSystem();
+  const triggerVolumeTool = Engine.getTriggerVolumeTool();
+  const sceneSerializationSystem = prefabPlacementSystem
+    ? new SceneSerializationSystem({
+        entityManager: Engine.getEntityManager()!,
+        entityRenderer: Engine.getEntityRenderer()!,
+        prefabPlacementSystem,
+        prefabSystem,
+        worldObjectAuthorityService,
+      })
+    : null;
+  const titanContentPipeline = saveLoadManager
+    ? new TitanContentPipeline({
+        saveLoadManager,
+        sceneSerializationSystem,
+        prefabSystem,
+        spawnSystem,
+        spatialGridSystem: Engine.getSpatialGridSystem(),
+        entityManager: Engine.getEntityManager()!,
+        entityRenderer: Engine.getEntityRenderer(),
+        materialManager,
+        audioManager,
+        pathfindingSystem,
+        environmentController: {
+          setFogDensity: Engine.setEngineFogDensity,
+          setFogColor: Engine.setEngineFogColor,
+          setFogEnabled: Engine.setEngineFogEnabled,
+        },
+        editorMenu,
+        getFocusPosition: () => worldRuntime?.getLocalPlayerEntity()?.getPosition()
+          ?? Engine.getEngineCamera()?.position
+          ?? null,
+        loadRadiusCells: 1,
+        streamingInterval: 0.2,
+      })
+    : null;
+
+  prefabPlacementSystem?.setRuntimeServices({
+    prefabSystem,
+    physicsSystem,
+    worldObjectAuthorityService,
+    isMultiplayerConnected: () => mpClient.connected,
+  });
+
+  Engine.bindExternalSystemContext('componentInspector', componentInspector);
+  Engine.bindExternalSystemContext('editorToolCoordinator', editorToolCoordinator);
+  Engine.bindExternalSystemContext('prefabPlacementSystem', prefabPlacementSystem);
+  Engine.bindExternalSystemContext('editorPainterSystem', editorPainterSystem);
+  Engine.bindExternalSystemContext('triggerVolumeTool', triggerVolumeTool);
+  Engine.bindExternalSystemContext('sceneSerializationSystem', sceneSerializationSystem);
+  Engine.bindExternalSystemContext('titanContentPipeline', titanContentPipeline);
+  Engine.bindExternalSystemContext('pathfindingSystem', pathfindingSystem);
+  Engine.bindExternalSystemContext('vfxSystem', vfxSystem);
+  Engine.bindExternalSystemContext('audioSystem', audioSystem);
+  Engine.setContentPipeline(titanContentPipeline);
+  if (titanContentPipeline) {
+    Engine.registerRuntimeSystem('titanContentPipeline', titanContentPipeline, 'phase5');
+  }
+
+  mpClient.on('initial_map_sync', ({ mapData }) => {
+    const productionResult = titanContentPipeline?.applyNetworkProductionSync(mapData.productionSync ?? null);
+    if (productionResult && !productionResult.accepted) {
+      console.error('[bootstrapClientRuntime] Rejected world production sync', productionResult.reason);
+      return;
+    }
+    sceneSerializationSystem?.deserializeScene(mapData, {
+      authority: 'replicated',
+      skipAuthoritySync: true,
+    });
+  });
+
+  gameBus.on('ABILITY_PROJECTILE_SPAWNED', (payload: { abilityId?: string; position?: { x: number; y: number; z: number } }) => {
+    if (payload.abilityId !== 'ability_fireball' || !payload.position) {
+      return;
+    }
+
+    vfxSystem.playPreset('spawnBurst', payload.position);
+  });
+
+  gameBus.on('ABILITY_PROJECTILE_IMPACT', (payload: { abilityId?: string; position?: { x: number; y: number; z: number } }) => {
+    if (payload.abilityId !== 'ability_fireball' || !payload.position) {
+      return;
+    }
+
+    vfxSystem.playPreset('fireballImpactBurst', payload.position);
+    audioSystem.playOneShotAt('fireball_impact', payload.position, {
+      category: 'weapon',
+      volume: 0.18,
+      maxDist: 28,
+      toneHz: 220,
+      toneDurationMs: 220,
+      waveform: 'sawtooth',
+    });
+  });
+
+  const runtimeOverlayCoordinator = new RuntimeOverlayCoordinator({
+    debugManager,
+    engineController,
+    modeManager,
+    mpClient,
+    runtimeDiagnosticsCoordinator,
+    liveCullingSystem,
+    gameHUD,
+    audioManager,
+    gameModeManager,
+    engineGameModes,
+    runtimeMetricsReporterRef: () => runtimeMetricsReporter,
+    buildRuntimeIssueSnapshot: () => multiplayerRuntime.buildRuntimeIssueSnapshot() as unknown as Record<string, unknown>,
+    physicsSystem,
+    getActiveRuntimePlayerId: () => worldRuntime.getActiveRuntimePlayerId(),
+    syncLocalPlayerToAuthoritativeSpawn: (position, rotation) => {
+      worldRuntime.syncLocalPlayerToAuthoritativeSpawn(position, rotation);
+    },
+    worldObjectAuthorityService,
+    spawnSystem,
+    inventorySystem,
+    weaponSystem,
+    undoRedoSystem,
+    prefabSystem,
+    saveLoadManager,
+    replaySystem,
+    networkSyncSystem,
+    editorMenu,
+    syncEditorPrefabLibrary: () => editorAuthorityCoordinator.syncEditorPrefabLibrary(),
+    setLastEditorSnapshot: (snapshot) => editorAuthorityCoordinator.setLastEditorSnapshot(snapshot),
+    search: typeof window !== 'undefined' ? window.location.search : '',
+    serverHttpUrl: multiplayerRuntime?.getServerHttpUrl?.() ?? defaultServerHttpUrl,
+    serverWsUrl: defaultServerWsUrl,
+    launchActions: {
+      startLocalFreeplay: () => gameLaunchCoordinator.startLocalFreeplay(),
+      startEngineShowcase: () => gameLaunchCoordinator.startEngineShowcase(),
+      startScriptedLevel: (levelId) => gameLaunchCoordinator.startScriptedLevel(levelId),
+      hostMultiplayer: (config) => multiplayerRuntime.hostAutostartMultiplayer(config),
+      joinMultiplayer: (config) => multiplayerRuntime.joinAutostartMultiplayer(config),
+    },
+    createUiCompositionCoordinator: () => createRuntimeUiCompositionCoordinator({
+      modeManager,
+      engineController,
+      mpClient,
+      gameLaunchCoordinator,
+      audioManager,
+      worldRuntime,
+      multiplayerRuntime,
+      scriptedLevelSystem,
+      engineGameModes,
+      menuIdentitySystem,
+      debugManager,
+    }),
+    auxiliaryAssemblyRef: () => auxiliaryAssembly,
+    worldRuntime,
+  });
+
+  const hitFeedbackBridge = runtimeOverlayCoordinator.getHitFeedbackBridge();
+  hitFeedbackBridge.setCrosshairVisible(false);
+
+  multiplayerRuntime = createMultiplayerRuntimeCoordinator({
+    engineController,
+    mpClient,
+    networkSyncSystem,
+    playerModelSystem,
+    weaponSystem,
+    healthSystem,
+    gameModeManager,
+    gameHUD,
+    worldRuntime,
+    runtimeDiagnosticsCoordinator,
+    liveCullingSystem,
+    hitFeedback: hitFeedbackBridge,
+    overlayRuntime: runtimeOverlayCoordinator,
+  });
+  worldRuntime.setStopInputSending(() => multiplayerRuntime.stopInputSending());
+
+  lifecycleOrchestrator = new LifecycleOrchestrator({
+    getLocalPlayerId: () => worldRuntime.getActiveRuntimePlayerId() ?? mpClient.playerId ?? null,
+    getLocalPlayerEntity: () => worldRuntime.getLocalPlayerEntity(),
+    hasFullNetworkSync: () => {
+      if (!mpClient.connected) return true;
+      return networkSyncSystem.getLastAppliedSnapshotTick() !== null;
+    },
+    // Boot-lock: SPAWN_READY and PLAY_ACTIVE are blocked until the state tree
+    // has been pre-filled by hydrateStateManager().
+    isStateHydrated: () => stateManager.isHydrated,
+  });
+  lifecycleOrchestrator.tryTransitionTo('NETWORK_SYNC');
+  (window as any).lifecycleOrchestrator = lifecycleOrchestrator;
+
+  // ─ SAFE-INPUT-GATING: Link orchestrator and canvas to PlayController ─
+  {
+    const pc = Engine.getPlayController();
+    if (pc) {
+      pc.setOrchestrator(lifecycleOrchestrator);
+      const rendererCanvas = Engine.getEngineRenderer()?.domElement as HTMLCanvasElement | undefined;
+      if (rendererCanvas) {
+        pc.setCanvas(rendererCanvas);
+      }
+      console.debug('[bootstrapClientRuntime] PlayController linked with LifecycleOrchestrator and canvas');
+    }
+  }
+  gameBus.on('LIFECYCLE_CHANGED', ({ to }) => {
+    if (to !== 'PLAY_ACTIVE' && to !== 'LOBBY') {
+      return;
+    }
+    const isLobbyRefresh = to === 'LOBBY';
+    const runtimeLocalPlayerId = worldRuntime.getActiveRuntimePlayerId() ?? mpClient.playerId ?? null;
+    const scopedPath = runtimeLocalPlayerId ? SCHEMA_PATHS.playerAppearance(runtimeLocalPlayerId) : null;
+    const scopedAppearance = scopedPath ? stateHydrationGuard.read(scopedPath) : undefined;
+    const localAppearance = stateHydrationGuard.read(SCHEMA_PATHS.PLAYER_LOCAL_APPEARANCE);
+
+    if (localAppearance === STATE_LOADING || scopedAppearance === STATE_LOADING) {
+      if (!isLobbyRefresh) {
+        Engine.getEngineController()?.setHudMode('loading', 'state-loading');
+        Engine.getEngineController()?.setHudVisible(false, 'state-loading');
+      }
+      return;
+    }
+
+    selectedArchetypeId = applyLocalArchetypeSelection(stateManager.getRaw(SCHEMA_PATHS.PLAYER_LOCAL_ARCHETYPE));
+    applyArchetypePresentation(selectedArchetypeId, { announce: true });
+
+    const resolvedAppearance = (localAppearance
+      ?? scopedAppearance
+      ?? cloneTropicalHorrorArchetypeAppearance(selectedArchetypeId)) as unknown;
+
+    if (resolvedAppearance !== undefined && resolvedAppearance !== null) {
+      stateManager.set(SCHEMA_PATHS.LOBBY_LOCAL_PLAYER_APPEARANCE, resolvedAppearance);
+      stateManager.set(SCHEMA_PATHS.PLAYER_LOCAL_APPEARANCE, resolvedAppearance);
+      if (!isLobbyRefresh) {
+        Engine.getEngineController()?.setHudMode('play', 'state-ready');
+      }
+    } else {
+      // RECOVERY_WARNING: appearance was not set despite hydration — hydrateStateManager
+      // should have pre-filled this path. Log and continue rather than crashing.
+      gameBus.emit('LOG_STATE_MISSING_WARNING', {
+        path: SCHEMA_PATHS.PLAYER_LOCAL_APPEARANCE,
+        usedSchemaDefault: false,
+        recoveryValue: null,
+        timestamp: Date.now(),
+      });
+      console.warn('[BootstrapRuntime] RECOVERY_WARNING: player.local.appearance missing at PLAY_ACTIVE.', {
+        playerId: runtimeLocalPlayerId,
+        scopedPath,
+        phase: to,
+      });
+    }
+  });
+  gameBus.on('UI_LOADING_STATE', ({ reason, path }) => {
+    Engine.getEngineController()?.setHudMode('loading', 'state-loading');
+    Engine.getEngineController()?.setHudVisible(false, 'state-loading');
+    console.warn('[StateHydrationGuard] UI in loading state', { reason, path });
+  });
+  gameBus.on('LIFECYCLE_PLAY_ACTIVE', ({ playerId, entityId, timestamp }) => {
+    console.log('[LifecycleTrace] PLAY_ACTIVE reached', {
+      playerId,
+      entityId,
+      eventTimestamp: timestamp,
+      receivedAt: Date.now(),
+      perfNow: typeof performance !== 'undefined' ? performance.now() : null,
+    });
+  });
+
+  auxiliaryAssembly = createRuntimeAuxiliaryAssembly({
+    engineController,
+    stateManager,
+    replaySystem,
+    mpClient,
+    networkSyncSystem,
+    gameHUD,
+    gameModeManager,
+    engineGameModes,
+    playerModelSystem,
+    viewModelSystem,
+    weaponPresentationSystem,
+    characterActorSystem,
+    runtimeDiagnosticsCoordinator,
+    worldRuntime,
+    multiplayerRuntime,
+    healthSystem,
+    weaponSystem,
+    inventorySystem,
+    prefabSystem,
+    adaptiveRuntime,
+    audioManager,
+    audioSystem,
+    vfxMaker,
+    vfxSystem,
+    abilitySystem,
+    hordeSystem,
+    pathfindingSystem,
+    spatialGridSystem: Engine.getSpatialGridSystem()!,
+    visibilitySystem: Engine.getVisibilitySystem()!,
+    contentPipeline: titanContentPipeline,
+    getFocusPosition: () => {
+      const localPlayerPosition = worldRuntime?.getLocalPlayerEntity()?.getPosition();
+      if (localPlayerPosition) {
+        return localPlayerPosition;
+      }
+      const camera = Engine.getEngineCamera();
+      return camera
+        ? { x: camera.position.x, y: camera.position.y, z: camera.position.z }
+        : null;
+    },
+    netGraphBridge: runtimeOverlayCoordinator.getNetGraphBridge(),
+    hitFeedbackBridge,
+    runtimeIssueInspectorBridge: runtimeOverlayCoordinator.getRuntimeIssueInspectorBridge(),
+    runtimeMetricsReporterRef: () => runtimeMetricsReporter,
+    worldObjectAuthorityDiagnostics: () => worldRuntime.getWorldObjectAuthorityDiagnostics(),
+    spriteSystems: {
+      spriteAtlasSystem: { update: () => spriteAtlasSystem.update() },
+      camera2DSystem,
+      spriteAnimationSystem,
+      physics2DSystem,
+      input2DAdapterSystem,
+      tilemapSystem,
+      parallax2DSystem,
+      spriteRenderSystem,
+      ui2DSystem,
+    },
+  });
+
+  const editorAuthorityCoordinator = createEditorAuthorityCoordinator({
+    prefabSystem,
+    spawnSystem,
+    mpClient,
+    undoRedoSystem,
+    saveLoadManager,
+    worldObjectAuthorityService,
+    worldRuntime,
+    editorMenu,
+    gizmoSystem,
+  });
+
+  sessionLifecycleCoordinator = createSessionLifecycleCoordinator({
+    engineController,
+    stateManager,
+    gameModeManager,
+    gameHUD,
+    worldRuntime,
+    multiplayerRuntime,
+    runtimeOverlayCoordinator,
+    auxiliaryAssembly,
+    networkSyncSystem,
+    weaponSystem,
+    playerModelSystem,
+    worldObjectAuthorityService,
+    engineGameModes,
+    mpClient,
+    debugManager,
+    setPendingMatchResetMode: (mode) => {
+      pendingMatchResetMode = mode;
+    },
+  });
+
+  gameLaunchCoordinator = createGameLaunchCoordinator({
+    engineController,
+    mpClient,
+    stateManager,
+    worldRuntime,
+    playerModelSystem,
+    worldObjectAuthorityService,
+    spawnSystem,
+    gameHUD,
+    engineGameModes,
+    gameModeManager,
+    sessionLifecycleCoordinator,
+    scriptedLevelSystem,
+    multiplayerRuntime,
+    audioManager,
+    setPendingMatchResetMode: (mode) => {
+      pendingMatchResetMode = mode;
+    },
+  });
+
+  // Expose to window for bootloader access (freeplay auto-start)
+  (window as any).__gameLaunchCoordinator = gameLaunchCoordinator;
+  
+  // Expose multiplayerRuntime for auto-transitioning to lobby on multiplayer mode start
+  (window as any).__multiplayerRuntime = multiplayerRuntime;
+  
+  // ─ EXPOSE PREFAB SYSTEM: For debug menu bite spawn
+  (window as any).__PrefabSystem = prefabSystem;
+  
+  // ─ EXPOSE INVENTORY SYSTEM: For debug menu health pack spawn
+  (window as any).__InventorySystem = inventorySystem;
+
+  // ─ EXPOSE BOOTSTRAP STATE: Make phase reload state accessible
+  (window as any).__bootstrapState = {
+    phaseResults,
+    phaseCtx,
+    systemRegistry,
+    systems: {
+      healthSystem,
+      weaponSystem,
+      prefabSystem,
+      mpClient,
+    },
+    refs: {
+      gameHUD,
+      inventorySystem,
+      gasBridge,
+    },
+  };
+
+  // ─ EXPOSE HOT RELOAD CAPABILITY: For testing phase idempotency
+  (window as any).__reloadPhase = async function(phaseId: string) {
+    try {
+      const state = (window as any).__bootstrapState;
+      if (!state) {
+        console.error('[Hot Reload] Bootstrap state not available');
+        return;
+      }
+
+      console.log(`[Hot Reload] Reloading ${phaseId}...`);
+      const oldResult = state.phaseResults.get(phaseId);
+      if (!oldResult) {
+        console.error(`[Hot Reload] Phase ${phaseId} not found in registry`);
+        return;
+      }
+
+      // Dispose old phase
+      oldResult.dispose?.();
+      console.log(`[Hot Reload] ${phaseId} disposed`);
+
+      // Re-execute phase
+      let newResult;
+      if (phaseId === 'phase5') {
+        newResult = Phase5_UIRuntime(state.phaseCtx, state.systems.healthSystem, state.systems.weaponSystem, state.systems.prefabSystem);
+      } else if (phaseId === 'phase3') {
+        newResult = Phase3_GameplayRuntime(state.phaseCtx, state.systems.mpClient);
+      } else if (phaseId === 'phase4') {
+        newResult = Phase4_NetworkingRuntime(state.phaseCtx);
+      } else {
+        console.error(`[Hot Reload] Unknown phase: ${phaseId}`);
+        return;
+      }
+
+      // Update registry
+      if (state.systemRegistry && newResult.systems) {
+        state.systemRegistry.removePhase(phaseId);
+        Object.entries(newResult.systems).forEach(([id, system]) => {
+          Engine.registerRuntimeSystem(id, system, phaseId);
+        });
+      }
+
+      // Update phase results
+      state.phaseResults.set(phaseId, newResult);
+
+      console.log(`[Hot Reload] ${phaseId} reloaded successfully`);
+    } catch (error) {
+      console.error('[Hot Reload] ERROR:', error);
+    }
+  };
+
+  console.log('[Titan Engine] __reloadPhase exposed to window');
+
+  wireRuntimeAssemblies({
+    multiplayerRuntime,
+    sessionLifecycleCoordinator,
+    gameLaunchCoordinator,
+    editorAuthorityCoordinator,
+    auxiliaryAssembly,
+    worldObjectAuthorityService,
+    mpClient,
+    kernelMovementIntegration,
+  });
+
+  registerRuntimeSystems({
+    mpClient,
+    gameModeManager,
+    gameHUD,
+    stateManager,
+    systemContext: appSystemContext,
+    collisionAuthoritySystem,
+    worldObjectAuthorityService,
+    characterActorSystem,
+    physicsSystem,
+    spriteAtlasSystem,
+    camera2DSystem,
+    featureManager: FeatureManager,
+    gameModeSystem: engineGameModes,
+    playerModelSystem,
+    weaponSystem,
+    healthSystem,
+    physics2DSystem,
+    input2DAdapterSystem,
+    spriteAnimationSystem,
+    objectCreator,
+    prefabSystem,
+    abilitySystem,
+    weaponPresentationSystem,
+    spawnSystem,
+    hordeSystem,
+    undoRedoSystem,
+    inventorySystem,
+    tilemapSystem,
+    parallax2DSystem,
+    spriteRenderSystem,
+    ui2DSystem,
+    adaptiveRuntime,
+    materialManager,
+    audioManager,
+    audioSystem,
+    vfxSystem,
+    pathfindingSystem,
+    debugManager,
+    scriptedLevelSystem,
+  });
+
+  setupGameModeContext({
+    engineGameModes,
+    gameModeManager,
+    worldRuntime,
+    healthSystem,
+    spawnSystem,
+    playerModelSystem,
+    stateManager,
+  });
+
+  registerSaveLoadHandlers({
+    saveLoadManager,
+    weaponSystem,
+    inventorySystem,
+    prefabSystem,
+    spawnSystem,
+    engineGameModes,
+  });
+
+  engineController.registerSystems({
+    scoreboard: runtimeOverlayCoordinator.getScoreboardBridge(),
+    auxiliarySystems: {
+      inventoryHudSyncHub,
+      dodStateBridge,
+    },
+  });
+
+  gameModeManager.attachClient(mpClient);
+  runtimeOverlayCoordinator.installIssueInspectorHotkey();
+  runtimeOverlayCoordinator.installValidationHook();
+  runtimeOverlayCoordinator.installMemoryValidationHook();
+  runtimeOverlayCoordinator.installStatusMovementDebugHook();
+  runtimeOverlayCoordinator.registerLazyBindings();
+  runtimeOverlayCoordinator.prewarmPersistedServerBrowser();
+  runtimeOverlayCoordinator.startRuntimeUi();
+
+  bootstrapRuntimeMetricsReporter({
+    runtimeDiagnosticsCoordinator,
+    sessionLifecycleCoordinator,
+    liveCullingSystem,
+    worldRuntime,
+    multiplayerRuntime,
+    setRuntimeMetricsReporter: (reporter: RuntimeMetricsReporter) => {
+      runtimeMetricsReporter = reporter;
+    },
+  });
+
+  bootstrapRuntimeEventHandlers({
+    worldRuntime,
+    weaponSystem,
+    stateManager,
+    networkSyncSystem,
+    mpClient,
+    gameModeManager,
+    replaySystem,
+    debugManager,
+    runtimeOverlayCoordinator,
+    gasBridge,
+  });
+
+  bootstrapDebugTestEntitiesIfEnabled();
+
+  // TODO: Temporarily disabled TITAN Benchmark Overlay for Phase 5 gameplay
+  // const benchmarkOverlay = new TitanBenchmarkOverlay();
+  // const kernel = kernelMovementIntegration.getKernel();
+  // const dummyEnemySystem = kernelMovementIntegration.getDummyEnemySystem();
+  // benchmarkOverlay.setKernel(kernel);
+  // benchmarkOverlay.setDummyEnemySystem(dummyEnemySystem);
+  // kernel.setDummyEnemySystem(dummyEnemySystem);
+  // Re-enable with: window.__benchmarkOverlay = benchmarkOverlay;
+
+  // v0.1.4 Kernel Validation Test - DOD_HealthBufferTest.ts auto-registers global __DODHealthBufferTest
+  if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'production') {
+    setTimeout(() => {
+      if ((window as any).__DODHealthBufferTest?.runAllSteps) {
+        console.log('[Titan Engine] ▶️ Starting v0.1.4 kernel validation...');
+        (window as any).__DODHealthBufferTest.runAllSteps();
+      }
+    }, 500);
+  }
+
+  Engine.start();
+
+  const gameplayDebugAutostart = parseGameplayDebugAutostart();
+  if (gameplayDebugAutostart.enabled) {
+    if (gameplayDebugAutostart.backend) {
+      (globalThis as any).__physicsBackend = gameplayDebugAutostart.backend;
+      const physicsSystemRef = Engine.getSystemRegistry()?.getSystem<any>('physicsSystem');
+      if (physicsSystemRef && typeof physicsSystemRef.switchBackend === 'function') {
+        physicsSystemRef.switchBackend(gameplayDebugAutostart.backend);
+      }
+    }
+
+    const seedLabel = gameplayDebugAutostart.seed ?? 'driftbomb-debug-seed-001';
+    stateManager.set('runtime.debugSeed', seedLabel);
+    gameHUD.showNotification('Drift Bomb debug autostart engaged...', 2);
+
+    setTimeout(() => {
+      console.log('[DriftBombDebug] Autostart launch', {
+        backend: (globalThis as any).__physicsBackend ?? 'legacy',
+        seed: seedLabel,
+      });
+      gameLaunchCoordinator.startDriftBomb();
+    }, 80);
+  }
+
+  void pendingMatchResetMode;
+  console.log('[App] Application ready for authoritative multiplayer');
+}

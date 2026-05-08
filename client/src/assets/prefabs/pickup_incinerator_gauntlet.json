@@ -1,0 +1,11 @@
+{
+  "name": "pickup_incinerator_gauntlet",
+  "entityType": "Prefab_PickupIncineratorGauntlet",
+  "assetKey": "model_assault_rifle",
+  "color": 16737280,
+  "networked": true,
+  "collider": { "shape": "box", "size": { "width": 1.2, "height": 0.3, "depth": 0.3 } },
+  "pickup": { "pickupKind": "weapon", "itemId": "weapon_incinerator_gauntlet", "autoEquip": true, "autoPickup": true },
+  "interactable": { "interactionType": "item", "pickupable": true, "highlightable": true, "itemId": "weapon_incinerator_gauntlet", "quantity": 1, "prompt": "INCINERATOR GAUNTLET" },
+  "tags": ["pickup", "weapon"]
+}

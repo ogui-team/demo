@@ -1,0 +1,11 @@
+{
+  "name": "pickup_tome_arcane_advanced",
+  "entityType": "Prefab_PickupTomeArcaneAdvanced",
+  "assetKey": "model_arcane_orb",
+  "color": 8388863,
+  "networked": true,
+  "collider": { "shape": "box", "size": { "width": 0.6, "height": 0.8, "depth": 0.1 } },
+  "pickup": { "pickupKind": "item", "itemId": "tome_arcane_advanced", "autoPickup": true },
+  "interactable": { "interactionType": "item", "pickupable": true, "highlightable": true, "itemId": "tome_arcane_advanced", "quantity": 1, "prompt": "GRAND ARCANE TOME" },
+  "tags": ["pickup", "tome"]
+}

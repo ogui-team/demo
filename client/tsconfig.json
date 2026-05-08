@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ES2020",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "outDir": "./dist",
+    "rootDir": "..",
+    "incremental": true,
+    "tsBuildInfoFile": "./.typescript_cache",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "paths": {
+        "@engine/0-foundation/*": ["./src/0-foundation/*"],
+        "@engine/1-kernel/*": ["./src/1-kernel/*"],
+        "@engine/2-systems/*": ["./src/2-systems/*"],
+        "@engine/3-network/*": ["./src/3-network/*"],
+        "@engine/4-runtime/*": ["./src/4-runtime/*"],
+        "@engine/*": ["./src/*"],
+      "@shared/contracts": ["../packages/shared-contracts/src/index.ts"],
+      "@shared/contracts/*": ["../packages/shared-contracts/src/*"]
+    }
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}

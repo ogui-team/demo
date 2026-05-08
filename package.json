@@ -1,0 +1,44 @@
+{
+  "name": "video-game-engine",
+  "version": "0.3.0",
+  "description": "3D game engine for the browser with multiplayer support",
+  "private": true,
+  "workspaces": [
+    "client",
+    "server",
+    "packages/shared-contracts"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm --prefix server run dev\" \"npm --prefix client run dev\"",
+    "debug:driftbomb": "node scripts/debug-driftbomb.mjs",
+    "build": "npm --prefix server run build && npm --prefix client run build",
+    "start": "npm --prefix server run start",
+    "type-check": "npm --prefix server run type-check && npm --prefix client run type-check",
+    "validate:authority": "node scripts/validate-authority-enforcement.mjs",
+    "validate:replay": "npx vitest run test/client/runtime/RuntimeDeterminismTrace.test.ts --config test/vitest.config.ts",
+    "validate:streaming": "npx vitest run test/client/runtime/StreamingStability.test.ts test/client/runtime/ChunkChurnBenchmark.test.ts --config test/vitest.config.ts",
+    "validate:scale": "npx vitest run test/client/runtime/ScaleValidation.test.ts --config test/vitest.config.ts",
+    "validate:tooling": "npx vitest run test/client/runtime/ToolingAndCreatorSafety.test.ts --config test/vitest.config.ts",
+    "validate:release": "npx vitest run test/client/runtime/ReleaseHardening.test.ts --config test/vitest.config.ts",
+    "validate:drift-bomb": "npx vitest run test/client/runtime/DriftBombDeterminism.test.ts --config test/vitest.config.ts",
+    "validate:hardening": "npm run validate:authority && npm run validate:replay && npm run validate:streaming && npm run validate:scale && npm run validate:tooling && npm run validate:release && npm run validate:drift-bomb",
+    "test:authority": "npm run validate:authority",
+    "test": "npm run validate:hardening && vitest run --config test/vitest.config.ts",
+    "coverage": "vitest run --config test/vitest.config.ts --coverage",
+    "coverage:all": "vitest run --config test/vitest.config.ts --coverage",
+    "test:watch": "vitest --config test/vitest.config.ts",
+    "audit:engine": "ts-node --transpile-only --compiler-options \"{\\\"module\\\":\\\"commonjs\\\",\\\"moduleResolution\\\":\\\"node\\\"}\" engine/audit/runEngineAudit.ts"
+  },
+  "devDependencies": {
+    "@vitest/coverage-istanbul": "^4.1.4",
+    "@vitest/coverage-v8": "^4.1.4",
+    "c8": "^8.0.0",
+    "concurrently": "^8.2.2",
+    "happy-dom": "^20.9.0",
+    "playwright": "^1.59.1",
+    "ts-node": "^10.9.1",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^5.2.2",
+    "vitest": "^4.1.4"
+  }
+}

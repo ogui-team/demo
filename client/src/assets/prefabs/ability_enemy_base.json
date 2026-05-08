@@ -1,0 +1,9 @@
+{
+  "name": "ability_enemy_base",
+  "entityType": "Prefab_AbilityEnemyBase",
+  "assetKey": "placeholder_dummy",
+  "color": 16777215,
+  "networked": true,
+  "collider": { "shape": "box", "size": { "width": 0.8, "height": 1.9, "depth": 0.6 } },
+  "tags": ["enemy", "npc", "ability_enemy"]
+}

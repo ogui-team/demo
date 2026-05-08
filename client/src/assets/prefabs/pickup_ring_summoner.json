@@ -1,0 +1,11 @@
+{
+  "name": "pickup_ring_summoner",
+  "entityType": "Prefab_PickupRingSummoner",
+  "assetKey": "model_ring",
+  "color": 6684672,
+  "networked": true,
+  "collider": { "shape": "box", "size": { "width": 0.4, "height": 0.1, "depth": 0.4 } },
+  "pickup": { "pickupKind": "item", "itemId": "ring_summoner", "autoPickup": true },
+  "interactable": { "interactionType": "item", "pickupable": true, "highlightable": true, "itemId": "ring_summoner", "quantity": 1, "prompt": "NECROMANCER'S SEAL" },
+  "tags": ["pickup", "accessory"]
+}

@@ -1,0 +1,11 @@
+{
+  "name": "pickup_shotgun",
+  "entityType": "Prefab_PickupShotgun",
+  "assetKey": "model_weapon_shotgun",
+  "color": 16777215,
+  "networked": true,
+  "collider": { "shape": "box", "size": { "width": 1.2, "height": 0.3, "depth": 0.3 } },
+  "pickup": { "pickupKind": "weapon", "itemId": "weapon_shotgun", "weaponName": "shotgun", "autoEquip": true, "autoPickup": true },
+  "interactable": { "interactionType": "item", "pickupable": true, "highlightable": true, "itemId": "weapon_shotgun", "quantity": 1, "prompt": "SHOTGUN" },
+  "tags": ["pickup", "weapon"]
+}
