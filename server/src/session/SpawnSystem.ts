@@ -26,7 +26,25 @@ interface PlayerPrefabDefinition {
   };
 }
 
-const playerV1Prefab = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../prefabs/player_v1.json'), 'utf8')) as PlayerPrefabDefinition;
+function resolvePlayerPrefabPath(fileName: string): string {
+  const candidates = [
+    path.resolve(__dirname, `../prefabs/${fileName}`),
+    path.resolve(__dirname, `../../../../src/prefabs/${fileName}`),
+    path.resolve(process.cwd(), `src/prefabs/${fileName}`),
+    path.resolve(process.cwd(), `server/src/prefabs/${fileName}`),
+  ];
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  throw new Error(`Prefab file not found: ${fileName}. Checked: ${candidates.join(', ')}`);
+}
+
+const playerV1PrefabPath = resolvePlayerPrefabPath('player_v1.json');
+const playerV1Prefab = JSON.parse(fs.readFileSync(playerV1PrefabPath, 'utf8')) as PlayerPrefabDefinition;
 
 const PLAYER_PREFABS: Record<string, PlayerPrefabDefinition> = {
   player_v1: playerV1Prefab,
