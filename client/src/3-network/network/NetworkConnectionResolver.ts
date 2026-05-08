@@ -50,9 +50,20 @@ export class NetworkConnectionResolver {
    * Resolve the WebSocket URL using the resolution strategy
    */
   resolveWebSocketUrl(): string {
+    const explicitWsUrl = this.getExplicitServerUrl('ws');
+    if (explicitWsUrl) return explicitWsUrl;
+
+    const explicitHttpUrl = this.getExplicitServerUrl('http');
+    if (explicitHttpUrl) {
+      const parsed = new URL(explicitHttpUrl);
+      parsed.protocol = parsed.protocol === 'https:' ? 'wss:' : 'ws:';
+      return parsed.toString().replace(/\/$/, '');
+    }
+
     const host = this.resolveHost();
     const port = this.config.wsPort;
-    const protocol = this.config.useSecure ? 'wss' : 'ws';
+    const shouldUseSecure = this.config.useSecure || this.isSecurePageContext();
+    const protocol = shouldUseSecure ? 'wss' : 'ws';
     return `${protocol}://${host}:${port}`;
   }
 
@@ -60,9 +71,19 @@ export class NetworkConnectionResolver {
    * Resolve the HTTP base URL (for REST API)
    */
   resolveHttpUrl(): string {
+    const explicitHttpUrl = this.getExplicitServerUrl('http');
+    if (explicitHttpUrl) return explicitHttpUrl;
+
+    const explicitWsUrl = this.getExplicitServerUrl('ws');
+    if (explicitWsUrl) {
+      const parsed = new URL(explicitWsUrl);
+      parsed.protocol = parsed.protocol === 'wss:' ? 'https:' : 'http:';
+      return parsed.toString().replace(/\/$/, '');
+    }
+
     const host = this.resolveHost();
     const port = this.config.httpPort;
-    const protocol = this.config.useSecure ? 'https' : 'http';
+    const protocol = this.config.useSecure || this.isSecurePageContext() ? 'https' : 'http';
     return `${protocol}://${host}:${port}`;
   }
 
@@ -127,6 +148,40 @@ export class NetworkConnectionResolver {
     }
 
     return null;
+  }
+
+  private getExplicitServerUrl(kind: 'http' | 'ws'): string | null {
+    const read = (key: string): string | null => {
+      if (typeof process !== 'undefined' && process.env && typeof process.env[key] === 'string' && process.env[key]) {
+        return String(process.env[key]);
+      }
+      return null;
+    };
+
+    const direct = kind === 'ws' ? read('SERVER_WS_URL') : read('SERVER_HTTP_URL');
+    if (direct) {
+      try {
+        return new URL(direct).toString().replace(/\/$/, '');
+      } catch {
+        return null;
+      }
+    }
+
+    const generic = read('SERVER_URL');
+    if (!generic) return null;
+    try {
+      const parsed = new URL(generic);
+      parsed.protocol = kind === 'ws'
+        ? (parsed.protocol === 'https:' ? 'wss:' : 'ws:')
+        : (parsed.protocol === 'wss:' ? 'https:' : 'http:');
+      return parsed.toString().replace(/\/$/, '');
+    } catch {
+      return null;
+    }
+  }
+
+  private isSecurePageContext(): boolean {
+    return typeof window !== 'undefined' && window.location.protocol === 'https:';
   }
 }
 

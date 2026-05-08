@@ -25,3 +25,7 @@ services:
         value: 20.19.0
       - key: NODE_ENV
         value: production
+      - key: SERVER_HTTP_URL
+        value: https://demo-server.onrender.com
+      - key: SERVER_WS_URL
+        value: wss://demo-server.onrender.com

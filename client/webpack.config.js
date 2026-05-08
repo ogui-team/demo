@@ -1,4 +1,5 @@
 const path = require('path');
+const webpack = require('webpack');
 const HtmlPlugin = require('html-webpack-plugin');
 const { BundleAnalyzerPlugin } = require('webpack-bundle-analyzer');
 const SpeedMeasurePlugin = require('speed-measure-webpack-plugin');
@@ -58,6 +59,11 @@ module.exports = (_env, argv = {}) => {
       },
     },
     plugins: [
+      new webpack.EnvironmentPlugin({
+        SERVER_URL: '',
+        SERVER_HTTP_URL: '',
+        SERVER_WS_URL: '',
+      }),
       new HtmlPlugin({
         template: './src/index.html',
         chunks: ['runtime', 'bootloader'],
