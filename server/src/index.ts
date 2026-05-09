@@ -47,7 +47,17 @@ const WS_MAX_PAYLOAD_BYTES = Number(process.env.WS_MAX_PAYLOAD_BYTES ?? 64 * 102
 const wss    = new WebSocketServer({ server, maxPayload: WS_MAX_PAYLOAD_BYTES });
 const PORT   = process.env.PORT || 8080;
 const HTTP_JSON_LIMIT = process.env.HTTP_JSON_LIMIT ?? '128kb';
-const CLIENT_DIST_DIR = path.resolve(__dirname, '..', '..', '..', 'client', 'dist');
+const CLIENT_DIST_CANDIDATES = [
+  path.resolve(process.cwd(), 'client', 'dist'),
+  path.resolve(process.cwd(), '..', 'client', 'dist'),
+  path.resolve(__dirname, '..', '..', '..', '..', 'client', 'dist'),
+  path.resolve(__dirname, '..', '..', '..', 'client', 'dist'),
+];
+const CLIENT_DIST_DIR = CLIENT_DIST_CANDIDATES.find((candidate) => fs.existsSync(candidate));
+
+console.log(`[Server] CWD: ${process.cwd()}`);
+console.log(`[Server] CLIENT_DIST_CANDIDATES: ${CLIENT_DIST_CANDIDATES.join(' | ')}`);
+console.log(`[Server] CLIENT_DIST_DIR: ${CLIENT_DIST_DIR ?? '(not found)'}`);
 const MAX_MALFORMED_MESSAGES = 3;
 const MAX_RATE_LIMIT_VIOLATIONS = 5;
 const DEFAULT_ALLOWED_ORIGINS = [
@@ -572,7 +582,7 @@ wss.on('connection', (ws: WebSocket, req) => {
 // ─── HTTP routes ──────────────────────────────────────────────────────────────
 
 // Serve client static files and SPA index.html
-if (fs.existsSync(CLIENT_DIST_DIR)) {
+if (CLIENT_DIST_DIR) {
   app.use(express.static(CLIENT_DIST_DIR, {
     setHeaders: (res) => {
       res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
@@ -581,14 +591,14 @@ if (fs.existsSync(CLIENT_DIST_DIR)) {
     },
   }));
   console.log(`[Server] Serving static files from ${CLIENT_DIST_DIR}`);
-  
-  // Fallback: serve index.html for any unmatched route (SPA routing)
-  app.get('*', (_req, res) => {
+
+  // Root should always load the game shell.
+  app.get('/', (_req, res) => {
     res.sendFile(path.join(CLIENT_DIST_DIR, 'index.html'));
   });
 } else {
-  console.log(`[Server] Client dist directory not found at ${CLIENT_DIST_DIR} (expected on Render with separate static service)`);
-  
+  console.log('[Server] Client dist directory not found. Checked candidates above.');
+
   // Fallback health check if client not available
   app.get('/', (_req, res) => {
     res.json({ status: 'ok', service: 'game-server', version: '0.3.0' });
