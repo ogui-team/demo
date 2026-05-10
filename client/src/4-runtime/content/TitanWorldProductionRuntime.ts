@@ -409,7 +409,7 @@ export class TitanWorldProductionRuntime {
       completedNodeIds: [],
       values: this.generatedState.graphStates[graphId]?.values ?? {},
       lastEventId: null,
-      updatedAt: Date.now(),
+      updatedAt: Engine.time.now(),
     };
 
     this.generatedState.graphStates[graphId] = state;
@@ -446,7 +446,7 @@ export class TitanWorldProductionRuntime {
         }
         this.completeGraphNode(graph, node, runtimeState, payload);
         runtimeState.lastEventId = eventId;
-        runtimeState.updatedAt = Date.now();
+        runtimeState.updatedAt = Engine.time.now();
         this.appendGraphTransition(graph.id, node.id, runtimeState.activeNodeIds[0] ?? null, eventId);
         this.recordGeneratedDiff(`graphs.${graph.id}`, runtimeState);
         changed.push(clonePlain(runtimeState));
@@ -493,7 +493,7 @@ export class TitanWorldProductionRuntime {
     const policy = this.coopRuntimeDefinition?.chunkOwnerPolicy ?? 'host';
     const cellIds = options.cellIds ?? Object.keys(this.generatedState.chunkOwnership);
     const nextAssignments: Record<string, string> = {};
-    const now = Date.now();
+    const now = Engine.time.now();
 
     cellIds.forEach((cellId, index) => {
       nextAssignments[cellId] = resolveChunkOwner(policy, cellId, index, playerIds, options.playerPositions);
@@ -584,7 +584,7 @@ export class TitanWorldProductionRuntime {
       this.config.pathfindingSystem?.rebuildNavMesh();
     }
 
-    const now = Date.now();
+    const now = Engine.time.now();
     const ownerId = this.generatedState.chunkOwnership[cellId] ?? 'unassigned';
     this.generatedState.generatedChunks[cellId] = {
       cellId,
@@ -764,7 +764,7 @@ export class TitanWorldProductionRuntime {
     }
 
     runtimeState.activeNodeIds = [node.id];
-    runtimeState.updatedAt = Date.now();
+    runtimeState.updatedAt = Engine.time.now();
     this.markLifecyclePhase(`graph:${graph.id}`, 'simulated');
     gameBus.emit('stateMutation', {
       source: 'titanWorldProductionRuntime',
@@ -829,7 +829,7 @@ export class TitanWorldProductionRuntime {
     if (!nextNodeId) {
       runtimeState.status = 'completed';
       runtimeState.activeNodeIds = [];
-      runtimeState.updatedAt = Date.now();
+      runtimeState.updatedAt = Engine.time.now();
       return;
     }
 
@@ -878,7 +878,7 @@ export class TitanWorldProductionRuntime {
       encounterId: encounter.id,
       status: 'active',
       resolvedBy: null,
-      updatedAt: Date.now(),
+      updatedAt: Engine.time.now(),
     };
     this.recordGeneratedDiff(`encounters.${encounter.id}`, this.generatedState.encounterStates[encounter.id]);
     gameBus.emit('stateMutation', {
@@ -898,7 +898,7 @@ export class TitanWorldProductionRuntime {
     }
     encounter.status = 'resolved';
     encounter.resolvedBy = resolvedBy;
-    encounter.updatedAt = Date.now();
+    encounter.updatedAt = Engine.time.now();
     this.generatedState.authoritativeEpoch += 1;
     this.recordGeneratedDiff(`encounters.${encounterId}`, encounter);
     this.refreshCompatibilityEnvelope();
@@ -1023,7 +1023,7 @@ export class TitanWorldProductionRuntime {
   }
 
   private resolveChunkSeed(scopeId: string): number {
-    return createDeterministicSeed(this.generatedState.deterministicGenerationSeed || Date.now(), scopeId);
+    return createDeterministicSeed(this.generatedState.deterministicGenerationSeed || Engine.time.now(), scopeId);
   }
 
   private appendGraphTransition(
@@ -1037,7 +1037,7 @@ export class TitanWorldProductionRuntime {
       fromNodeId,
       toNodeId,
       eventId: eventId ?? null,
-      timestamp: Date.now(),
+      timestamp: Engine.time.now(),
     });
   }
 
@@ -1062,7 +1062,7 @@ export class TitanWorldProductionRuntime {
       id: `${path}:${this.generatedState.replayJournal.productionStateDiffs.length + 1}`,
       path,
       valueHash: computeWorldProductionContentHash(value),
-      appliedAt: Date.now(),
+      appliedAt: Engine.time.now(),
     });
   }
 

@@ -105,7 +105,7 @@ export class LocalPlayerAuthorityCoordinator {
         entityId,
         authority,
         hasPendingBindings: this.pendingBindings.length,
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
       });
       
       this.authorityValidatedPlayerId = playerId;
@@ -119,7 +119,7 @@ export class LocalPlayerAuthorityCoordinator {
       console.log('[Authority] FULL_SYNC_READY received (backup authority signal)', {
         hasPendingBindings: this.pendingBindings.length,
         authorityValidatedPlayerId: this.authorityValidatedPlayerId,
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
       });
       
       // If we haven't validated authority yet through SPAWN_AUTHORITY, accept it now
@@ -143,17 +143,17 @@ export class LocalPlayerAuthorityCoordinator {
       this.lastExecutedBinding = null;
       this.lastMeshReadyRebindKey = null;
       if (this.bindingLockTimeoutId !== null) {
-        window.clearTimeout(this.bindingLockTimeoutId);
+        Engine.timer.clearTimeout(this.bindingLockTimeoutId);
         this.bindingLockTimeoutId = null;
       }
-      this.bindingLockTimeoutId = window.setTimeout(() => {
+      this.bindingLockTimeoutId = Engine.timer.setTimeout(() => {
         this.isBindingLocked = false;
         this.bindingLockedReason = '';
         this.bindingLockTimeoutId = null;
         console.log('[LocalPlayerAuthorityCoordinator] Binding lock auto-released after local ENTITY_REBOUND', {
           entityId,
           reason,
-          timestamp: Date.now(),
+          timestamp: Engine.time.now(),
         });
       }, 500);
 
@@ -162,7 +162,7 @@ export class LocalPlayerAuthorityCoordinator {
         oldHandle,
         newHandle,
         reason,
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
       });
     });
     
@@ -171,7 +171,7 @@ export class LocalPlayerAuthorityCoordinator {
       this.isBindingLocked = false;
       this.bindingLockedReason = '';
       if (this.bindingLockTimeoutId !== null) {
-        window.clearTimeout(this.bindingLockTimeoutId);
+        Engine.timer.clearTimeout(this.bindingLockTimeoutId);
         this.bindingLockTimeoutId = null;
       }
       this.lastExecutedBinding = null;
@@ -183,7 +183,7 @@ export class LocalPlayerAuthorityCoordinator {
       this.isBindingLocked = false;
       this.bindingLockedReason = '';
       if (this.bindingLockTimeoutId !== null) {
-        window.clearTimeout(this.bindingLockTimeoutId);
+        Engine.timer.clearTimeout(this.bindingLockTimeoutId);
         this.bindingLockTimeoutId = null;
       }
       this.authorityValidatedPlayerId = null;
@@ -212,21 +212,21 @@ export class LocalPlayerAuthorityCoordinator {
         console.warn('[LocalPlayerAuthorityCoordinator] FULL_SYNC_DATA identity mismatch; preferring playerId', {
           playerId: eventPlayerId,
           localPlayerId: eventLocalPlayerId,
-          timestamp: Date.now(),
+          timestamp: Engine.time.now(),
         });
       }
 
       console.log('[LocalPlayerAuthorityCoordinator] FULL_SYNC_DATA received - validating snapshot entities', {
         playerId: resolvedPlayerId,
         entityCount: entities?.length ?? 0,
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
       });
 
       if (!resolvedPlayerId) {
         console.error('[LocalPlayerAuthorityCoordinator] FULL_SYNC_DATA missing local player identity', {
           playerId,
           localPlayerId,
-          timestamp: Date.now(),
+          timestamp: Engine.time.now(),
         });
         return;
       }
@@ -234,7 +234,7 @@ export class LocalPlayerAuthorityCoordinator {
       if (!entities || entities.length === 0) {
         console.error('[LocalPlayerAuthorityCoordinator] FULL_SYNC_DATA contains empty entities array', {
           playerId: resolvedPlayerId,
-          timestamp: Date.now(),
+          timestamp: Engine.time.now(),
         });
         return;
       }
@@ -254,14 +254,14 @@ export class LocalPlayerAuthorityCoordinator {
           entityHandle: localPlayerEntity.networkEntityId || localPlayerEntity.id,
           entityType: localPlayerEntity.type,
           isPlayerControlled: localPlayerEntity.isPlayerControlled ?? localPlayerEntity.IS_PLAYER_CONTROLLED,
-          timestamp: Date.now(),
+          timestamp: Engine.time.now(),
         });
 
         // ─ MULTIPLAYER SYNC FIX: Mark as validated for input release ─
         this.authorityValidatedPlayerId = resolvedPlayerId;
         console.log('[LocalPlayerAuthorityCoordinator] Authority marked as validated from FULL_SYNC_DATA', {
           playerId: resolvedPlayerId,
-          timestamp: Date.now(),
+          timestamp: Engine.time.now(),
         });
       } else {
         console.error('[LocalPlayerAuthorityCoordinator] ❌ Snapshot Entity für Player NICHT gefunden', {
@@ -273,7 +273,7 @@ export class LocalPlayerAuthorityCoordinator {
             isPlayerControlled: e.isPlayerControlled,
             legacyIsPlayerControlled: e.IS_PLAYER_CONTROLLED,
           })),
-          timestamp: Date.now(),
+          timestamp: Engine.time.now(),
         });
       }
     });
@@ -302,7 +302,7 @@ export class LocalPlayerAuthorityCoordinator {
         playerId,
         authorityMode,
         reason: this.bindingLockedReason,
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
       });
       const localPlayerEntity = this.config.getLocalPlayerEntity();
       if (localPlayerEntity) {
@@ -318,7 +318,7 @@ export class LocalPlayerAuthorityCoordinator {
         authorityMode,
         validatedPlayerId: this.authorityValidatedPlayerId,
         pendingQueue: this.pendingBindings.length,
-        enqueuedAt: Date.now(),
+        enqueuedAt: Engine.time.now(),
       });
 
       const isDuplicate = this.pendingBindings.some(
@@ -328,7 +328,7 @@ export class LocalPlayerAuthorityCoordinator {
         this.pendingBindings.push({
           playerId,
           authorityMode,
-          enqueuedAt: Date.now(),
+          enqueuedAt: Engine.time.now(),
         });
       }
 
@@ -410,7 +410,7 @@ export class LocalPlayerAuthorityCoordinator {
       gameBus.emit('CONTROLLER_BOUND', {
         playerId,
         entityId: localPlayerEntity.id,
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
       });
       this.config.emitForceRebind({
         playerId,
@@ -442,12 +442,12 @@ export class LocalPlayerAuthorityCoordinator {
     console.log('[Authority] Processing pending bindings', {
       count: this.pendingBindings.length,
       authorityValidatedPlayerId: this.authorityValidatedPlayerId,
-      timestamp: Date.now(),
+      timestamp: Engine.time.now(),
     });
 
     try {
       for (const pending of this.pendingBindings) {
-        const deferredMs = Date.now() - pending.enqueuedAt;
+        const deferredMs = Engine.time.now() - pending.enqueuedAt;
         console.log('[Authority] Executing deferred binding', {
           playerId: pending.playerId,
           authorityMode: pending.authorityMode,
@@ -473,7 +473,7 @@ export class LocalPlayerAuthorityCoordinator {
     } finally {
       this.isProcessingPendingBindings = false;
       console.log('[Authority] Pending bindings processing complete', {
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
       });
     }
   }
@@ -498,7 +498,7 @@ export class LocalPlayerAuthorityCoordinator {
       console.warn('[LocalPlayerAuthorityCoordinator] Snapshot binding injection skipped - lock active', {
         localPlayerId,
         reason: this.bindingLockedReason,
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
       });
       return;
     }
@@ -518,7 +518,7 @@ export class LocalPlayerAuthorityCoordinator {
       console.warn('[LocalPlayerAuthorityCoordinator] Controlled snapshot entity uses distinct network identity', {
         localPlayerId,
         controlledEntityId: controlled.id,
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
       });
     }
 
@@ -586,7 +586,7 @@ export class LocalPlayerAuthorityCoordinator {
     this.pendingMeshRetryKeys.add(retryKey);
     const schedule = typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function'
       ? window.requestAnimationFrame.bind(window)
-      : ((callback: FrameRequestCallback) => window.setTimeout(() => callback(performance.now()), 16));
+      : ((callback: FrameRequestCallback) => Engine.timer.setTimeout(() => callback(performance.now()), 16));
 
     schedule(() => {
       this.pendingMeshRetryKeys.delete(retryKey);
@@ -614,7 +614,7 @@ export class LocalPlayerAuthorityCoordinator {
         entityId: currentEntity.id,
         handle,
         source: `${source}:mesh_retry`,
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
       });
     });
   }

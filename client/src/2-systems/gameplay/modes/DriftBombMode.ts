@@ -56,7 +56,7 @@ export class DriftBombMode extends BaseGameMode {
       this.roundManager.initializeMatch([]);
       this.awaitingLocalSetup = true;
       this.lastPhase = 'idle';
-      this.roundStartTime = Date.now();
+      this.roundStartTime = Engine.time.now();
       console.log('[DriftBombMode] Waiting for local team selection before spawning player.');
       logEvent('drift_bomb', 'Awaiting local team selection');
       return;
@@ -79,7 +79,7 @@ export class DriftBombMode extends BaseGameMode {
 
     // Start first round
     this.roundManager.startNextRound();
-    this.roundStartTime = Date.now();
+    this.roundStartTime = Engine.time.now();
     this.lastPhase = 'buy_phase';
 
     console.log('[DriftBombMode] Match initialized — buy phase active.');
@@ -167,7 +167,7 @@ export class DriftBombMode extends BaseGameMode {
 
       case 'round_end':
         // Wait for UI to show scoreboard, then transition to next round
-        const timeSinceEnd = (Date.now() - this.roundStartTime) / 1000;
+        const timeSinceEnd = (Engine.time.now() - this.roundStartTime) / 1000;
         if (timeSinceEnd > 5) {
           // After 5 seconds, prepare next round
           this.prepareNextRound(ctx);
@@ -193,30 +193,30 @@ export class DriftBombMode extends BaseGameMode {
     switch (toPhase) {
       case 'buy_phase':
         ctx.broadcastEvent('phase_change', { phase: 'buy_phase' });
-        this.roundStartTime = Date.now();
+        this.roundStartTime = Engine.time.now();
         console.log('[DriftBombMode] BUY PHASE: Players have 20 seconds to buy equipment');
         break;
 
       case 'action_phase':
         ctx.broadcastEvent('phase_change', { phase: 'action_phase' });
-        this.roundStartTime = Date.now();
+        this.roundStartTime = Engine.time.now();
         console.log('[DriftBombMode] ACTION PHASE: Attackers attempt to plant bomb');
         break;
 
       case 'drifting':
         ctx.broadcastEvent('phase_change', { phase: 'drifting' });
-        this.roundStartTime = Date.now();
+        this.roundStartTime = Engine.time.now();
         console.log('[DriftBombMode] DRIFTING: Bomb is moving along route');
         break;
 
       case 'defusing':
         ctx.broadcastEvent('phase_change', { phase: 'defusing' });
-        this.roundStartTime = Date.now();
+        this.roundStartTime = Engine.time.now();
         console.log('[DriftBombMode] DEFUSING: Defender attempting to defuse while tethered');
         break;
 
       case 'round_end':
-        this.roundStartTime = Date.now();
+        this.roundStartTime = Engine.time.now();
         ctx.broadcastEvent('round_end', {
           winner: this.roundManager.getState().roundWinner,
           reason: this.roundManager.getState().winReason,
@@ -272,7 +272,7 @@ export class DriftBombMode extends BaseGameMode {
 
     // Start next round
     this.roundManager.startNextRound();
-    this.roundStartTime = Date.now();
+    this.roundStartTime = Engine.time.now();
     this.lastPhase = 'buy_phase';
 
     console.log(`[DriftBombMode] Starting round ${this.roundManager.getRoundNumber()}`);
@@ -362,7 +362,7 @@ export class DriftBombMode extends BaseGameMode {
     this.setLocalTeam(playerId, team);
     this.contextRef.spawnPlayer(playerId);
     this.roundManager.startNextRound();
-    this.roundStartTime = Date.now();
+    this.roundStartTime = Engine.time.now();
     this.lastPhase = 'idle';
     logEvent('drift_bomb', 'Local match started');
   }

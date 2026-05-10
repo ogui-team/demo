@@ -1,12 +1,6 @@
-import type { TropicalHorrorArchetypeId } from '@shared/contracts';
+import type { TropicalHorrorArchetypeId, Vector3 as Vec3 } from '@shared/contracts';
 import type { PlayerRuntimeState, RoundState } from '../../2-systems/gameplay/game/PlayerState';
 import type { StatusMovementModifier } from './MovementModifierContracts';
-
-export interface Vec3 {
-  x: number;
-  y: number;
-  z: number;
-}
 
 export interface LobbyPlayer {
   id: string;

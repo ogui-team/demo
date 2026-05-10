@@ -22,8 +22,8 @@ export function queuePendingAuthorityBinding(context: any, playerId: string, net
   context.pendingAuthorityBindings.set(playerId, {
     playerId,
     networkEntityId,
-    queuedAt: Date.now(),
-    lastCheckAt: Date.now(),
+    queuedAt: Engine.time.now(),
+    lastCheckAt: Engine.time.now(),
     checkCount: 0,
   });
 }
@@ -33,7 +33,7 @@ export function processPendingAuthorityBindings(context: any, snapshot: NetworkS
     return;
   }
 
-  const now = Date.now();
+  const now = Engine.time.now();
   const pendingIds = Array.from(context.pendingAuthorityBindings.keys()) as string[];
 
   for (const playerId of pendingIds) {

@@ -313,7 +313,7 @@ export class AdvancedEnemyAI {
   ): void {
     a.stateTimer -= dt;
     if (a.stateTimer <= 0) {
-      a.stateTimer = 2 + Math.random() * 3;
+      a.stateTimer = 2 + Engine.random.next() * 3;
       if (a.config.waypoints.length > 0) this._transitionTo(a, 'patrol', pos);
     }
     const target = this._detectPlayer(a, pos, players);
@@ -541,7 +541,7 @@ export class AdvancedEnemyAI {
       a.currentPath = this.pathfind.findPath(from, to);
       a.pathIndex   = { value: 0 };
       // Ghost teleports periodically instead of pathing
-      if (a.config.type === EnemyType.GHOST && Math.random() < 0.05) {
+      if (a.config.type === EnemyType.GHOST && Engine.random.next() < 0.05) {
         ep.set(a.entityId, { ...to, y: from.y }); // short teleport
         return;
       }

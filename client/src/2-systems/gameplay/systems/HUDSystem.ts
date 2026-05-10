@@ -738,7 +738,7 @@ export class HUDSystem {
       this.damageFlashTimer = 0;
       this.damageFlashEl.style.opacity = '0';
       const el = this.damageFlashEl;
-      setTimeout(() => { el.style.display = 'none'; }, 300);
+      Engine.timer.setTimeout(() => { el.style.display = 'none'; }, 300);
     } else {
       const fade = Math.min(1, this.damageFlashTimer / 0.35);
       this.damageFlashEl.style.opacity = String(fade * 0.85);

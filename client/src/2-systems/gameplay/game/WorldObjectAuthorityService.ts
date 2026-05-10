@@ -457,7 +457,7 @@ export class WorldObjectAuthorityService {
 
   private recordOperation(operation: string): void {
     this.lastOperation = operation;
-    this.lastUpdatedAt = Date.now();
+    this.lastUpdatedAt = Engine.time.now();
   }
 
   private getEntityManager(): EntityManagerAdapter {

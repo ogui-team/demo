@@ -239,7 +239,7 @@ export class SafeWebSocketConnection {
         };
 
         // Timeout
-        this.connectionTimeout = setTimeout(() => {
+        this.connectionTimeout = Engine.timer.setTimeout(() => {
           if (this.isConnecting) {
             console.error(
               `[SafeWebSocketConnection] Connection timeout (${this.config.connectTimeoutMs}ms) to ${this.url}`
@@ -306,7 +306,7 @@ export class SafeWebSocketConnection {
    */
   private clearTimeout(): void {
     if (this.connectionTimeout) {
-      clearTimeout(this.connectionTimeout);
+      Engine.timer.clearTimeout(this.connectionTimeout);
       this.connectionTimeout = null;
     }
   }

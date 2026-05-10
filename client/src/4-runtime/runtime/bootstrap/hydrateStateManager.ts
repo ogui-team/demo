@@ -100,12 +100,12 @@ export function setRuntimePlayerIdInState(stateManager: StateManager, playerId: 
     stateManager.set('players.local.id', playerId);
     console.log('[StateManager] Runtime player ID set:', {
       playerId,
-      timestamp: Date.now(),
+      timestamp: Engine.time.now(),
     });
   } else {
     stateManager.set('players.local.id', null);
     console.log('[StateManager] Runtime player ID cleared:', {
-      timestamp: Date.now(),
+      timestamp: Engine.time.now(),
     });
   }
 }

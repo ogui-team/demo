@@ -150,6 +150,9 @@ export class MultiplayerRuntimeCoordinator {
   private lastGameStartSessionId: string | null = null;
   private lastRoundStartAt = 0;
   private readonly busDisposers: Array<() => void> = [];
+  private readonly mpClientDisposers: Array<() => void> = [];
+  private readonly gameModeDisposers: Array<() => void> = [];
+  private wired = false;
 
   constructor(config: MultiplayerRuntimeCoordinatorConfig) {
     this.engineController = config.engineController;
@@ -339,7 +342,7 @@ export class MultiplayerRuntimeCoordinator {
   }
 
   markRoundStart(): void {
-    this.lastRoundStartAt = Date.now();
+    this.lastRoundStartAt = Engine.time.now();
   }
 
   getRuntimeAppStateLabel(): RuntimeAppState | 'menu' {
@@ -383,7 +386,7 @@ export class MultiplayerRuntimeCoordinator {
       }
     };
 
-    this.mpClient.on('lobby_update', handleLobbyUpdate);
+    this.onMpClient('lobby_update', handleLobbyUpdate);
     this.mpClient.hostRoom(this.serverWsUrl, config.playerName, {
       name: config.roomName,
       map: config.map,
@@ -413,7 +416,7 @@ export class MultiplayerRuntimeCoordinator {
       this.mpClient.setReady(true);
     };
 
-    this.mpClient.on('lobby_update', handleLobbyUpdate);
+    this.onMpClient('lobby_update', handleLobbyUpdate);
     if (config.roomId) {
       this.mpClient.joinRoom(this.serverWsUrl, config.playerName, config.roomId);
       return;
@@ -430,12 +433,34 @@ export class MultiplayerRuntimeCoordinator {
 
   dispose(): void {
     while (this.busDisposers.length > 0) { this.busDisposers.pop()?.(); }
+    while (this.mpClientDisposers.length > 0) { this.mpClientDisposers.pop()?.(); }
+    while (this.gameModeDisposers.length > 0) { this.gameModeDisposers.pop()?.(); }
+    this.wired = false;
+    this.stopInputSending();
+  }
+
+  private onMpClient(event: string, handler: (...args: any[]) => void): void {
+    this.mpClient.on(event as never, handler as never);
+    this.mpClientDisposers.push(() => {
+      this.mpClient.off(event as never, handler as never);
+    });
+  }
+
+  private onGameMode(eventName: string, handler: (...args: any[]) => void): void {
+    this.gameModeManager.on(eventName as never, handler as never);
+    this.gameModeDisposers.push(() => {
+      this.gameModeManager.off(eventName as never, handler as never);
+    });
   }
 
   wire(): void {
     if (!this.sessionLifecycleCoordinator) {
       throw new Error('SessionLifecycleCoordinator must be attached before wiring multiplayer runtime');
     }
+    if (this.wired) {
+      return;
+    }
+    this.wired = true;
     this.busDisposers.push(gameBus.on('LOCAL_PLAYER_ACTUALIZED', ({ playerId, entityId, tick, forced, latencyMs, source }) => {
       this.sessionLifecycleCoordinator?.handleLocalPlayerActualized({
         playerId,
@@ -447,7 +472,7 @@ export class MultiplayerRuntimeCoordinator {
       });
     }));
 
-    this.mpClient.on('authoritative_snapshot', (payload) => {
+    this.onMpClient('authoritative_snapshot', (payload) => {
       if (!this.shouldProcessAuthoritativeSnapshots()) return;
       if (!this.worldRuntime.assertSpawnSystemsReady('authoritative_snapshot')) return;
       const snapshotSummary = this.worldRuntime.summarizeAuthoritativeSnapshot(payload);
@@ -458,15 +483,15 @@ export class MultiplayerRuntimeCoordinator {
           containsLocalPlayer: snapshotSummary.containsLocalPlayer,
           localPlayerHasPosition: snapshotSummary.localPlayerHasPosition,
           playerTypes: payload.entities
-            .filter((entity) => entity.type === 'player')
-            .map((entity) => ({ id: entity.id, type: entity.type, hasPosition: !!entity.position })),
+            .filter((entity: any) => entity.type === 'player')
+            .map((entity: any) => ({ id: entity.id, type: entity.type, hasPosition: !!entity.position })),
         });
       }
       this.networkSyncSystem.applyAuthoritativeSnapshot(this.toReplicationSnapshot(payload));
-      this.playerModelSystem.syncFromPayload(payload.entities, payload.timestamp ?? Date.now());
+      this.playerModelSystem.syncFromPayload(payload.entities, payload.timestamp ?? Engine.time.now());
       this.worldRuntime.injectAuthoritativeSnapshotBinding(
         this.mpClient.playerId,
-        payload.entities.map((entity) => ({ id: entity.id, isPlayerControlled: entity.isPlayerControlled })),
+        payload.entities.map((entity: any) => ({ id: entity.id, isPlayerControlled: entity.isPlayerControlled })),
       );
       this.worldRuntime.updateAuthoritativeSnapshotTracking(payload);
       const localEntity = this.worldRuntime.findLocalAuthoritativeSnapshotEntity(payload.entities);
@@ -492,7 +517,7 @@ export class MultiplayerRuntimeCoordinator {
       }
     });
 
-    this.mpClient.on('connected', (data) => {
+    this.onMpClient('connected', (data) => {
       logEvent('network', `Connected as ${data.playerId} to ${data.roomId}`);
       // ── Inventory base URL: override the auto-detected origin so REST calls
       // always target the backend port (e.g. :8080) and not the dev-server
@@ -513,24 +538,24 @@ export class MultiplayerRuntimeCoordinator {
     });
 
     // ── Server tick synchronization: calibrate interpolation timing for smooth remote player movement
-    this.mpClient.on('tick_sync', (data) => {
+    this.onMpClient('tick_sync', (data) => {
       this.playerModelSystem?.onServerTickSync(data.tickRate);
     });
 
-    this.mpClient.on('game_start', (data) => {
+    this.onMpClient('game_start', (data) => {
       this.mpClient.requestFullSync();
       this.handleGameStart(data);
     });
 
-    this.mpClient.on('disconnected', () => {
+    this.onMpClient('disconnected', () => {
       this.sessionLifecycleCoordinator?.handleDisconnected();
     });
 
-    this.mpClient.on('player_died', (payload) => {
+    this.onMpClient('player_died', (payload) => {
       this.sessionLifecycleCoordinator?.handleLocalPlayerDeath(payload, this.mpClient.playerId);
     });
 
-    this.mpClient.on('player_leave', (payload) => {
+    this.onMpClient('player_leave', (payload) => {
       logEvent('network', `Player left: ${payload.playerId}`);
       this.playerModelSystem.removePlayer(payload.playerId);
     });
@@ -538,7 +563,7 @@ export class MultiplayerRuntimeCoordinator {
     // ── Appearance replication ──────────────────────────────────────────────
     // Write incoming peer appearance to StateManager so PlayerModelSystem's
     // subscription rebuilds the remote avatar in real-time.
-    this.mpClient.on('player_appearance', (payload) => {
+    this.onMpClient('player_appearance', (payload) => {
       if (payload.playerId === this.mpClient.playerId) return;
       Engine.getStateManagerInstance()?.set(
         `player.${payload.playerId}.appearance`,
@@ -554,27 +579,27 @@ export class MultiplayerRuntimeCoordinator {
       }
     }));
 
-    this.mpClient.on('player_equip', (payload) => {
+    this.onMpClient('player_equip', (payload) => {
       if (payload.playerId === this.mpClient.playerId) return;
       this.weaponSystem.applyRemoteEquip(payload.playerId, payload.weaponId);
     });
 
-    this.mpClient.on('player_reload', (payload) => {
+    this.onMpClient('player_reload', (payload) => {
       if (payload.playerId === this.mpClient.playerId) return;
       this.weaponSystem.applyRemoteReload(payload.playerId, payload.weaponId);
     });
 
-    this.mpClient.on('player_shoot', (payload) => {
+    this.onMpClient('player_shoot', (payload) => {
       if (payload.shooterId === this.mpClient.playerId) return;
       this.weaponSystem.recordRemoteShot(payload.shooterId, payload.weapon, payload.origin, payload.direction);
     });
 
-    this.mpClient.on('inventory_state_sync', (payload) => {
+    this.onMpClient('inventory_state_sync', (payload) => {
       if (!payload.activeSlot) return;
       this.weaponSystem.applyRemoteEquip(payload.playerId, payload.activeSlot);
     });
 
-    this.mpClient.on('inventory_sync', (payload) => {
+    this.onMpClient('inventory_sync', (payload) => {
       if (this.engineController.is('in_game')) {
         Engine.ensureGameplayUiActive();
       }
@@ -584,7 +609,7 @@ export class MultiplayerRuntimeCoordinator {
       });
     });
 
-    this.mpClient.on('ammo_state_sync', (payload) => {
+    this.onMpClient('ammo_state_sync', (payload) => {
       this.weaponSystem.syncAuthoritativeAmmoState(payload.playerId, payload.weaponId, {
         currentAmmo: payload.current,
         reserveAmmo: payload.reserve,
@@ -592,7 +617,7 @@ export class MultiplayerRuntimeCoordinator {
       });
     });
 
-    this.mpClient.on('attribute_state_sync', (payload) => {
+    this.onMpClient('attribute_state_sync', (payload) => {
       if (!this.healthSystem.get(payload.playerId)) {
         this.healthSystem.register(payload.playerId, {
           maxHp: payload.maxHealth ?? 100,
@@ -622,51 +647,51 @@ export class MultiplayerRuntimeCoordinator {
       });
     });
 
-    this.mpClient.on('ability_state_sync', (payload) => {
+    this.onMpClient('ability_state_sync', (payload) => {
       if (payload.playerId !== this.mpClient.playerId || !payload.movementIntent) return;
       this.networkSyncSystem.queueMovementIntent(payload.playerId, payload.movementIntent as NetworkMovementIntent);
     });
 
-    this.mpClient.on('world_state', ({ objects }) => {
+    this.onMpClient('world_state', ({ objects }) => {
       this.worldRuntime.assertSpawnSystemsReady('world_state');
       this.worldRuntime.getWorldObjectAuthorityService().syncRemoteWorldState(objects);
     });
 
-    this.mpClient.on('player_respawn', (payload) => {
+    this.onMpClient('player_respawn', (payload) => {
       logEvent('network', `Player respawned: ${payload.playerId}`);
       this.sessionLifecycleCoordinator?.handlePlayerRespawn(payload, this.mpClient.playerId);
     });
 
-    this.mpClient.on('lobby_update', (lobby) => {
-      this.lastLobbyUpdateAt = Date.now();
+    this.onMpClient('lobby_update', (lobby) => {
+      this.lastLobbyUpdateAt = Engine.time.now();
       if (this.engineController.is('lobby') && lobby.countdown > 0) {
         this.transitionEngineState('starting', 'lobby_countdown');
       }
     });
 
-    this.mpClient.on('damage_taken', (payload) => {
+    this.onMpClient('damage_taken', (payload) => {
       const direction = this.resolveDamageDirectionFromSource(payload.sourceId);
       this.hitFeedback.showDamageTaken(payload.amount, { direction });
     });
 
-    this.mpClient.on('player_killed', (payload) => {
+    this.onMpClient('player_killed', (payload) => {
       if (payload.killerId === this.worldRuntime.getActiveRuntimePlayerId()) {
         this.hitFeedback.showHitMarker(true);
         this.hitFeedback.showKillConfirm(payload.targetId);
       }
     });
 
-    this.gameModeManager.on('round_end', () => {
+    this.onGameMode('round_end', () => {
       logEvent('engine', 'Round ended');
       this.sessionLifecycleCoordinator?.handleRoundEnd();
     });
 
-    this.gameModeManager.on('initialize_round', ({ reason }) => {
+    this.onGameMode('initialize_round', ({ reason }) => {
       logEvent('engine', `Initialize round via ${reason}`);
       this.sessionLifecycleCoordinator?.handleInitializeRound(reason);
     });
 
-    this.gameModeManager.on('round_start', ({ round }) => {
+    this.onGameMode('round_start', ({ round }) => {
       logEvent('engine', `Round started (${round.roundNumber})`);
     });
   }
@@ -738,14 +763,14 @@ export class MultiplayerRuntimeCoordinator {
       return;
     }
     logEvent('network', `Game start on ${data.map} (${data.mode})`);
-    this.lastGameStartAt = Date.now();
+    this.lastGameStartAt = Engine.time.now();
     this.lastGameStartSessionId = data.sessionId;
     this.gameLaunchCoordinator?.startMultiplayerMatch(data);
 
     const cachedSnapshot = this.mpClient.getLastAuthoritativeSnapshot();
     if (cachedSnapshot && cachedSnapshot.entities.length > 0) {
       this.networkSyncSystem.applyAuthoritativeSnapshot(this.toReplicationSnapshot(cachedSnapshot));
-      this.playerModelSystem.syncFromPayload(cachedSnapshot.entities, cachedSnapshot.timestamp ?? Date.now());
+      this.playerModelSystem.syncFromPayload(cachedSnapshot.entities, cachedSnapshot.timestamp ?? Engine.time.now());
       this.worldRuntime.injectAuthoritativeSnapshotBinding(
         this.mpClient.playerId,
         cachedSnapshot.entities.map((entity) => ({ id: entity.id, isPlayerControlled: entity.isPlayerControlled })),
@@ -840,9 +865,9 @@ export class MultiplayerRuntimeCoordinator {
         playerId: this.mpClient.playerId,
         roomId: this.mpClient.roomId,
         debugStats: this.mpClient.getDebugStats(),
-        lastLobbyUpdateAgeMs: this.lastLobbyUpdateAt > 0 ? Date.now() - this.lastLobbyUpdateAt : null,
-        lastGameStartAgeMs: this.lastGameStartAt > 0 ? Date.now() - this.lastGameStartAt : null,
-        lastRoundStartAgeMs: this.lastRoundStartAt > 0 ? Date.now() - this.lastRoundStartAt : null,
+        lastLobbyUpdateAgeMs: this.lastLobbyUpdateAt > 0 ? Engine.time.now() - this.lastLobbyUpdateAt : null,
+        lastGameStartAgeMs: this.lastGameStartAt > 0 ? Engine.time.now() - this.lastGameStartAt : null,
+        lastRoundStartAgeMs: this.lastRoundStartAt > 0 ? Engine.time.now() - this.lastRoundStartAt : null,
         lastSnapshotAgeMs: this.mpClient.getLastAuthoritativeSnapshotAgeMs(),
         lastSnapshot: committedSnapshotSummary,
         lastValidSnapshotTick: this.mpClient.getLastValidSnapshotTick() ?? this.worldRuntime.getLocalPlayerBootstrapCoordinator().getLastValidSnapshotTick() ?? null,
@@ -917,7 +942,7 @@ export class MultiplayerRuntimeCoordinator {
   }) {
     return {
       tick: payload.tick,
-      timestamp: payload.timestamp ?? Date.now(),
+      timestamp: payload.timestamp ?? Engine.time.now(),
       ackInputSeq: payload.ack,
       lastProcessedInput: payload.lastProcessedInput ?? payload.lastProcessedInputTick,
       lastProcessedInputTick: payload.lastProcessedInputTick,

@@ -1,0 +1,16 @@
+{
+  "name": "sandbox-test",
+  "private": true,
+  "version": "1.0.0",
+  "type": "commonjs",
+  "scripts": {
+    "build": "node ./node_modules/typescript/bin/tsc EmptyPlugin.ts --target ES2020 --module commonjs --moduleResolution node --ignoreDeprecations 6.0 --esModuleInterop --strict --skipLibCheck --outDir dist",
+    "start": "node ./dist/EmptyPlugin.js"
+  },
+  "dependencies": {
+    "my-engine-sdk": "file:../dist-release/my-engine-sdk/my-engine-sdk-0.3.0.tgz"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3"
+  }
+}

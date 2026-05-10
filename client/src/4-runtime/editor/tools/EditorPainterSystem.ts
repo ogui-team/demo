@@ -160,7 +160,7 @@ export class EditorPainterSystem implements RoutedInputHandler {
     const hit = this.placementSystem.pickGroundPointFromPointer(event);
     if (!hit) return;
 
-    const now = Date.now();
+    const now = Engine.time.now();
     if (now - this.lastPaintAt < this.minPaintIntervalMs) return;
     if (this.lastPaintPoint && distanceSquared(this.lastPaintPoint, hit.point) < this.config.spacing * this.config.spacing) {
       return;
@@ -201,5 +201,5 @@ function distanceSquared(a: Vector3, b: Vector3): number {
 }
 
 function randomBetween(min: number, max: number): number {
-  return min + Math.random() * (max - min);
+  return min + Engine.random.next() * (max - min);
 }

@@ -240,7 +240,7 @@ export class NetworkManager {
       playerId: this.localPlayerId,
       position: { ...transform.position },
       rotation: { ...transform.rotation },
-      timestamp: Date.now(),
+      timestamp: Engine.time.now(),
     };
 
     this.networkTransport.sendState(state);
@@ -296,9 +296,9 @@ export class NetworkManager {
   private createRemotePlayer(playerId: string): void {
     // Get default position
     const defaultPosition = {
-      x: Math.random() * 10 - 5,
+      x: Engine.random.next() * 10 - 5,
       y: 0,
-      z: Math.random() * 10 - 5,
+      z: Engine.random.next() * 10 - 5,
     };
 
     // Create entity
@@ -325,13 +325,13 @@ export class NetworkManager {
         playerId,
         position: defaultPosition,
         rotation: { x: 0, y: 0, z: 0 },
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
       },
       previousState: {
         playerId,
         position: defaultPosition,
         rotation: { x: 0, y: 0, z: 0 },
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
       },
       interpolationFactor: 0,
     });

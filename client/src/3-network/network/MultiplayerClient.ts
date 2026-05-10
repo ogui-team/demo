@@ -1,4 +1,8 @@
-import type { TropicalHorrorArchetypeId, WorldProductionSyncPayload } from '@shared/contracts';
+import type { TropicalHorrorArchetypeId, Vector3, WorldProductionSyncPayload } from '@shared/contracts';
+import type { GameModeId, RoundState } from '@shared/contracts';
+import type { ClientToServerMessage } from '@shared/contracts';
+export type { Vector3 as Vec3 } from '@shared/contracts';
+type Vec3 = Vector3;
 import { gameBus } from '@engine/1-kernel/core/public-api';
 import type { SystemCapabilities, SystemContext } from '@engine/1-kernel/core/public-api';
 import { logEvent } from '@engine/1-kernel/core/public-api';
@@ -8,8 +12,6 @@ import { networkTrafficDebugger } from './NetworkTrafficDebugger';
 interface CollisionAuthorityAdapter {
   getHandshake(): { version: number; checksum: string };
 }
-
-export interface Vec3 { x: number; y: number; z: number; }
 
 export interface ServerInfo {
   id: string;
@@ -171,20 +173,8 @@ export interface InputState {
   predictedPos?: Vec3;
 }
 
-export type MultiplayerModeId = 'ffa' | 'horde' | 'drift_bomb';
-
-export interface RoundState {
-  mode: MultiplayerModeId;
-  status: 'warmup' | 'active' | 'ended';
-  phase: 'waiting' | 'starting' | 'in_round' | 'round_end';
-  roundNumber: number;
-  killLimit: number;
-  timeRemainingMs: number;
-  startedAt: number;
-  endsAt: number;
-  winnerId: string | null;
-  reason: 'timer' | 'kill_limit' | 'manual' | null;
-}
+export type MultiplayerModeId = GameModeId;
+export type { RoundState };
 
 export interface HostedRoomConfig {
   name: string;
@@ -473,7 +463,7 @@ export class MultiplayerClient {
 
   disconnect(): void {
     if (this._reconnectTimer) {
-      clearTimeout(this._reconnectTimer);
+      Engine.timer.clearTimeout(this._reconnectTimer);
       this._reconnectTimer = null;
     }
     this._stopPing();
@@ -494,6 +484,22 @@ export class MultiplayerClient {
       playerId: this._playerId,
       roomId: this._roomId,
     });
+  }
+
+  dispose(): void {
+    this.disconnect();
+    this.listeners.clear();
+    this._entitySyncCache.clear();
+    this._spawnDiagnosticsSeenPlayers.clear();
+    this._incomingPacketTimes.length = 0;
+    this._outgoingPacketTimes.length = 0;
+    this._recentIncoming.length = 0;
+    this._pendingHostConfig = null;
+    this._pendingJoinRoomId = undefined;
+    this._pendingJoinAppearance = null;
+    this._pendingJoinArchetypeId = null;
+    this.systemContext = null;
+    this._collisionAuthoritySystem = null;
   }
 
   sendMovementCommand(command: { seq: number; ts: number; input: InputState }): void {
@@ -649,7 +655,7 @@ export class MultiplayerClient {
       : null;
   }
   getLastAuthoritativeSnapshotAgeMs(): number | null {
-    return this._lastAuthoritativeSnapshotAt > 0 ? Date.now() - this._lastAuthoritativeSnapshotAt : null;
+    return this._lastAuthoritativeSnapshotAt > 0 ? Engine.time.now() - this._lastAuthoritativeSnapshotAt : null;
   }
   getLastValidSnapshotTick(): number | null {
     return this._lastValidSnapshotTick;
@@ -680,7 +686,7 @@ export class MultiplayerClient {
   }
 
   getDebugStats(): MultiplayerDebugStats {
-    const now = Date.now();
+    const now = Engine.time.now();
     this._incomingPacketTimes = this._incomingPacketTimes.filter((ts) => now - ts <= 1000);
     this._outgoingPacketTimes = this._outgoingPacketTimes.filter((ts) => now - ts <= 1000);
     if (this._lastWorldDeltaAt > 0) {
@@ -701,7 +707,7 @@ export class MultiplayerClient {
 
     this._serverUrl = wsUrl;
     this._playerName = playerName;
-    this._playerId = `player_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    this._playerId = `player_${Engine.time.now()}_${Engine.random.next().toString(36).slice(2, 6)}`;
     this._reconnectAttempts = 0;
     this._reconnectSuspended = false;
     this._doConnect();
@@ -843,7 +849,7 @@ export class MultiplayerClient {
   }
 
   private _handleMessage(raw: string): void {
-    this._incomingPacketTimes.push(Date.now());
+    this._incomingPacketTimes.push(Engine.time.now());
     let msg: any;
     try {
       msg = JSON.parse(raw);
@@ -923,7 +929,7 @@ export class MultiplayerClient {
           tick: payload.tick,
           ack: payload.ack,
           entityCount: payload.entities.length,
-          timestamp: payload.timestamp ?? Date.now(),
+          timestamp: payload.timestamp ?? Engine.time.now(),
           entities: payload.entities.map((entity) => ({ ...entity })),
           localPlayerId: typeof payload.localPlayerId === 'string' ? payload.localPlayerId : undefined,
         };
@@ -951,7 +957,7 @@ export class MultiplayerClient {
       case 'INITIAL_MAP_SYNC': {
         const payload = {
           mapData: msg.mapData as InitialMapSyncPayload,
-          timestamp: typeof msg.timestamp === 'number' ? msg.timestamp : Date.now(),
+          timestamp: typeof msg.timestamp === 'number' ? msg.timestamp : Engine.time.now(),
         };
         this.emit('initial_map_sync', payload);
         gameBus.emit('INITIAL_MAP_SYNC', payload);
@@ -963,7 +969,7 @@ export class MultiplayerClient {
           playerId: typeof msg.playerId === 'string' ? msg.playerId : null,
           position: msg.position as Vec3 | undefined,
           isPlayerControlled: typeof msg.isPlayerControlled === 'boolean' ? msg.isPlayerControlled : undefined,
-          timestamp: typeof msg.timestamp === 'number' ? msg.timestamp : Date.now(),
+          timestamp: typeof msg.timestamp === 'number' ? msg.timestamp : Engine.time.now(),
         };
         this.emit('entity_spawned', spawnEvent);
         gameBus.emit('ENTITY_SPAWNED', {
@@ -1026,7 +1032,7 @@ export class MultiplayerClient {
         // BRIDGE to gameBus: Enable all domains (InventorySystem, UI, diagnostics, etc) to hear this event
         gameBus.emit('networkInventorySyncReceived', {
           inventory: inventorySyncPayload.inventory,
-          timestamp: Date.now(),
+          timestamp: Engine.time.now(),
         });
         break;
       case 'INVENTORY_ERROR':
@@ -1034,7 +1040,7 @@ export class MultiplayerClient {
         this.emit('inventory_error', inventoryErrorPayload);
         gameBus.emit('networkInventoryError', {
           reason: inventoryErrorPayload.reason,
-          timestamp: Date.now(),
+          timestamp: Engine.time.now(),
         });
         break;
       case 'DAMAGE_TAKEN':
@@ -1084,7 +1090,7 @@ export class MultiplayerClient {
             equipped: msg.equipped,
             activeSlot: msg.activeSlot,
           },
-          timestamp: Date.now(),
+          timestamp: Engine.time.now(),
         });
         break;
       case 'ATTRIBUTE_STATE_SYNC':
@@ -1168,7 +1174,7 @@ export class MultiplayerClient {
         break;
 
       case 'PONG': {
-        const rtt = Date.now() - Number(msg.clientTs ?? this._lastPingTs);
+        const rtt = Engine.time.now() - Number(msg.clientTs ?? this._lastPingTs);
         this._rtt = rtt;
         this.emit('pong', { rtt });
         break;
@@ -1198,7 +1204,7 @@ export class MultiplayerClient {
 
   private _recordIncoming(raw: string, type: string, parseOk: boolean): void {
     this._recentIncoming.push({
-      receivedAt: Date.now(),
+      receivedAt: Engine.time.now(),
       type,
       parseOk,
       rawPreview: raw.slice(0, 160),
@@ -1246,13 +1252,13 @@ export class MultiplayerClient {
 
   private _emitSnapshotPayload(payload: AuthoritativeSnapshotPayload): void {
     if (payload.entities.length === 0) {
-      this._lastWorldDeltaAt = Date.now();
+      this._lastWorldDeltaAt = Engine.time.now();
       this._shouldRecoverFromEmptySnapshot(payload);
       return;
     }
 
     this._pendingEmptySnapshotRecovery = false;
-    this._lastWorldDeltaAt = Date.now();
+    this._lastWorldDeltaAt = Engine.time.now();
     this._lastAuthoritativeSnapshot = {
       ...payload,
       entities: payload.entities.map((entity) => ({ ...entity })),
@@ -1314,7 +1320,7 @@ export class MultiplayerClient {
         || lastSnapshotHadLocalPlayer
         || this._entitySyncCache.size > 0
       );
-    const now = Date.now();
+    const now = Engine.time.now();
 
     if (hasCommittedNonEmptySnapshot) {
       return;
@@ -1374,7 +1380,7 @@ export class MultiplayerClient {
   } {
     return {
       tick: payload.tick,
-      timestamp: payload.timestamp ?? Date.now(),
+      timestamp: payload.timestamp ?? Engine.time.now(),
       ackInputSeq: payload.ack,
       ...(typeof payload.lastProcessedInput === 'number' && { lastProcessedInput: payload.lastProcessedInput }),
       ...(typeof payload.lastProcessedInputTick === 'number' && { lastProcessedInputTick: payload.lastProcessedInputTick }),
@@ -1492,7 +1498,7 @@ export class MultiplayerClient {
     if (this._reconnectAttempts >= this._maxReconnectAttempts) return;
     this._reconnectAttempts += 1;
     const delay = Math.min(1000 * Math.pow(2, this._reconnectAttempts - 1), 10000);
-    this._reconnectTimer = setTimeout(() => {
+    this._reconnectTimer = Engine.timer.setTimeout(() => {
       gameBus.emit('networkLifecycle', {
         source: 'MultiplayerClient',
         state: 'reconnect_attempt',
@@ -1522,15 +1528,15 @@ export class MultiplayerClient {
 
   private _startPing(): void {
     this._stopPing();
-    this._pingInterval = setInterval(() => {
-      this._lastPingTs = Date.now();
+    this._pingInterval = Engine.timer.setInterval(() => {
+      this._lastPingTs = Engine.time.now();
       this._send({ type: 'PING', ts: this._lastPingTs });
     }, 2000);
   }
 
   private _stopPing(): void {
     if (this._pingInterval) {
-      clearInterval(this._pingInterval);
+      Engine.timer.clearInterval(this._pingInterval);
       this._pingInterval = null;
     }
   }
@@ -1552,9 +1558,9 @@ export class MultiplayerClient {
     };
   }
 
-  private _send(message: Record<string, unknown>): void {
+  private _send(message: ClientToServerMessage): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
-      this._outgoingPacketTimes.push(Date.now());
+      this._outgoingPacketTimes.push(Engine.time.now());
       this.ws.send(JSON.stringify(message));
     }
   }

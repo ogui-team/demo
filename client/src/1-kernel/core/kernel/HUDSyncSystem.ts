@@ -143,7 +143,7 @@ export class HUDSyncSystem implements IKernelSystem {
       reserve: itemId !== undefined ? itemId : 0,
       max: 12,
       isReloading: false,
-      timestamp: Date.now(),
+      timestamp: Engine.time.now(),
     });
   }
 
@@ -159,7 +159,7 @@ export class HUDSyncSystem implements IKernelSystem {
       playerId: payload.entityId || null,
       weaponId: payload.weaponId || 'default_weapon',
       reason,
-      timestamp: Date.now(),
+      timestamp: Engine.time.now(),
     });
   }
 
@@ -174,7 +174,7 @@ export class HUDSyncSystem implements IKernelSystem {
       targetId: payload.targetId || null,
       position: payload.position || { x: 0, y: 0, z: 0 },
       damage: payload.damage || 0,
-      timestamp: Date.now(),
+      timestamp: Engine.time.now(),
     });
   }
 }

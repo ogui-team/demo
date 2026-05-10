@@ -20,7 +20,7 @@ export class TickManager {
     this.tickRate = tickRate;
     this.msPerTick = 1000 / tickRate;
     this.currentTick = 0;
-    this.highResTimer = typeof performance !== 'undefined' ? () => performance.now() : () => Date.now();
+    this.highResTimer = typeof performance !== 'undefined' ? () => performance.now() : () => Engine.time.now();
     this.lastTickTimestamp = this.getHighResTime();
   }
 

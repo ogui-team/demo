@@ -258,8 +258,8 @@ export class HitFeedback {
     }
 
     this.shakeOffset.set(
-      (Math.random() - 0.5) * 2 * this.shakeIntensity,
-      (Math.random() - 0.5) * 2 * this.shakeIntensity,
+      (Engine.random.next() - 0.5) * 2 * this.shakeIntensity,
+      (Engine.random.next() - 0.5) * 2 * this.shakeIntensity,
       0,
     );
     cameraAdapter.setPositionOffset(this.shakeChannel, this.shakeOffset);

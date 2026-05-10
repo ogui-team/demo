@@ -1,5 +1,5 @@
 import { type Vec3 } from '../sessionContracts';
-import { PHYSICS_CONSTANTS } from '../PhysicsConstants';
+import { PHYSICS_CONSTANTS } from '@shared/contracts';
 import { type PlayerState } from '../core/GameSession';
 import { validatePlayerRayTarget, type EntityHistoryFrame } from './combatValidationRuntime';
 import { type CollisionHistoryFrame, CollisionAuthoritySystem } from '../collision/CollisionAuthoritySystem';

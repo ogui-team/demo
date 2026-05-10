@@ -112,10 +112,10 @@ export class PlayController {
         this.enable();
         
         // ─ FALLBACK: If lock still deferred after 500ms, force-retry ─
-        setTimeout(() => {
+        Engine.timer.setTimeout(() => {
           if (this.pendingLockState === 'PENDING_LOCK') {
             console.warn('[PlayController] Lock still pending after 500ms - forcing retry', {
-              timestamp: Date.now(),
+              timestamp: Engine.time.now(),
             });
             this.attemptPointerLock();
           }
@@ -128,7 +128,7 @@ export class PlayController {
         // Ensure controller stays active during reconciliation to allow user input
         // to flow through without being blocked. Reconciliation window extends
         // past the END event to cover potential additional corrections.
-        this.reconciliationActiveUntil = Date.now() + this.reconciliationControlWindowMs;
+        this.reconciliationActiveUntil = Engine.time.now() + this.reconciliationControlWindowMs;
         console.debug('[PlayController] Reconciliation started, input window extended', {
           playerId,
           tick,
@@ -138,7 +138,7 @@ export class PlayController {
       gameBus.on('ENTITY_RECONCILED', ({ correctionDistance, authoritativePosition }) => {
         if (correctionDistance > this.reconciliationDriftThreshold) {
           this.reconciliationPositionOverride = authoritativePosition;
-          this.reconciliationActiveUntil = Date.now() + this.reconciliationControlWindowMs;
+          this.reconciliationActiveUntil = Engine.time.now() + this.reconciliationControlWindowMs;
         }
       }),
     );
@@ -233,7 +233,7 @@ export class PlayController {
       pitch: movementInput.pitch,
       reconciliationActive,
       reconciliationPositionOverride,
-      timestamp: Date.now(),
+      timestamp: Engine.time.now(),
     });
     if (reconciliationPositionOverride) {
       this.reconciliationPositionOverride = null;
@@ -362,7 +362,7 @@ export class PlayController {
    */
   private attemptPointerLock(): void {
     try {
-      const now = Date.now();
+      const now = Engine.time.now();
       
       // Check retry interval to avoid spam
       if (now - this.lastLockAttemptTime < this.MIN_RETRY_INTERVAL_MS) {
@@ -401,7 +401,7 @@ export class PlayController {
       console.error('[PlayController] Pointer lock error (gracefully handled)', {
         errorMessage: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
       });
       
       // Set PENDING_LOCK for retry
@@ -544,7 +544,7 @@ export class PlayController {
       console.warn('[PlayController] Pointer lock request failed', {
         activeContext,
         isPlayActive: this.isPlayActive,
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
       });
     }
   }
@@ -570,7 +570,7 @@ export class PlayController {
   }
 
   private isReconciliationOverrideActive(): boolean {
-    if (Date.now() > this.reconciliationActiveUntil) {
+    if (Engine.time.now() > this.reconciliationActiveUntil) {
       this.reconciliationPositionOverride = null;
       return false;
     }

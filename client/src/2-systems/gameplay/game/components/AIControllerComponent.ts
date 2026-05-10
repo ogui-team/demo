@@ -116,5 +116,5 @@ export function clearAIControllerTarget(
   controller.targetEntityId = null;
   controller.targetPosition = null;
   controller.lastTargetPosition = undefined;
-  controller.lastResolvedAtMs = Date.now();
+  controller.lastResolvedAtMs = Engine.time.now();
 }

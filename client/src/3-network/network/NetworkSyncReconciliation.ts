@@ -230,7 +230,7 @@ export function applyAuthoritativeSnapshot(context: any, snapshot: NetworkSnapsh
         gameBus.emit('RECONCILIATION_BEGIN', {
           playerId: localBinding.playerId,
           tick: snapshot.tick,
-          timestamp: Date.now(),
+          timestamp: Engine.time.now(),
         });
       }
 
@@ -282,7 +282,7 @@ export function applyAuthoritativeSnapshot(context: any, snapshot: NetworkSnapsh
           z: authoritativePos.z - after.z,
         };
         runtime.positionErrorDecayRemaining = POSITION_ERROR_DECAY_MS;
-        runtime.lastReconciliationTime = Date.now();
+        runtime.lastReconciliationTime = Engine.time.now();
         console.log('[INPUT_REPLAY] Correction Applied', {
           playerId: localBinding.playerId,
           correctionDistance,
@@ -435,7 +435,7 @@ export function applyAuthoritativeSnapshot(context: any, snapshot: NetworkSnapsh
           playerId: localBinding.playerId,
           tick: snapshot.tick,
           replayedInputCount: remaining.length,
-          timestamp: Date.now(),
+          timestamp: Engine.time.now(),
         });
       }
 

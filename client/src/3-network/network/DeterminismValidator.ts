@@ -92,7 +92,7 @@ export class DeterminismValidator {
           expectedHash: snapshot.positionHash,
           calculatedHash,
           entityCount: snapshot.entities.length,
-          timestamp: Date.now(),
+          timestamp: Engine.time.now(),
         }
       );
 

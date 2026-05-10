@@ -1,4 +1,4 @@
-import { LatencySimulator } from '../../client/src/engine/network/LatencySimulator'
+import { LatencySimulator } from '../../client/src/3-network/network/LatencySimulator'
 
 class FakeTransport {
   public states: any[] = []

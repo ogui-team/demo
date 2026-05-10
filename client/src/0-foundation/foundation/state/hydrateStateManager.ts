@@ -392,7 +392,7 @@ export function hydrateStateManager(stateManager: StateManager): void {
     source: 'hydrateStateManager',
     pathCount: leaves.length,
     filledCount,
-    timestamp: Date.now(),
+    timestamp: Engine.time.now(),
   });
 }
 
@@ -422,7 +422,7 @@ export class StateHydrationGuard {
       gameBus.emit('UI_LOADING_STATE', {
         reason: 'STATE_NOT_HYDRATED',
         path,
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
       });
       return STATE_LOADING;
     }
@@ -441,7 +441,7 @@ export class StateHydrationGuard {
     gameBus.emit('UI_LOADING_STATE', {
       reason: 'STATE_PATH_NOT_IN_SCHEMA',
       path,
-      timestamp: Date.now(),
+      timestamp: Engine.time.now(),
     });
     return STATE_LOADING;
   }

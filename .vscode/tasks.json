@@ -1,0 +1,17 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "sandbox-smoke-test",
+			"type": "shell",
+			"command": "Set-Location sandbox-test; npm install ../dist-release/my-engine-sdk/my-engine-sdk-0.3.0.tgz --save; npm install typescript --save-dev; npm run build; npm run start",
+			"isBackground": false
+		},
+		{
+			"label": "sandbox-smoke-test-rerun",
+			"type": "shell",
+			"command": "Set-Location sandbox-test; npm run build; npm run start",
+			"isBackground": false
+		}
+	]
+}

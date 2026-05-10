@@ -442,7 +442,7 @@ export class ServerBrowser {
     gameBus.emit('LIFECYCLE_CHANGED', {
       from: 'LOBBY',
       to: 'LOBBY',
-      timestamp: Date.now(),
+      timestamp: Engine.time.now(),
     });
     this._renderLobby();
   }
@@ -484,7 +484,7 @@ export class ServerBrowser {
   private _joinSelected(): void {
     const server = this.servers[this.selectedServerIndex];
     if (!server) return;
-    const playerName = `Player_${Math.random().toString(36).slice(2, 6)}`;
+    const playerName = `Player_${Engine.random.next().toString(36).slice(2, 6)}`;
     this.statusEl.textContent = `Joining ${server.name}…`;
     if (this.config.joinGame) {
       this.config.joinGame({
@@ -524,7 +524,7 @@ export class ServerBrowser {
     };
 
     const defaultConfig: HostedRoomConfig = {
-      name: `FFA ${new Date().toLocaleTimeString()}`,
+      name: `FFA ${Engine.time.date().toLocaleTimeString()}`,
       map: maps[0],
       mode: 'ffa',
       killLimit: 10,
@@ -725,7 +725,7 @@ export class ServerBrowser {
         roundDurationSec: Math.max(30, Math.min(1800, Number(read('roundDurationSec')) || defaultConfig.roundDurationSec)),
         maxPlayers: Math.max(2, Math.min(16, Number(read('maxPlayers')) || defaultConfig.maxPlayers)),
       };
-      const playerName = `Host_${Math.random().toString(36).slice(2, 6)}`;
+      const playerName = `Host_${Engine.random.next().toString(36).slice(2, 6)}`;
       this.statusEl.textContent = `Hosting ${hostConfig.name}…`;
       
       // Resolve server URL with optional manual override

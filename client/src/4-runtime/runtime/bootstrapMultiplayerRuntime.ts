@@ -22,7 +22,7 @@ export async function initializeMode(): Promise<void> {
     console.log('[MultiplayerRuntime] ✓ Full runtime initialized for multiplayer');
     
     // Give systems a moment to initialize before transitioning to lobby
-    await new Promise(r => setTimeout(r, 150));
+    await new Promise(r => Engine.timer.setTimeout(r, 150));
     
     // Access the multiplayer runtime that was initialized in bootstrapRuntime()
     // to transition to the lobby/server browser screen

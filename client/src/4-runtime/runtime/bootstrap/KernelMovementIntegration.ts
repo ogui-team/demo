@@ -162,7 +162,7 @@ export class KernelMovementIntegration {
       console.log('[KernelMovementIntegration] reconciliation lock enabled', {
         playerId,
         tick,
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
       });
     });
 
@@ -172,7 +172,7 @@ export class KernelMovementIntegration {
         playerId,
         tick,
         replayedInputCount,
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
       });
     });
   }
@@ -225,7 +225,7 @@ export class KernelMovementIntegration {
         playerId,
         networkEntityId,
         handle,
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
       });
       return true;
     } else {
@@ -448,7 +448,7 @@ export class KernelMovementIntegration {
    */
   private scheduleHealthBufferTest(): void {
     // Delay test to let systems boot
-    setTimeout(() => {
+    Engine.timer.setTimeout(() => {
       if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'production') {
         console.log('[v0.1.4] 🧪 Running Health Buffer Validation Test');
         runDOD_HealthBufferTest(this.kernel, this.transactional);

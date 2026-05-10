@@ -111,7 +111,7 @@ export class SpawnSystem {
   }
 
   registerSpawnPoint(point: Omit<SpawnPoint, 'id'> & { id?: string }): string {
-    const id = point.id ?? `spawn_${this.spawnPoints.size}_${Date.now()}`;
+    const id = point.id ?? `spawn_${this.spawnPoints.size}_${Engine.time.now()}`;
     this.spawnPoints.set(id, {
       id,
       position: { ...point.position },
@@ -271,7 +271,7 @@ export class SpawnSystem {
 
   private weightedPick(points: SpawnPoint[]): SpawnPoint {
     const total = points.reduce((sum, point) => sum + point.weight, 0);
-    let roll = Math.random() * Math.max(total, 0.001);
+    let roll = Engine.random.next() * Math.max(total, 0.001);
     for (const point of points) {
       roll -= point.weight;
       if (roll <= 0) return point;

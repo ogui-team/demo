@@ -282,7 +282,7 @@ export async function bootloader() {
       const cleanup = (): void => { el.style.display = 'none'; };
       el.addEventListener('transitionend', cleanup, { once: true });
       // Fallback: ensure removal even if transitionend never fires.
-      setTimeout(cleanup, 600);
+      Engine.timer.setTimeout(cleanup, 600);
     };
     const bootUiEl = document.getElementById('bootloader-ui');
     if (bootUiEl) fadeTitanUi(bootUiEl);

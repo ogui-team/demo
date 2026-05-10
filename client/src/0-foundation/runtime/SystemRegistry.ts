@@ -114,7 +114,7 @@ export class SystemRegistry implements ISystemRegistry {
     this.systems.set(key, instance);
     this.registrationLog.push({
       key,
-      time: Date.now(),
+      time: Engine.time.now(),
       type: instance?.constructor?.name || typeof instance,
     });
 
@@ -171,7 +171,7 @@ export class SystemRegistry implements ISystemRegistry {
 
     console.log('\nRegistration timeline:');
     this.registrationLog.forEach((entry) => {
-      const ago = Date.now() - entry.time;
+      const ago = Engine.time.now() - entry.time;
       console.log(`  ${entry.key} (${entry.type}) - ${ago}ms ago`);
     });
 

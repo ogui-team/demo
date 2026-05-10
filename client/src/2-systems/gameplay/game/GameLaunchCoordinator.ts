@@ -344,7 +344,7 @@ export class GameLaunchCoordinator {
     const cachedLobby = this.config.getCachedLobbyState();
     const cachedRound = this.config.getCachedRoundState();
     if (!cachedRound || cachedRound.status !== 'active' || (cachedRound.timeRemainingMs ?? 0) <= 0) {
-      const startedAt = Date.now();
+      const startedAt = Engine.time.now();
       const durationMs = (cachedLobby?.roundDurationSec ?? 180) * 1000;
       this.config.startRound({
         mode: data.mode === 'horde'

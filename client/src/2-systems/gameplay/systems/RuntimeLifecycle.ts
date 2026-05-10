@@ -49,7 +49,7 @@ export function setEntityRuntimeLifecycleState(
   state: RuntimeLifecycleState,
   options: LifecycleStateOptions = {},
 ): void {
-  const now = Date.now();
+  const now = Engine.time.now();
   const lifecycle = ensureRuntimeLifecycleComponent(entity);
   const nextChunkId = options.chunkId !== undefined ? options.chunkId : (lifecycle.chunkId ?? null);
   const shouldBeDormant = state === 'dormant';

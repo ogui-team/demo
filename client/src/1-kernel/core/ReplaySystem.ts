@@ -121,11 +121,11 @@ export class ReplaySystem {
 
   // ─── Recording API ──────────────────────────────────────────────────────
 
-  /** Start a new recording for the given session.  seed defaults to Date.now(). */
+  /** Start a new recording for the given session.  seed defaults to Engine.time.now(). */
   startRecording(sessionId: string, seed?: number): void {
     if (this.state === 'recording') this.stopRecording();
     this.recordingSessionId = sessionId;
-    this.recordingSeed = seed ?? Date.now();
+    this.recordingSeed = seed ?? Engine.time.now();
     this.recordingStart = performance.now();
     this.recordedEvents = [];
     this._setState('recording');
@@ -279,7 +279,7 @@ export class ReplaySystem {
 
   /** Seeded random accessor — use this instead of Math.random for determinism. */
   getRng(): SeededRandom {
-    if (!this.rng) this.rng = new SeededRandom(Date.now());
+    if (!this.rng) this.rng = new SeededRandom(Engine.time.now());
     return this.rng;
   }
 
@@ -304,7 +304,7 @@ export class ReplaySystem {
     const currentOffset = performance.now() - this.playbackStartWall;
     const delay = Math.max(0, nextEvt.time - currentOffset);
 
-    this.playbackTimer = setTimeout(() => {
+    this.playbackTimer = Engine.timer.setTimeout(() => {
       if (this.state !== 'playing') return;
 
       // Fire all due events (in case multiple share the same timestamp)
@@ -324,7 +324,7 @@ export class ReplaySystem {
 
   private _stopPlaybackTimer(): void {
     if (this.playbackTimer !== null) {
-      clearTimeout(this.playbackTimer);
+      Engine.timer.clearTimeout(this.playbackTimer);
       this.playbackTimer = null;
     }
   }

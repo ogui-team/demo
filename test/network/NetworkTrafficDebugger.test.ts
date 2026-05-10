@@ -1,4 +1,4 @@
-import { NetworkTrafficDebugger, networkTrafficDebugger } from '../../client/src/engine/network/NetworkTrafficDebugger'
+import { NetworkTrafficDebugger, networkTrafficDebugger } from '../../client/src/3-network/network/NetworkTrafficDebugger'
 
 describe('NetworkTrafficDebugger', () => {
   afterEach(() => {

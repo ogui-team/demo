@@ -82,7 +82,7 @@ export class GameplayCommandBridge {
     const success = this.kernel.commands.enqueue(
       this.commandSeq++,                    // seq
       performance.now() | 0,                // tick (use timestamp as tick proxy)
-      Date.now(),                           // timestamp
+      Engine.time.now(),                           // timestamp
       'system',                             // source (valid: freeplay|editor|multiplayer|server|automation|system|test)
       'APPLY_DAMAGE',                       // type
       null,                                 // playerId (single player for now)

@@ -50,7 +50,7 @@ export class LocalNetworkTransport implements INetworkTransport {
 
     // Simulate latency and broadcast
     if (this.simulatedLatency > 0) {
-      setTimeout(() => {
+      Engine.timer.setTimeout(() => {
         this.broadcastState(state);
       }, this.simulatedLatency);
     } else {
@@ -144,7 +144,7 @@ export class LocalNetworkTransport implements INetworkTransport {
 
   private schedule(callback: () => void): void {
     if (this.simulatedLatency > 0) {
-      setTimeout(callback, this.simulatedLatency);
+      Engine.timer.setTimeout(callback, this.simulatedLatency);
     } else {
       callback();
     }
@@ -162,7 +162,7 @@ export class LocalNetworkTransport implements INetworkTransport {
    */
   disconnect(): void {
     if (this.broadcastInterval) {
-      clearInterval(this.broadcastInterval);
+      Engine.timer.clearInterval(this.broadcastInterval);
     }
 
     this.stateCallbacks = [];
@@ -279,7 +279,7 @@ export class WebSocketNetworkTransport implements INetworkTransport {
       console.log(`[WebSocketNetworkTransport] Attempting to reconnect in ${delay}ms`);
     }
 
-    setTimeout(() => {
+    Engine.timer.setTimeout(() => {
       this.connect();
     }, delay);
   }

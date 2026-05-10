@@ -137,7 +137,7 @@ export class InventorySystem {
           this.didEmitForceInventoryRefresh = true;
           gameBus.emit('FORCE_INVENTORY_REFRESH', {
             phase: this.activePhase,
-            timestamp: Date.now(),
+            timestamp: Engine.time.now(),
           });
         }
       }),

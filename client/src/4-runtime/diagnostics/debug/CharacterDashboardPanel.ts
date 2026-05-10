@@ -278,7 +278,7 @@ export class CharacterDashboardPanel {
     }
 
     if (this.previewAvatar) {
-      this.previewAvatar.rotation.y = Date.now() * 0.0008;
+      this.previewAvatar.rotation.y = Engine.time.now() * 0.0008;
       this.previewAvatar.position.set(0, -0.1, 0);
     }
     this.renderer.render(this.previewScene, this.previewCamera);

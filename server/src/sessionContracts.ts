@@ -1,11 +1,6 @@
 import { WebSocket } from 'ws';
-import type { TropicalHorrorArchetypeId, Vector3 as Vec3 } from '@shared/contracts';
-export type { Vec3 };
-
-export type LobbyStatus = 'waiting' | 'countdown' | 'in_game';
-export type GameModeId = 'ffa' | 'horde' | 'drift_bomb';
-export type RoundStatus = 'warmup' | 'active' | 'ended';
-export type GamePhase = 'waiting' | 'starting' | 'in_round' | 'round_end';
+import type { TropicalHorrorArchetypeId, Vector3 as Vec3, LobbyStatus, GameModeId, RoundStatus, GamePhase, RoundState } from '@shared/contracts';
+export type { Vec3, LobbyStatus, GameModeId, RoundStatus, GamePhase, RoundState };
 
 export interface RoomCreateOptions {
   name?: string;
@@ -43,19 +38,6 @@ export interface LobbyRoom {
   spawnPoints: Vec3[];
 }
 
-export interface RoundState {
-  mode: GameModeId;
-  status: RoundStatus;
-  phase: GamePhase;
-  roundNumber: number;
-  killLimit: number;
-  timeRemainingMs: number;
-  startedAt: number;
-  endsAt: number;
-  winnerId: string | null;
-  reason: 'timer' | 'kill_limit' | 'manual' | null;
-}
-
 const DEFAULT_SPAWN_POINTS: Vec3[] = [
   { x: 0, y: 1, z: 0 },
   { x: 8, y: 1, z: 0 },
@@ -81,6 +63,7 @@ function createCircularSpawnPoints(radius: number): Vec3[] {
 const DEFAULT_ARENA_SPAWN_POINTS: Vec3[] = createCircularSpawnPoints(16);
 
 const FOREST_ARENA_SPAWN_POINTS: Vec3[] = createCircularSpawnPoints(24);
+
 export function getDefaultSpawnPointsForMap(mapId: string): Vec3[] {
   switch (mapId) {
     case 'forest_arena':

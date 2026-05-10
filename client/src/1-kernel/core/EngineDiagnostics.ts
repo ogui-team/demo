@@ -27,7 +27,7 @@ export class EngineDiagnostics {
     entityCount: 0,
     activeSystems: [],
     drawCalls: 0,
-    timestamp: Date.now(),
+    timestamp: Engine.time.now(),
   };
 
   constructor(renderer: THREE.WebGLRenderer, entityManager: EntityManager) {
@@ -66,7 +66,7 @@ export class EngineDiagnostics {
       entityCount: this.entityManager.getEntityCount(),
       activeSystems: getActiveSystemNames(),
       drawCalls: this.renderer.info.render.calls,
-      timestamp: Date.now(),
+      timestamp: Engine.time.now(),
     };
   }
 

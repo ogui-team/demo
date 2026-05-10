@@ -556,7 +556,7 @@ export class PrefabSystem {
         entityId: entity.id,
         networkEntityId: overrides.networkEntityId ?? entity.id,
         prefabName,
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
       });
     }
 
@@ -573,7 +573,7 @@ export class PrefabSystem {
       gameBus.emit('STALE_SNAPSHOT_ENTITY_DROPPED', {
         entityType,
         netId,
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
       });
       return null;
     }
@@ -589,7 +589,7 @@ export class PrefabSystem {
       gameBus.emit('STALE_SNAPSHOT_ENTITY_DROPPED', {
         entityType,
         netId,
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
       });
       return null;
     }

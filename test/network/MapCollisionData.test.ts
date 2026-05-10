@@ -2,7 +2,7 @@ import {
   getMapCollisionLayout,
   hasMapCollisionLayout,
   getCollisionConfigMetadata,
-} from '../../client/src/engine/network/MapCollisionData'
+} from '../../client/src/3-network/network/MapCollisionData'
 
 describe('MapCollisionData', () => {
   it('detects known and unknown map layouts correctly', () => {

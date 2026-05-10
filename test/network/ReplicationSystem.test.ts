@@ -1,6 +1,6 @@
-import { Entity } from '../../client/src/engine/core/Entity'
-import { gameBus } from '../../client/src/engine/core/public-api'
-import { ReplicationSystem } from '../../client/src/engine/network/ReplicationSystem'
+import { Entity } from '../../client/src/1-kernel/core/Entity'
+import { gameBus } from '../../client/src/1-kernel/core/public-api'
+import { ReplicationSystem } from '../../client/src/3-network/network/ReplicationSystem'
 
 const makeBinding = (entity: Entity) => ({
   entity,

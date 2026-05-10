@@ -57,7 +57,7 @@ export class PreloadingStrategy {
    * Start monitoring for idle periods to trigger preloading
    */
   startIdleMonitoring(): void {
-    this.idleTimer = setInterval(() => {
+    this.idleTimer = Engine.timer.setInterval(() => {
       const timeSinceLastInteraction = performance.now() - this.lastUserInteraction;
       
       if (timeSinceLastInteraction > this.preloadThreshold) {
@@ -206,7 +206,7 @@ export class PreloadingStrategy {
    */
   destroy(): void {
     if (this.idleTimer) {
-      clearInterval(this.idleTimer);
+      Engine.timer.clearInterval(this.idleTimer);
       this.idleTimer = null;
     }
   }

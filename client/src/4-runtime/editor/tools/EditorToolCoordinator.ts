@@ -143,7 +143,7 @@ export class EditorToolCoordinator {
       previousTool,
       reason,
       source,
-      timestamp: Date.now(),
+      timestamp: Engine.time.now(),
     });
 
     this.emitStateChanged(reason);
@@ -195,7 +195,7 @@ export class EditorToolCoordinator {
         previousTool,
         reason,
         source: 'system',
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
       });
     }
 
@@ -267,7 +267,7 @@ export class EditorToolCoordinator {
       isWhiteboxing: this.state.isWhiteboxing,
       busyOwner: this.state.busyOwner,
       reason,
-      timestamp: Date.now(),
+      timestamp: Engine.time.now(),
     });
   }
 

@@ -47,7 +47,7 @@ export class InputContextManager {
       this.currentLockState = document.pointerLockElement !== null;
       console.log('[InputContextManager] Pointer lock changed', {
         newLockState: this.currentLockState,
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
         activeContext: this.getActiveContext(),
       });
     });
@@ -73,17 +73,17 @@ export class InputContextManager {
       console.log('[InputContextManager] Context switched', {
         newActiveContext: context,
         stack: this.contextStack.map((e) => ({ context: e.context, active: e.isActive })),
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
       });
       
       // ─ CONTEXT WAIT QUEUE: Notify waiting promises for this context
       this.contextWaitQueue = this.contextWaitQueue.filter((waitPromise) => {
         if (waitPromise.context === context) {
-          clearTimeout(waitPromise.timeoutHandle);
+          Engine.timer.clearTimeout(waitPromise.timeoutHandle);
           waitPromise.resolve();
           console.log('[InputContextManager] Context wait completed', {
             context,
-            timestamp: Date.now(),
+            timestamp: Engine.time.now(),
           });
           return false; // Remove from queue
         }
@@ -109,7 +109,7 @@ export class InputContextManager {
     console.warn('[InputContextManager] ⚠️  forceSetContext called - bypassing normal stack mechanics', {
       targetContext: context,
       previousActiveContext: this.getActiveContext(),
-      timestamp: Date.now(),
+      timestamp: Engine.time.now(),
       reason: 'LIFECYCLE_PLAY_ACTIVE deadlock recovery',
     });
 
@@ -127,17 +127,17 @@ export class InputContextManager {
       console.log('[InputContextManager] Context force-set to', {
         context,
         stack: this.contextStack.map((e) => ({ context: e.context, active: e.isActive })),
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
       });
 
       // Notify waiting promises for this context
       this.contextWaitQueue = this.contextWaitQueue.filter((waitPromise) => {
         if (waitPromise.context === context) {
-          clearTimeout(waitPromise.timeoutHandle);
+          Engine.timer.clearTimeout(waitPromise.timeoutHandle);
           waitPromise.resolve();
           console.log('[InputContextManager] Forced context wait completed', {
             context,
-            timestamp: Date.now(),
+            timestamp: Engine.time.now(),
           });
           return false;
         }
@@ -163,13 +163,13 @@ export class InputContextManager {
       // ─ GRACEFUL FALLBACK: No context active - defer and log instead of crash ─
       console.warn('[Input] Lock deferred: No active context', {
         contextStack: this.contextStack.map((e) => ({ context: e.context, isActive: e.isActive })),
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
       });
       return false;
     }
 
     // ─ LOCK SPAM PREVENTION: Check if lock state change is already in progress
-    const now = Date.now();
+    const now = Engine.time.now();
     if (now - this.lastLockChangeTime < this.MIN_LOCK_CHANGE_INTERVAL_MS) {
       console.warn('[InputContextManager] Lock request rejected: debounced', {
         lastChangeAge: now - this.lastLockChangeTime,
@@ -241,7 +241,7 @@ export class InputContextManager {
       return false;
     }
 
-    const now = Date.now();
+    const now = Engine.time.now();
     if (now - this.lastLockChangeTime < this.MIN_LOCK_CHANGE_INTERVAL_MS) {
       console.warn('[InputContextManager] Release rejected: debounced', {
         lastChangeAge: now - this.lastLockChangeTime,
@@ -286,7 +286,7 @@ export class InputContextManager {
         previousState: wasLocked,
         currentState: this.currentLockState,
         activeContext: this.getActiveContext(),
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
       });
     }
   }
@@ -303,7 +303,7 @@ export class InputContextManager {
     if (activeContext !== 'play') {
       console.debug('[InputContextManager] tryLock() deferred: active context is not PLAY', {
         currentContext: activeContext,
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
       });
       return false;
     }
@@ -323,14 +323,14 @@ export class InputContextManager {
     }
 
     return new Promise((resolve, reject) => {
-      const timeoutHandle = setTimeout(() => {
+      const timeoutHandle = Engine.timer.setTimeout(() => {
         // Remove from queue and reject
         this.contextWaitQueue = this.contextWaitQueue.filter((w) => w.timeoutHandle !== timeoutHandle);
         console.warn('[InputContextManager] Context wait timeout', {
           desiredContext,
           actualContext: this.getActiveContext(),
           timeoutMs: this.CONTEXT_WAIT_TIMEOUT_MS,
-          timestamp: Date.now(),
+          timestamp: Engine.time.now(),
         });
         reject(new Error(`Context '${desiredContext}' not activated within ${this.CONTEXT_WAIT_TIMEOUT_MS}ms`));
       }, this.CONTEXT_WAIT_TIMEOUT_MS);
@@ -347,7 +347,7 @@ export class InputContextManager {
         desiredContext,
         actualContext: this.getActiveContext(),
         timeoutMs: this.CONTEXT_WAIT_TIMEOUT_MS,
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
       });
     });
   }
@@ -384,11 +384,11 @@ export class InputContextManager {
   cleanup(): void {
     console.log('[InputContextManager] Cleaning up context wait queue', {
       pendingCount: this.contextWaitQueue.length,
-      timestamp: Date.now(),
+      timestamp: Engine.time.now(),
     });
 
     for (const waitPromise of this.contextWaitQueue) {
-      clearTimeout(waitPromise.timeoutHandle);
+      Engine.timer.clearTimeout(waitPromise.timeoutHandle);
       waitPromise.reject(new Error('InputContextManager cleaned up'));
     }
     this.contextWaitQueue = [];

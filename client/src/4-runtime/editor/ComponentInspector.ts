@@ -139,7 +139,7 @@ export class ComponentInspector {
     this.selectedEntityId = null;
     gameBus.emit('EDITOR_ENTITY_DESELECTED', {
       entityId: previousSelection,
-      timestamp: Date.now(),
+      timestamp: Engine.time.now(),
     });
   }
 
@@ -152,7 +152,7 @@ export class ComponentInspector {
         name: component.name,
         data: normalizeEditorValue(component.data),
       })),
-      selectedAt: Date.now(),
+      selectedAt: Engine.time.now(),
     };
   }
 
@@ -244,7 +244,7 @@ export class ComponentInspector {
       previousValue,
       value: nextValue,
       source,
-      timestamp: Date.now(),
+      timestamp: Engine.time.now(),
     });
 
     gameBus.emit('stateMutation', {
@@ -271,7 +271,7 @@ export class ComponentInspector {
       path,
       reason,
       source,
-      timestamp: Date.now(),
+      timestamp: Engine.time.now(),
     });
   }
 

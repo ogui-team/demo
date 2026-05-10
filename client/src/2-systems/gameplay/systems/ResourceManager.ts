@@ -56,7 +56,7 @@ export class ResourceManager {
       descriptor,
       status: 'idle',
       refCount: 0,
-      lastUsedTime: Date.now(),
+      lastUsedTime: Engine.time.now(),
     });
     this.emitMutation(`resources.${descriptor.id}`);
   }
@@ -78,7 +78,7 @@ export class ResourceManager {
     if (!resource) return undefined;
 
     resource.refCount += 1;
-    resource.lastUsedTime = Date.now();
+    resource.lastUsedTime = Engine.time.now();
     if (resource.status === 'ready') {
       return resource.asset;
     }
@@ -94,7 +94,7 @@ export class ResourceManager {
         resource.asset = asset;
         resource.status = 'ready';
         resource.error = undefined;
-        resource.lastUsedTime = Date.now();
+        resource.lastUsedTime = Engine.time.now();
         this.pendingLoads.delete(id);
         this.emitMutation(`resources.${id}.status`);
         return asset;
@@ -114,7 +114,7 @@ export class ResourceManager {
     const resource = this.resources.get(id);
     if (!resource) return;
     resource.refCount = Math.max(0, resource.refCount - 1);
-    resource.lastUsedTime = Date.now();
+    resource.lastUsedTime = Engine.time.now();
   }
 
   addStreamingSource(source: StreamingSource): void {
@@ -180,7 +180,7 @@ export class ResourceManager {
   }
 
   garbageCollect(maxReleasesPerPass: number = 2): void {
-    const now = Date.now();
+    const now = Engine.time.now();
     let releases = 0;
 
     for (const [id, resource] of this.resources.entries()) {

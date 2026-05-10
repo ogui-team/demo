@@ -222,7 +222,7 @@ export class LobbyManager {
       for (const cb of this._gameEndCallbacks) cb(payload.round, payload.winner ?? null);
 
       // Auto-return to lobby after 7 seconds
-      this._postGameTimer = setTimeout(() => this._returnToLobby(), 7000);
+      this._postGameTimer = Engine.timer.setTimeout(() => this._returnToLobby(), 7000);
     });
 
     this.client.on('error', (payload) => {
@@ -288,8 +288,8 @@ export class LobbyManager {
   }
 
   private _cancelTimers(): void {
-    if (this._countdownTimer) { clearTimeout(this._countdownTimer); this._countdownTimer = null; }
-    if (this._postGameTimer)  { clearTimeout(this._postGameTimer);  this._postGameTimer  = null; }
+    if (this._countdownTimer) { Engine.timer.clearTimeout(this._countdownTimer); this._countdownTimer = null; }
+    if (this._postGameTimer)  { Engine.timer.clearTimeout(this._postGameTimer);  this._postGameTimer  = null; }
   }
 
   // ─── Lobby overlay ──────────────────────────────────────────────────────────
@@ -357,10 +357,10 @@ export class LobbyManager {
     // Countdown refresh
     let remaining = 7;
     const cdEl = el.querySelector<HTMLElement>('#postgame-countdown');
-    const interval = setInterval(() => {
+    const interval = Engine.timer.setInterval(() => {
       remaining -= 1;
       if (cdEl) cdEl.textContent = `Returning to lobby in ${remaining}s...`;
-      if (remaining <= 0) clearInterval(interval);
+      if (remaining <= 0) Engine.timer.clearInterval(interval);
     }, 1000);
   }
 

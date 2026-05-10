@@ -55,7 +55,7 @@ export function spawnAbilityEnemy(position: Vector3, level: number): Entity | nu
     source: 'ability_enemy_factory',
     profileId: 'ability_enemy_base',
     networked: false,
-    timestamp: Date.now(),
+    timestamp: Engine.time.now(),
   });
   return entity;
 }

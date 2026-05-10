@@ -141,6 +141,7 @@ export class ClientWorldRuntimeCoordinator {
   private debugVisualCorrectionEnabled = false;
   private debugReconciliationOverrideEnabled = false;
   private readonly spawnDiagnosticLogTimes = new Map<string, number>();
+  private readonly runtimeDisposers: Array<() => void> = [];
 
   constructor(config: ClientWorldRuntimeCoordinatorConfig) {
     this.stateManager = config.stateManager;
@@ -249,12 +250,12 @@ export class ClientWorldRuntimeCoordinator {
       },
     });
 
-    gameBus.on('STALE_SNAPSHOT_ENTITY_DROPPED', ({ netId, entityType, timestamp }) => {
+    this.runtimeDisposers.push(gameBus.on('STALE_SNAPSHOT_ENTITY_DROPPED', ({ netId, entityType, timestamp }) => {
       if (!this.mpClient.connected) {
         return;
       }
 
-      const now = Date.now();
+      const now = Engine.time.now();
       if (now - this.lastPrefabRecoveryRequestAt < 750) {
         return;
       }
@@ -267,8 +268,7 @@ export class ClientWorldRuntimeCoordinator {
         requestedAt: now,
       });
       this.mpClient.requestFullSync();
-    });
-
+    }));
     this.networkSyncSystem.setLocalReconciliationEnabled(this.debugLocalReconciliationEnabled);
     this.networkSyncSystem.setVisualCorrectionEnabled(this.debugVisualCorrectionEnabled);
     this.networkSyncSystem.setReconciliationOverrideEnabled(this.debugReconciliationOverrideEnabled);
@@ -277,7 +277,7 @@ export class ClientWorldRuntimeCoordinator {
     this.bindDebugConsoleHotkey();
     this.bindHordeStartHotkey();
 
-    gameBus.on('gameModeStarted', (payload: any) => {
+    this.runtimeDisposers.push(gameBus.on('gameModeStarted', (payload: any) => {
       if (payload?.modeName === 'horde') {
         this.hordeStartReady = true;
         this.hordeStarted = false;
@@ -288,16 +288,16 @@ export class ClientWorldRuntimeCoordinator {
           this.multiplayerHordeAutostartAccumulator = 0;
         }
       }
-    });
+    }));
 
-    gameBus.on('gameModeEnded', (payload: any) => {
+    this.runtimeDisposers.push(gameBus.on('gameModeEnded', (payload: any) => {
       if (payload?.modeName === 'horde') {
         this.hordeStartReady = false;
         this.hordeStarted = false;
         this.pendingMultiplayerHordeAutostart = false;
         this.multiplayerHordeAutostartAccumulator = 0;
       }
-    });
+    }));
   }
 
   update(dt: number): void {
@@ -323,6 +323,17 @@ export class ClientWorldRuntimeCoordinator {
     this.stopInputSending = handler;
   }
 
+  dispose(): void {
+    while (this.runtimeDisposers.length > 0) {
+      this.runtimeDisposers.pop()?.();
+    }
+    this.destroyDebugConsoleOverlay();
+    this.destroyDebugWeaponEntity();
+    this.pendingMultiplayerHordeAutostart = false;
+    this.multiplayerHordeAutostartAccumulator = 0;
+    this.spawnDiagnosticLogTimes.clear();
+  }
+
   attachCollisionResolver(): void {
     this.networkSyncSystem.setCollisionResolver((context) => this.resolveLocalMovement(context));
   }
@@ -336,7 +347,7 @@ export class ClientWorldRuntimeCoordinator {
   }
 
   private bindDebugFireballHotkey(): void {
-    window.addEventListener('keydown', (event: KeyboardEvent) => {
+    const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key.toLowerCase() !== 'f' || event.ctrlKey || event.metaKey || event.shiftKey) {
         return;
       }
@@ -379,17 +390,25 @@ export class ClientWorldRuntimeCoordinator {
         { x: direction.x, y: direction.y, z: direction.z },
       );
       event.preventDefault();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    this.runtimeDisposers.push(() => {
+      window.removeEventListener('keydown', onKeyDown);
     });
   }
 
   private bindDebugBootHotkey(): void {
-    window.addEventListener('keydown', (event: KeyboardEvent) => {
+    const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key.toLowerCase() !== 'l' || event.ctrlKey || event.metaKey || event.shiftKey) {
         return;
       }
 
       this.runDebugBootSequence();
       event.preventDefault();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    this.runtimeDisposers.push(() => {
+      window.removeEventListener('keydown', onKeyDown);
     });
   }
 
@@ -399,13 +418,17 @@ export class ClientWorldRuntimeCoordinator {
   }
 
   private bindHordeStartHotkey(): void {
-    window.addEventListener('keydown', (event: KeyboardEvent) => {
+    const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key.toLowerCase() !== 'z' || event.ctrlKey || event.metaKey || event.shiftKey) {
         return;
       }
       if (!this.engineController.is('in_game')) return;
       if (!this.tryStartHordeEncounter()) return;
       event.preventDefault();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    this.runtimeDisposers.push(() => {
+      window.removeEventListener('keydown', onKeyDown);
     });
   }
 
@@ -1064,7 +1087,7 @@ export class ClientWorldRuntimeCoordinator {
       typeof details.reason === 'string' ? details.reason : '',
     ];
     const key = `${level}:${message}:${detailTokens.join(':')}`;
-    const now = Date.now();
+    const now = Engine.time.now();
     const throttleMs = message === 'PLAYER SPAWN REQUEST' || message === 'LOCAL PLAYER VISUAL STATE'
       ? 1500
       : 400;
@@ -1120,7 +1143,7 @@ export class ClientWorldRuntimeCoordinator {
     if (currentPhase === 'PLAY_ACTIVE') {
       // Player already active - don't re-initialize to avoid spawn loops
       const logEntry = `[ClientWorldRuntimeCoordinator] Skipped duplicate ensurePlayerRuntimeState call for already-active player ${playerId}`;
-      console.info(logEntry, { timestamp: Date.now(), phase: currentPhase });
+      console.info(logEntry, { timestamp: Engine.time.now(), phase: currentPhase });
       return;
     }
     

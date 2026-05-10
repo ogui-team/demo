@@ -72,7 +72,7 @@ export class SnapshotWriter {
 
     const snapshot: KernelSnapshot = {
       tick,
-      timestamp: Date.now(),
+      timestamp: Engine.time.now(),
       entities,
     };
 

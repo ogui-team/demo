@@ -218,7 +218,7 @@ class DODHealthBufferTest {
       const queued = this.kernel.commands.enqueue(
         1,              // seq
         0,              // tick
-        Date.now(),     // timestamp
+        Engine.time.now(),     // timestamp
         'test',         // source
         'APPLY_DAMAGE', // type
         null,           // playerId

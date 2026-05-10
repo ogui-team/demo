@@ -141,7 +141,7 @@ class TitanChunkSerializer {
       chunkEntries.set(cellId, bucket);
     }
 
-    const savedAt = Date.now();
+    const savedAt = Engine.time.now();
     const chunks: TitanChunkAsset[] = [];
     for (const [cellId, serializedEntities] of chunkEntries.entries()) {
       const cell = this.spatialGridSystem.getCell(cellId);
@@ -314,7 +314,7 @@ class TitanStreamingSystem {
         cellId: chunk.cellId,
         entityIds: [...result.entityIds],
         recreated: result.recreated,
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
       }, { chunkId: chunk.cellId });
       this.runtimeTraceSink.recordChunkLifecycle('loaded', {
         worldId: chunk.worldId,
@@ -368,7 +368,7 @@ class TitanStreamingSystem {
       chunkId,
       cellId,
       entityCount: entityIds.length,
-      timestamp: Date.now(),
+      timestamp: Engine.time.now(),
     }, { chunkId: cellId });
     this.runtimeTraceSink.recordChunkLifecycle('unloaded', {
       worldId,
@@ -563,7 +563,7 @@ export class TitanContentPipeline {
       id: buildChunkAssetId(worldId, generated.cellId),
       worldId,
       cellId: generated.cellId,
-      savedAt: Date.now(),
+      savedAt: Engine.time.now(),
       bounds: { ...generated.bounds },
       entities: [...generated.entities],
     };
@@ -706,7 +706,7 @@ export class TitanContentPipeline {
   }
 
   refreshAssetRegistry(): void {
-    const savedAt = Date.now();
+    const savedAt = Engine.time.now();
     for (const prefabName of this.config.prefabSystem.listPrefabs()) {
       const definition = this.config.prefabSystem.getPrefab(prefabName);
       if (!definition) continue;
@@ -886,7 +886,7 @@ export class TitanContentPipeline {
         format: TITAN_WORLD_FORMAT,
         version: 1,
         id: name,
-        savedAt: Date.now(),
+        savedAt: Engine.time.now(),
         settings: legacyWorld.settings,
         engineState: legacyWorld.engineState,
         systemData: legacyWorld.systemData,
@@ -919,7 +919,7 @@ export class TitanContentPipeline {
       format: TITAN_WORLD_FORMAT,
       version: 1,
       id: name,
-      savedAt: Date.now(),
+      savedAt: Engine.time.now(),
       settings: legacyWorld.settings,
       engineState: legacyWorld.engineState,
       systemData: legacyWorld.systemData,
@@ -1102,7 +1102,7 @@ export class TitanContentPipeline {
       format: TITAN_PREFAB_FORMAT,
       version: 1,
       id: prefabId,
-      savedAt: Date.now(),
+      savedAt: Engine.time.now(),
       source: prefabId in BUILTIN_PREFABS ? 'builtin' : 'runtime',
       definition,
     };

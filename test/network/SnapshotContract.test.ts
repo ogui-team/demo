@@ -2,7 +2,7 @@ import {
   SNAPSHOT_DELTA_MODE,
   SNAPSHOT_SCHEMA_VERSION,
   isSupportedSnapshotSchema,
-} from '../../client/src/engine/network/SnapshotContract'
+} from '../../client/src/3-network/network/SnapshotContract'
 
 describe('SnapshotContract', () => {
   it('exposes snapshot schema version and delta mode constants', () => {

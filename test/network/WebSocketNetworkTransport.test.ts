@@ -1,4 +1,4 @@
-import { WebSocketNetworkTransport } from '../../client/src/engine/network/NetworkTransport'
+import { WebSocketNetworkTransport } from '../../client/src/3-network/network/NetworkTransport'
 
 class FakeWebSocket {
   static OPEN = 1

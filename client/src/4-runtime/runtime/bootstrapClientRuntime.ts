@@ -48,6 +48,7 @@ import { V010_LEVELS } from '../../2-systems/gameplay/game/levels/v010Levels';
 import { logEvent } from '../../1-kernel/core/EventLogger';
 import { gameBus } from '../../1-kernel/core/EventBus';
 import { EventListenerRegistry } from '../../1-kernel/core/EventListenerRegistry';
+import { TeardownRegistry } from '../../1-kernel/core/TeardownRegistry';
 import { CollisionAuthoritySystem } from '../../3-network/network/CollisionAuthoritySystem';
 import { AbilitySystem } from '../../2-systems/gameplay/systems/gas/AbilitySystem';
 import { GASBridge } from '../../2-systems/gameplay/systems/gas/GASBridge';
@@ -61,8 +62,8 @@ import { createSessionLifecycleCoordinator } from './bootstrap/createSessionLife
 import { createRuntimeUiCompositionCoordinator } from './bootstrap/createRuntimeUiCompositionCoordinator';
 import { createMultiplayerRuntimeCoordinator, createRuntimeAuxiliaryAssembly } from './bootstrap/runtimeAssemblies';
 import { bootstrapRuntimeMetricsReporter } from './bootstrap/runtimeMetrics';
-import { Phase3_GameplayRuntime, Phase4_NetworkingRuntime, Phase5_UIRuntime } from './bootstrap/phases';
-import { wireRuntimeAssemblies } from './bootstrap/wireRuntimeAssemblies';
+import { Phase3_GameplayRuntime, Phase4_NetworkingRuntime, Phase5_UIRuntime, bootstrapPhase6_CoordinatorWiring } from './bootstrap/phases';
+import { completePhase6CoordinatorWiring } from './bootstrap/phase6CoordinatorWiring';
 import { setupGameModeContext } from './bootstrap/gameModeContextSetup';
 import { ClientWorldRuntimeCoordinator } from './coordinators/ClientWorldRuntimeCoordinator';
 import { MultiplayerRuntimeCoordinator } from './coordinators/MultiplayerRuntimeCoordinator';
@@ -77,6 +78,10 @@ import { InventoryHudSyncHub } from './bootstrap/InventoryHudSyncHub';
 import { DODStateBridge } from './bootstrap/DODStateBridge';
 import { TitanBenchmarkOverlay } from '../diagnostics/debug/TitanBenchmarkOverlay';
 import { createEditorAuthorityCoordinator, createRuntimeDiagnosticsCoordinator } from './bootstrap/coordinatorFactories';
+import { PublicSystemRegistry } from '../../1-kernel/core/PublicSystemRegistry';
+import { PublicEventBus } from '../../1-kernel/core/PublicEventBus';
+import { PluginRegistry } from './PluginRegistry';
+import { GameEngineSDKImpl, createPluginLogger, exposeGameEngineSDK } from './GameEngineSdk';
 import {
   cloneTropicalHorrorArchetypeAppearance,
   getTropicalHorrorArchetype,
@@ -226,6 +231,7 @@ export function bootstrapRuntime(): void {
   let lifecycleOrchestrator: LifecycleOrchestrator | null = null;
   let gameHUD!: HUDSystem;
   let inventorySystem!: InventorySystem;
+  const runtimeTeardownRegistry = new TeardownRegistry();
 
   // Create minimal Phase context for phases
   const phaseCtx = {
@@ -234,6 +240,7 @@ export function bootstrapRuntime(): void {
     engineController: Engine.getEngineController(),
     listenerRegistry: new EventListenerRegistry(),
   };
+  runtimeTeardownRegistry.register(phaseCtx.listenerRegistry);
 
   // Store phase results for hot reload capability
   const phaseResults = new Map<string, any>();
@@ -241,6 +248,7 @@ export function bootstrapRuntime(): void {
   // Execute Phase 4: Networking Runtime FIRST (Phase 3 needs mpClient)
   const phase4Result = Phase4_NetworkingRuntime(phaseCtx);
   phaseResults.set('phase4', phase4Result);
+  runtimeTeardownRegistry.register(phase4Result);
   
   // Register Phase 4 systems
   const systemRegistry = Engine.getSystemRegistry();
@@ -301,6 +309,7 @@ export function bootstrapRuntime(): void {
   // Execute Phase 3: Gameplay Runtime (with mpClient dependency)
   const phase3Result = Phase3_GameplayRuntime(phaseCtx, mpClient);
   phaseResults.set('phase3', phase3Result);
+  runtimeTeardownRegistry.register(phase3Result);
   
   // Register Phase 3 systems
   if (systemRegistry) {
@@ -328,6 +337,7 @@ export function bootstrapRuntime(): void {
   // Execute Phase 5: UI Runtime (with Phase 3 dependencies)
   const phase5Result = Phase5_UIRuntime(phaseCtx, healthSystem, weaponSystem, prefabSystem);
   phaseResults.set('phase5', phase5Result);
+  runtimeTeardownRegistry.register(phase5Result);
   
   // Register Phase 5 systems
   if (systemRegistry) {
@@ -497,6 +507,7 @@ export function bootstrapRuntime(): void {
     dummyEnemySystem,
     pathfindingSystem,
   });
+  runtimeTeardownRegistry.register(worldRuntime);
   worldRuntime.attachCollisionResolver();
 
   const inventoryHudSyncHub = new InventoryHudSyncHub({
@@ -585,7 +596,7 @@ export function bootstrapRuntime(): void {
     Engine.registerRuntimeSystem('titanContentPipeline', titanContentPipeline, 'phase5');
   }
 
-  mpClient.on('initial_map_sync', ({ mapData }) => {
+  const onInitialMapSync = ({ mapData }: { mapData: any }) => {
     const productionResult = titanContentPipeline?.applyNetworkProductionSync(mapData.productionSync ?? null);
     if (productionResult && !productionResult.accepted) {
       console.error('[bootstrapClientRuntime] Rejected world production sync', productionResult.reason);
@@ -595,17 +606,21 @@ export function bootstrapRuntime(): void {
       authority: 'replicated',
       skipAuthoritySync: true,
     });
+  };
+  mpClient.on('initial_map_sync', onInitialMapSync);
+  runtimeTeardownRegistry.register(() => {
+    mpClient.off('initial_map_sync', onInitialMapSync);
   });
 
-  gameBus.on('ABILITY_PROJECTILE_SPAWNED', (payload: { abilityId?: string; position?: { x: number; y: number; z: number } }) => {
+  runtimeTeardownRegistry.register(gameBus.on('ABILITY_PROJECTILE_SPAWNED', (payload: { abilityId?: string; position?: { x: number; y: number; z: number } }) => {
     if (payload.abilityId !== 'ability_fireball' || !payload.position) {
       return;
     }
 
     vfxSystem.playPreset('spawnBurst', payload.position);
-  });
+  }));
 
-  gameBus.on('ABILITY_PROJECTILE_IMPACT', (payload: { abilityId?: string; position?: { x: number; y: number; z: number } }) => {
+  runtimeTeardownRegistry.register(gameBus.on('ABILITY_PROJECTILE_IMPACT', (payload: { abilityId?: string; position?: { x: number; y: number; z: number } }) => {
     if (payload.abilityId !== 'ability_fireball' || !payload.position) {
       return;
     }
@@ -619,7 +634,7 @@ export function bootstrapRuntime(): void {
       toneDurationMs: 220,
       waveform: 'sawtooth',
     });
-  });
+  }));
 
   const runtimeOverlayCoordinator = new RuntimeOverlayCoordinator({
     debugManager,
@@ -677,6 +692,7 @@ export function bootstrapRuntime(): void {
     auxiliaryAssemblyRef: () => auxiliaryAssembly,
     worldRuntime,
   });
+  runtimeTeardownRegistry.register(() => runtimeOverlayCoordinator.destroy());
 
   const hitFeedbackBridge = runtimeOverlayCoordinator.getHitFeedbackBridge();
   hitFeedbackBridge.setCrosshairVisible(false);
@@ -696,6 +712,7 @@ export function bootstrapRuntime(): void {
     hitFeedback: hitFeedbackBridge,
     overlayRuntime: runtimeOverlayCoordinator,
   });
+  runtimeTeardownRegistry.register(multiplayerRuntime);
   worldRuntime.setStopInputSending(() => multiplayerRuntime.stopInputSending());
 
   lifecycleOrchestrator = new LifecycleOrchestrator({
@@ -709,6 +726,7 @@ export function bootstrapRuntime(): void {
     // has been pre-filled by hydrateStateManager().
     isStateHydrated: () => stateManager.isHydrated,
   });
+  runtimeTeardownRegistry.register(lifecycleOrchestrator);
   lifecycleOrchestrator.tryTransitionTo('NETWORK_SYNC');
   (window as any).lifecycleOrchestrator = lifecycleOrchestrator;
 
@@ -724,7 +742,7 @@ export function bootstrapRuntime(): void {
       console.debug('[bootstrapClientRuntime] PlayController linked with LifecycleOrchestrator and canvas');
     }
   }
-  gameBus.on('LIFECYCLE_CHANGED', ({ to }) => {
+  runtimeTeardownRegistry.register(gameBus.on('LIFECYCLE_CHANGED', ({ to }) => {
     if (to !== 'PLAY_ACTIVE' && to !== 'LOBBY') {
       return;
     }
@@ -762,7 +780,7 @@ export function bootstrapRuntime(): void {
         path: SCHEMA_PATHS.PLAYER_LOCAL_APPEARANCE,
         usedSchemaDefault: false,
         recoveryValue: null,
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
       });
       console.warn('[BootstrapRuntime] RECOVERY_WARNING: player.local.appearance missing at PLAY_ACTIVE.', {
         playerId: runtimeLocalPlayerId,
@@ -770,21 +788,21 @@ export function bootstrapRuntime(): void {
         phase: to,
       });
     }
-  });
-  gameBus.on('UI_LOADING_STATE', ({ reason, path }) => {
+  }));
+  runtimeTeardownRegistry.register(gameBus.on('UI_LOADING_STATE', ({ reason, path }) => {
     Engine.getEngineController()?.setHudMode('loading', 'state-loading');
     Engine.getEngineController()?.setHudVisible(false, 'state-loading');
     console.warn('[StateHydrationGuard] UI in loading state', { reason, path });
-  });
-  gameBus.on('LIFECYCLE_PLAY_ACTIVE', ({ playerId, entityId, timestamp }) => {
+  }));
+  runtimeTeardownRegistry.register(gameBus.on('LIFECYCLE_PLAY_ACTIVE', ({ playerId, entityId, timestamp }) => {
     console.log('[LifecycleTrace] PLAY_ACTIVE reached', {
       playerId,
       entityId,
       eventTimestamp: timestamp,
-      receivedAt: Date.now(),
+      receivedAt: Engine.time.now(),
       perfNow: typeof performance !== 'undefined' ? performance.now() : null,
     });
-  });
+  }));
 
   auxiliaryAssembly = createRuntimeAuxiliaryAssembly({
     engineController,
@@ -898,98 +916,38 @@ export function bootstrapRuntime(): void {
     },
   });
 
-  // Expose to window for bootloader access (freeplay auto-start)
-  (window as any).__gameLaunchCoordinator = gameLaunchCoordinator;
-  
-  // Expose multiplayerRuntime for auto-transitioning to lobby on multiplayer mode start
-  (window as any).__multiplayerRuntime = multiplayerRuntime;
-  
-  // ─ EXPOSE PREFAB SYSTEM: For debug menu bite spawn
-  (window as any).__PrefabSystem = prefabSystem;
-  
-  // ─ EXPOSE INVENTORY SYSTEM: For debug menu health pack spawn
-  (window as any).__InventorySystem = inventorySystem;
-
-  // ─ EXPOSE BOOTSTRAP STATE: Make phase reload state accessible
-  (window as any).__bootstrapState = {
-    phaseResults,
+  const phase6Result = bootstrapPhase6_CoordinatorWiring(
     phaseCtx,
-    systemRegistry,
-    systems: {
-      healthSystem,
-      weaponSystem,
-      prefabSystem,
-      mpClient,
+    {
+      multiplayerRuntime,
+      sessionLifecycleCoordinator,
+      gameLaunchCoordinator,
+      editorAuthorityCoordinator,
+      auxiliaryAssembly,
     },
-    refs: {
-      gameHUD,
-      inventorySystem,
-      gasBridge,
+    () => {
+      completePhase6CoordinatorWiring({
+        gameLaunchCoordinator,
+        multiplayerRuntime,
+        prefabSystem,
+        inventorySystem,
+        phaseResults,
+        phaseCtx,
+        systemRegistry,
+        healthSystem,
+        weaponSystem,
+        mpClient,
+        gameHUD,
+        gasBridge,
+        sessionLifecycleCoordinator,
+        editorAuthorityCoordinator,
+        auxiliaryAssembly,
+        worldObjectAuthorityService,
+        kernelMovementIntegration,
+      });
     },
-  };
-
-  // ─ EXPOSE HOT RELOAD CAPABILITY: For testing phase idempotency
-  (window as any).__reloadPhase = async function(phaseId: string) {
-    try {
-      const state = (window as any).__bootstrapState;
-      if (!state) {
-        console.error('[Hot Reload] Bootstrap state not available');
-        return;
-      }
-
-      console.log(`[Hot Reload] Reloading ${phaseId}...`);
-      const oldResult = state.phaseResults.get(phaseId);
-      if (!oldResult) {
-        console.error(`[Hot Reload] Phase ${phaseId} not found in registry`);
-        return;
-      }
-
-      // Dispose old phase
-      oldResult.dispose?.();
-      console.log(`[Hot Reload] ${phaseId} disposed`);
-
-      // Re-execute phase
-      let newResult;
-      if (phaseId === 'phase5') {
-        newResult = Phase5_UIRuntime(state.phaseCtx, state.systems.healthSystem, state.systems.weaponSystem, state.systems.prefabSystem);
-      } else if (phaseId === 'phase3') {
-        newResult = Phase3_GameplayRuntime(state.phaseCtx, state.systems.mpClient);
-      } else if (phaseId === 'phase4') {
-        newResult = Phase4_NetworkingRuntime(state.phaseCtx);
-      } else {
-        console.error(`[Hot Reload] Unknown phase: ${phaseId}`);
-        return;
-      }
-
-      // Update registry
-      if (state.systemRegistry && newResult.systems) {
-        state.systemRegistry.removePhase(phaseId);
-        Object.entries(newResult.systems).forEach(([id, system]) => {
-          Engine.registerRuntimeSystem(id, system, phaseId);
-        });
-      }
-
-      // Update phase results
-      state.phaseResults.set(phaseId, newResult);
-
-      console.log(`[Hot Reload] ${phaseId} reloaded successfully`);
-    } catch (error) {
-      console.error('[Hot Reload] ERROR:', error);
-    }
-  };
-
-  console.log('[Titan Engine] __reloadPhase exposed to window');
-
-  wireRuntimeAssemblies({
-    multiplayerRuntime,
-    sessionLifecycleCoordinator,
-    gameLaunchCoordinator,
-    editorAuthorityCoordinator,
-    auxiliaryAssembly,
-    worldObjectAuthorityService,
-    mpClient,
-    kernelMovementIntegration,
-  });
+  );
+  phaseResults.set('phase6', phase6Result);
 
   registerRuntimeSystems({
     mpClient,
@@ -1106,13 +1064,97 @@ export function bootstrapRuntime(): void {
 
   // v0.1.4 Kernel Validation Test - DOD_HealthBufferTest.ts auto-registers global __DODHealthBufferTest
   if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'production') {
-    setTimeout(() => {
+    Engine.timer.setTimeout(() => {
       if ((window as any).__DODHealthBufferTest?.runAllSteps) {
         console.log('[Titan Engine] ▶️ Starting v0.1.4 kernel validation...');
         (window as any).__DODHealthBufferTest.runAllSteps();
       }
     }, 500);
   }
+
+  const teardownRuntimeForMemoryAudit = (): void => {
+    runtimeTeardownRegistry.dispose();
+  };
+
+  (window as any).__teardownRuntimeForMemoryAudit = teardownRuntimeForMemoryAudit;
+
+  (window as any).__validateReloadMemoryGate = async (
+    options?: {
+      phaseId?: string;
+      reloadCount?: number;
+      settleMs?: number;
+      sampleCount?: number;
+      sampleGapMs?: number;
+      thresholdBytes?: number;
+    },
+  ) => {
+    const perf = performance as Performance & {
+      memory?: {
+        usedJSHeapSize: number;
+        totalJSHeapSize: number;
+        jsHeapSizeLimit: number;
+      };
+    };
+    if (!perf.memory || typeof perf.memory.usedJSHeapSize !== 'number') {
+      throw new Error('performance.memory.usedJSHeapSize is unavailable in this browser context');
+    }
+
+    const phaseId = options?.phaseId ?? 'phase3';
+    const reloadCount = Math.max(2, options?.reloadCount ?? 5);
+    const settleMs = Math.max(50, options?.settleMs ?? 350);
+    const sampleCount = Math.max(1, options?.sampleCount ?? 3);
+    const sampleGapMs = Math.max(10, options?.sampleGapMs ?? 75);
+    const thresholdBytes = Math.max(1, options?.thresholdBytes ?? (2 * 1024 * 1024));
+    const delay = (ms: number) => new Promise<void>((resolve) => Engine.timer.setTimeout(resolve, ms));
+
+    const samples: Array<{ reload: number; usedJSHeapSize: number }> = [];
+
+    const sampleHeap = async (reload: number): Promise<void> => {
+      let total = 0;
+      for (let i = 0; i < sampleCount; i++) {
+        if (typeof (window as any).gc === 'function') {
+          (window as any).gc();
+        }
+        total += perf.memory!.usedJSHeapSize;
+        if (i < sampleCount - 1) {
+          await delay(sampleGapMs);
+        }
+      }
+      samples.push({
+        reload,
+        usedJSHeapSize: Math.round(total / sampleCount),
+      });
+    };
+
+    for (let reload = 1; reload <= reloadCount; reload++) {
+      await (window as any).__reloadPhase?.(phaseId);
+      await delay(settleMs);
+      await sampleHeap(reload);
+    }
+
+    const first = samples[0]?.usedJSHeapSize ?? 0;
+    const last = samples[samples.length - 1]?.usedJSHeapSize ?? 0;
+    const deltaBytes = last - first;
+    const gatePassed = deltaBytes < thresholdBytes;
+    const report = {
+      phaseId,
+      thresholdBytes,
+      gatePassed,
+      firstBytes: first,
+      lastBytes: last,
+      deltaBytes,
+      deltaMb: Number((deltaBytes / (1024 * 1024)).toFixed(3)),
+      samples,
+      generatedAt: Engine.time.date().toISOString(),
+    };
+
+    console.table(samples.map((sample) => ({
+      reload: sample.reload,
+      usedMB: Number((sample.usedJSHeapSize / (1024 * 1024)).toFixed(3)),
+    })));
+    console.log('[MemoryGate]', report);
+    return report;
+  };
 
   Engine.start();
 
@@ -1130,13 +1172,89 @@ export function bootstrapRuntime(): void {
     stateManager.set('runtime.debugSeed', seedLabel);
     gameHUD.showNotification('Drift Bomb debug autostart engaged...', 2);
 
-    setTimeout(() => {
+    Engine.timer.setTimeout(() => {
       console.log('[DriftBombDebug] Autostart launch', {
         backend: (globalThis as any).__physicsBackend ?? 'legacy',
         seed: seedLabel,
       });
       gameLaunchCoordinator.startDriftBomb();
     }, 80);
+  }
+
+  // ===== DETERMINISM SHIM INJECTION =====
+  // Injects determinism shims so Engine.time.now() and Engine.random.next() work throughout codebase
+  try {
+    const { injectDeterminismShim, DeterministicTimeImpl, DeterministicRandomImpl } = require('@shared/contracts');
+    const deterministicTime = new DeterministicTimeImpl(undefined);
+    const deterministicRandom = new DeterministicRandomImpl();
+    
+    injectDeterminismShim({
+      time: deterministicTime,
+      random: deterministicRandom,
+      timer: { setTimeout: globalThis.setTimeout.bind(globalThis), clearTimeout: globalThis.clearTimeout.bind(globalThis), setInterval: globalThis.setInterval.bind(globalThis), clearInterval: globalThis.clearInterval.bind(globalThis) },
+    });
+    
+    console.log('[Determinism] Shim active - Engine.time.now() and Engine.random.next() are deterministic');
+  } catch (err) {
+    console.warn('[Determinism] Shim injection failed:', err);
+  }
+
+  // ===== TIER 2 SDK SETUP =====
+  // Create the public-facing SDK interfaces for plugin system
+  try {
+    const internalSystemRegistry = Engine.getSystemRegistry();
+    if (!internalSystemRegistry) {
+      throw new Error('SystemRegistry not initialized');
+    }
+
+    // Create public SDK components
+    const publicSystemRegistry = new PublicSystemRegistry(internalSystemRegistry as any);
+    const publicEventBus = new PublicEventBus(gameBus as any);
+    const pluginRegistry = new PluginRegistry();
+    const gameEngineSdk = exposeGameEngineSDK(
+      new GameEngineSDKImpl(pluginRegistry, publicSystemRegistry, publicEventBus),
+    );
+
+    // Create plugin initialization context
+    // Note: Engine.time.now() and Engine.random.next() are already shimmed to be deterministic
+    const pluginContext = {
+      gameLoop: Engine,
+      systemContext: publicSystemRegistry,
+      systemRegistry: publicSystemRegistry,
+      gameBus: publicEventBus,
+      eventBus: publicEventBus,
+      stateManager,
+      mpClient,
+      features: {
+        isEnabled: (feature: string) => gameEngineSdk.features.isEnabled(feature),
+        enable: (feature: string) => FeatureManager.enable(feature as never),
+        disable: (feature: string) => FeatureManager.disable(feature as never),
+      },
+      config: gameEngineSdk.config,
+      logger: createPluginLogger('SDK'),
+    };
+
+    // Store on window for plugin access
+    (window as any).__gameEngineSdk = {
+      ...gameEngineSdk,
+      pluginRegistry,
+      systemRegistry: publicSystemRegistry,
+      eventBus: publicEventBus,
+      pluginContext,
+    };
+
+    // Register for cleanup
+    runtimeTeardownRegistry.register(async () => {
+      console.log('[SDK] Shutting down plugin system...');
+      await pluginRegistry.unloadAll();
+      pluginRegistry.dispose();
+      publicSystemRegistry.dispose();
+      publicEventBus.dispose();
+    });
+
+    console.log('[SDK] Tier 2 SDK initialized - Plugin system ready');
+  } catch (err) {
+    console.error('[SDK] Failed to initialize plugin system:', err);
   }
 
   void pendingMatchResetMode;

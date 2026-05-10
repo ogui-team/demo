@@ -1,11 +1,19 @@
 import { WebSocket } from 'ws';
 import type { TropicalHorrorArchetypeId } from '@shared/contracts';
-import { PHYSICS_CONSTANTS } from '../PhysicsConstants';
+import { PHYSICS_CONSTANTS, SNAPSHOT_ALLOWED_ENTITY_TYPES } from '@shared/contracts';
+import type {
+  PlayerState,
+  EntityState,
+  Vec3,
+} from '@shared/contracts';
+
+// Re-export types for use by session runtimes
+export type { PlayerState, EntityState };
 import { AuthoritativeActorRuntime } from '../actor/AuthoritativeActorRuntime';
 import { isActorPositionUsable, resolveActorMovement } from '../actor/ActorRuntimeSupport';
 import { CollisionAuthoritySystem, CollisionHistoryFrame } from '../collision/CollisionAuthoritySystem';
 import { SNAPSHOT_DELTA_MODE, SNAPSHOT_SCHEMA_VERSION } from '../snapshot/SnapshotContract';
-import { type LobbyRoom, type RoundState, type Vec3 } from '../sessionContracts';
+import { type LobbyRoom, type RoundState } from '../sessionContracts';
 import {
   ABILITY_VALIDATION_PROFILES,
   type PlayerDebugStatusOverride,
@@ -49,86 +57,6 @@ import {
 } from '../session/playerValidationRuntime';
 import { broadcastAll, broadcastOthers, sendTo } from '../session/broadcastRuntime';
 
-export interface PlayerState {
-  id: string;
-  name: string;
-  appearance?: Record<string, unknown> | null;
-  archetypeId: TropicalHorrorArchetypeId;
-  archetypeName: string;
-  position: Vec3;
-  rotation: Vec3;
-  velocity: Vec3;
-  isCrouching: boolean;
-  isAirborne: boolean;
-  groundHeight: number;
-  jumpHeld: boolean;
-  currentInput: PlayerInputState;
-  jumpBufferRemaining: number;
-  coyoteTimeRemaining: number;
-  pendingMovementIntent?: PlayerMovementIntent | null;
-  activeMovementStatuses?: PlayerMovementStatus[];
-  statusMovementModifier?: PlayerStatusMovementModifier | null;
-  debugStatusOverride?: PlayerDebugStatusOverride | null;
-  health: number;
-  maxHealth: number;
-  armor: number;
-  maxArmor: number;
-  mana: number;
-  maxMana: number;
-  damageReduction: number;
-  damageMultiplier: number;
-  attackSpeed: number;
-  dead: boolean;
-  lastUpdate: number;
-  lastInputSeq: number;
-  lastProcessedInputSeq: number;
-  lastProcessedInputTick: number;
-  lastMoveCommandAt: number;
-  kills: number;
-  deaths: number;
-  level: number;
-  exp: number;
-  ping: number;
-  equipment: string[];
-  respawnAt: number | null;
-  ws?: WebSocket;
-}
-
-export interface EntityState {
-  id: string;
-  type: string;
-  position: Vec3;
-  rotation: Vec3;
-  velocity?: Vec3;
-  isCrouching?: boolean;
-  isGrounded?: boolean;
-  isAirborne?: boolean;
-  health?: number;
-  maxHealth?: number;
-  shield?: number;
-  maxShield?: number;
-  mana?: number;
-  maxMana?: number;
-  state?: string;
-  dead?: boolean;
-  name?: string;
-  kills?: number;
-  deaths?: number;
-  level?: number;
-  exp?: number;
-  ping?: number;
-  archetypeId?: string;
-  archetypeName?: string;
-  equipment?: string[];
-  activeWeaponId?: string;
-  currentAmmo?: number;
-  reserveAmmo?: number;
-  isReloading?: boolean;
-  statusMovementModifier?: PlayerStatusMovementModifier | null;
-  IS_PLAYER_CONTROLLED?: boolean;
-  [key: string]: unknown;
-}
-
 export function sanitizePlayerAppearancePayload(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== 'object') return null;
   const candidate = value as Record<string, unknown>;
@@ -166,7 +94,6 @@ const ROUND_START_DELAY_MS = 1200;
 const SHIELD_DASH_HORIZONTAL_IMPULSE = PHYSICS_CONSTANTS.SHIELD_DASH_HORIZONTAL_IMPULSE;
 const ALLOW_DEBUG_STATUS_HOOKS = process.env.NODE_ENV !== 'production' && process.env.DISABLE_DEBUG_STATUS_HOOKS !== '1';
 const SNAPSHOT_RELEVANCE_RADIUS = 72;
-const SNAPSHOT_ALLOWED_ENTITY_TYPES = new Set(['player']);
 
 
 export class GameSession {

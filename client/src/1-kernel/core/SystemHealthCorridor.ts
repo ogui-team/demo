@@ -309,7 +309,7 @@ export function createNetworkFacade(deps: {
         const request: NetworkAbilityRequest = {
           playerId: cmd.playerId,
           abilityId: cmd.abilityId,
-          timestamp: cmd.timestamp ?? Date.now(),
+          timestamp: cmd.timestamp ?? Engine.time.now(),
           payload: cmd.payload,
         };
         deps.networkManager?.sendAbilityRequest(request);

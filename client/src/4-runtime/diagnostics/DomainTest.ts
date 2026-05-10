@@ -76,7 +76,7 @@ function testCrossDomainEmission(): void {
   });
 
   // Simulate Domain 3 emitting (e.g., MultiplayerClient in network domain)
-  const expectedPayload = { testData: 'cross-domain-message', timestamp: Date.now() };
+  const expectedPayload = { testData: 'cross-domain-message', timestamp: Engine.time.now() };
   gameBus.emit(testEventName as any, expectedPayload);
 
   // Verify both listeners received the event
@@ -127,7 +127,7 @@ function testMovementInputFlow(): void {
     movementIntent: { jump: false, crouch: false },
     yaw: 1.57,
     pitch: 0.5,
-    timestamp: Date.now(),
+    timestamp: Engine.time.now(),
   };
 
   gameBus.emit('playerMovementInputCaptured' as any, mockMovementInput);
@@ -175,7 +175,7 @@ function testInventorySyncFlow(): void {
         ],
       },
     },
-    timestamp: Date.now(),
+    timestamp: Engine.time.now(),
   };
 
   gameBus.emit('networkInventorySyncReceived' as any, mockInventorySync);

@@ -24,7 +24,7 @@ export async function initializeMode(): Promise<void> {
     clientRuntime.bootstrapRuntime();
     
     // Give systems a moment to initialize
-    await new Promise(r => setTimeout(r, 100));
+    await new Promise(r => Engine.timer.setTimeout(r, 100));
     
     // Auto-start freeplay game
     try {

@@ -96,7 +96,7 @@ export class GameplayDomainIntegrationCheck {
       // Simulate damage via command
       this.kernel.enqueueCommand(
         1,
-        Date.now(),
+        Engine.time.now(),
         'test',
         'DAMAGE_CMD',
         null,
@@ -137,7 +137,7 @@ export class GameplayDomainIntegrationCheck {
       // Simulate weapon fire via command
       this.kernel.enqueueCommand(
         2,
-        Date.now(),
+        Engine.time.now(),
         'test',
         'FIRE_CMD',
         null,

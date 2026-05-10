@@ -274,7 +274,7 @@ export class PerformanceMonitor {
   private persistMetrics(): void {
     try {
       const data = {
-        timestamp: new Date().toISOString(),
+        timestamp: Engine.time.date().toISOString(),
         stats: this.getStats(),
         recentMetrics: this.getRecentMetrics(5),
         alerts: this.alerts.slice(-10),
@@ -309,7 +309,7 @@ export class PerformanceMonitor {
       metrics: this.metrics,
       alerts: this.alerts,
       stats: this.getStats(),
-      exportTime: new Date().toISOString(),
+      exportTime: Engine.time.date().toISOString(),
     }, null, 2);
   }
 

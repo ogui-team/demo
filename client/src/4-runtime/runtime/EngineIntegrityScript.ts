@@ -79,7 +79,7 @@ export class EngineIntegrityValidator {
    */
   validate(): IntegrityReport {
     this.report = {
-      timestamp: Date.now(),
+      timestamp: Engine.time.now(),
       totalSystems: 0,
       passed: 0,
       failed: 0,

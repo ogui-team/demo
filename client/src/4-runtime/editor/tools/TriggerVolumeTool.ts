@@ -219,7 +219,7 @@ export class TriggerVolumeTool implements RoutedInputHandler {
       entityId: entity.id,
       center: bounds.center,
       size: bounds.size,
-      timestamp: Date.now(),
+      timestamp: Engine.time.now(),
     });
 
     return true;

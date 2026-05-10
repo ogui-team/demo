@@ -91,7 +91,7 @@ export class KernelAuditSystem {
     }
 
     // Success: update last valid hash
-    this.lastValidHash = { tick, stateHash, timestamp: Date.now() };
+    this.lastValidHash = { tick, stateHash, timestamp: Engine.time.now() };
     this.lastValidHashStack = new Error().stack ?? '(no stack)';
 
     return result;

@@ -1,4 +1,4 @@
-import { LocalNetworkTransport } from '../../client/src/engine/network/NetworkTransport'
+import { LocalNetworkTransport } from '../../client/src/3-network/network/NetworkTransport'
 
 describe('LocalNetworkTransport', () => {
   beforeEach(() => {

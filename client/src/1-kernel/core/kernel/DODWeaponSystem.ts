@@ -81,7 +81,7 @@ export class DODWeaponSystem implements IKernelSystem {
         entityId: String(cmd.handle),
         weaponId: 'default_weapon',
         reason: 'NO_AMMO',
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
       });
       return;
     }
@@ -93,7 +93,7 @@ export class DODWeaponSystem implements IKernelSystem {
         entityId: String(cmd.handle),
         weaponId: 'default_weapon',
         reason: 'NO_POSITION',
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
       });
       return;
     }
@@ -119,7 +119,7 @@ export class DODWeaponSystem implements IKernelSystem {
       // HIT: Queue DAMAGE_CMD for target
       this.kernel.enqueueCommand(
         0, // System-generated seq
-        Date.now(),
+        Engine.time.now(),
         'system',
         'DAMAGE_CMD',
         null,
@@ -132,7 +132,7 @@ export class DODWeaponSystem implements IKernelSystem {
         targetId: String(hitTarget.handle),
         position: { x: hitTarget.position[0], y: hitTarget.position[1], z: hitTarget.position[2] },
         damage: 25,
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
       });
     } else {
       // MISS: Emit event only
@@ -140,7 +140,7 @@ export class DODWeaponSystem implements IKernelSystem {
         shooterId: String(cmd.handle),
         position: { x: shooterPos[0], y: shooterPos[1], z: shooterPos[2] },
         direction: { x: cmd.targetPos[0], y: cmd.targetPos[1], z: cmd.targetPos[2] },
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
       });
     }
   }

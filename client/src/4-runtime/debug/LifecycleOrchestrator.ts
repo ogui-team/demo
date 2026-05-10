@@ -54,6 +54,7 @@ export class LifecycleOrchestrator {
   private guards: Map<LifecyclePhase, LifecycleGuard> = new Map();
   private config: LifecycleOrchestratorConfig;
   private isTransitioning = false;
+  private readonly busDisposers: Array<() => void> = [];
   private static readonly PHASE_ORDER: Record<LifecyclePhase, number> = {
     BOOT: 0,
     NETWORK_SYNC: 1,
@@ -135,7 +136,7 @@ export class LifecycleOrchestrator {
         gameBus.emit('LIFECYCLE_PLAY_ACTIVE', {
           playerId: this.config.getLocalPlayerId(),
           entityId: this.config.getLocalPlayerEntity()?.id,
-          timestamp: Date.now(),
+          timestamp: Engine.time.now(),
         });
       },
     });
@@ -143,17 +144,17 @@ export class LifecycleOrchestrator {
 
   private setupEventListeners(): void {
     // Server-seitige Snapshot-Bestätigung
-    gameBus.on('FULL_SYNC_DATA', () => {
+    this.busDisposers.push(gameBus.on('FULL_SYNC_DATA', () => {
       Logger.lifecycle('FULL_SYNC_DATA received', {
         playerId: this.config.getLocalPlayerId(),
       });
       if (this.currentPhase === 'BOOT' || this.currentPhase === 'NETWORK_SYNC') {
         this.tryTransitionTo('SPAWN_READY');
       }
-    });
+    }));
 
     // Entity wurde im Kernel/serverseitig spawned
-    gameBus.on('ENTITY_SPAWNED', ({ entityId, playerId }: any) => {
+    this.busDisposers.push(gameBus.on('ENTITY_SPAWNED', ({ entityId, playerId }: any) => {
       if (playerId === this.config.getLocalPlayerId()) {
         Logger.lifecycle('Local player entity spawned', {
           entityId,
@@ -161,10 +162,10 @@ export class LifecycleOrchestrator {
         });
         this.tryTransitionTo('PLAY_ACTIVE');
       }
-    });
+    }));
 
     // Fallback: falls ENTITY_SPAWNED ausbleibt, kann der Controller-Bind trotzdem aktivieren.
-    gameBus.on('CONTROLLER_BOUND', ({ playerId, entityId }: any) => {
+    this.busDisposers.push(gameBus.on('CONTROLLER_BOUND', ({ playerId, entityId }: any) => {
       if (playerId === this.config.getLocalPlayerId()) {
         Logger.lifecycle('Controller bound to entity', {
           playerId,
@@ -172,11 +173,11 @@ export class LifecycleOrchestrator {
         });
         this.tryTransitionTo('PLAY_ACTIVE');
       }
-    });
+    }));
 
     // Boot-lock: if a previous transition was blocked because hydration was
     // not yet complete, retry now that the state tree is fully pre-filled.
-    gameBus.on('STATE_HYDRATION_COMPLETE', () => {
+    this.busDisposers.push(gameBus.on('STATE_HYDRATION_COMPLETE', () => {
       Logger.lifecycle('STATE_HYDRATION_COMPLETE received — retrying pending transitions', {});
       if (this.currentPhase === 'BOOT' || this.currentPhase === 'NETWORK_SYNC') {
         this.tryTransitionTo('SPAWN_READY');
@@ -184,10 +185,10 @@ export class LifecycleOrchestrator {
       if (this.currentPhase === 'SPAWN_READY') {
         this.tryTransitionTo('PLAY_ACTIVE');
       }
-    });
+    }));
 
     // ─ AWAIT-READY HANDSHAKE: Snapshot sync verification complete ─
-    gameBus.on('SYNC_VERIFIED', ({ playerId, tick, networkEntityId }: any) => {
+    this.busDisposers.push(gameBus.on('SYNC_VERIFIED', ({ playerId, tick, networkEntityId }: any) => {
       if (playerId === this.config.getLocalPlayerId()) {
         Logger.lifecycle('SYNC_VERIFIED received - Snapshot data confirmed', {
           playerId,
@@ -198,10 +199,10 @@ export class LifecycleOrchestrator {
         // Try transitioning to PLAY_ACTIVE now that snapshot is verified
         this.tryTransitionTo('PLAY_ACTIVE');
       }
-    });
+    }));
 
     // ─ AWAIT-READY HANDSHAKE: Buffer hydration complete ─
-    gameBus.on('FORCE_BUFFER_HYDRATION', ({ playerId, tick, networkEntityId }: any) => {
+    this.busDisposers.push(gameBus.on('FORCE_BUFFER_HYDRATION', ({ playerId, tick, networkEntityId }: any) => {
       if (playerId === this.config.getLocalPlayerId()) {
         Logger.lifecycle('FORCE_BUFFER_HYDRATION complete - DOD buffers initialized', {
           playerId,
@@ -212,13 +213,13 @@ export class LifecycleOrchestrator {
         // Try transitioning to PLAY_ACTIVE now that buffers are hydrated
         this.tryTransitionTo('PLAY_ACTIVE');
       }
-    });
+    }));
 
     // Fallback: if the local player has already been actualized against an
     // authoritative spawn, do not let missing debug-handshake events keep
     // input locked forever. The normal guards (entity/full sync/hydration)
     // still apply before PLAY_ACTIVE is entered.
-    gameBus.on('LOCAL_PLAYER_ACTUALIZED', ({ playerId, entityId, source }: any) => {
+    this.busDisposers.push(gameBus.on('LOCAL_PLAYER_ACTUALIZED', ({ playerId, entityId, source }: any) => {
       const localPlayerId = this.config.getLocalPlayerId();
       if (!localPlayerId) {
         return;
@@ -235,7 +236,7 @@ export class LifecycleOrchestrator {
         source,
       });
       this.tryTransitionTo('PLAY_ACTIVE');
-    });
+    }));
   }
 
   /**
@@ -277,7 +278,7 @@ export class LifecycleOrchestrator {
       // Checkpoint speichern
       this.checkpoints.push({
         phase: targetPhase,
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
         playerId: this.config.getLocalPlayerId() ?? undefined,
         entityId: this.config.getLocalPlayerEntity()?.id,
       });
@@ -290,7 +291,7 @@ export class LifecycleOrchestrator {
       gameBus.emit('LIFECYCLE_CHANGED', {
         from: previousPhase,
         to: targetPhase,
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
       });
 
       return true;
@@ -346,7 +347,15 @@ export class LifecycleOrchestrator {
     this.currentPhase = 'BOOT';
     this.checkpoints = [];
     this.isTransitioning = false;
+    this.snapshotSyncVerified = false;
+    this.bufferHydrationComplete = false;
     Logger.lifecycle('LifecycleOrchestrator reset', {});
+  }
+
+  dispose(): void {
+    while (this.busDisposers.length > 0) {
+      this.busDisposers.pop()?.();
+    }
   }
 }
 

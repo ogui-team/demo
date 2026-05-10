@@ -32,7 +32,7 @@ export class MeshBindingTable {
         entityId,
         handle,
         reason: verification.failures.join('; '),
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
       });
       // Don't bind if verification fails - hide the mesh instead of showing white fallback
       mesh.visible = false;
@@ -58,11 +58,11 @@ export class MeshBindingTable {
         replacedEntityId: boundEntityId,
         entityId,
         handle,
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
       });
     }
     
-    console.log('[BINDING_SUCCESS]', { entityId, handle, meshName: mesh.name || 'unnamed', timestamp: Date.now() });
+    console.log('[BINDING_SUCCESS]', { entityId, handle, meshName: mesh.name || 'unnamed', timestamp: Engine.time.now() });
     this.bindings.set(entityId, { handle, mesh });
   }
 
@@ -100,7 +100,7 @@ export class MeshBindingTable {
         inScene: !!mesh?.parent,
         visible: !!mesh?.visible,
         failures,
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
       });
     }
     
@@ -198,7 +198,7 @@ export class MeshBindingTable {
           oldHandle,
           newHandle,
           meshName,
-          timestamp: Date.now(),
+          timestamp: Engine.time.now(),
           reason: 'snapshot_reconciliation_handle_migration',
           bufferAlignmentWarning,
         } as any);

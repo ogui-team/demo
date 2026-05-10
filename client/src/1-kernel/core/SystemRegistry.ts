@@ -54,7 +54,7 @@ class SystemRegistry {
       name,
       system,
       status: existing?.status ?? 'active',
-      registeredAt: existing?.registeredAt ?? Date.now(),
+      registeredAt: existing?.registeredAt ?? Engine.time.now(),
       lastUpdateAt: existing?.lastUpdateAt ?? 0,
       updateCount: existing?.updateCount ?? 0,
       lastError: existing?.lastError ?? null,
@@ -79,7 +79,7 @@ class SystemRegistry {
   markUpdated(name: string): void {
     const entry = this.systems.get(name);
     if (!entry) return;
-    entry.lastUpdateAt = Date.now();
+    entry.lastUpdateAt = Engine.time.now();
     entry.updateCount += 1;
     entry.status = 'active';
     entry.lastError = null;

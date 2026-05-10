@@ -15,6 +15,6 @@ export function createRuntimeLifecycleComponent(
     type: 'runtimeLifecycle',
     state,
     chunkId,
-    updatedAtMs: Date.now(),
+    updatedAtMs: Engine.time.now(),
   };
 }

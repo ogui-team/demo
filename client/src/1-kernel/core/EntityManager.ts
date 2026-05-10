@@ -202,7 +202,7 @@ export class EntityManager {
     this.entityDebugMetadata.set(id, {
       type,
       pooled,
-      createdAt: Date.now(),
+      createdAt: Engine.time.now(),
       createdStack: this.captureStackTrace(),
     });
 
@@ -358,7 +358,7 @@ export class EntityManager {
     return true;
   }
 
-  markEntityUsed(id: string, timestamp: number = Date.now()): boolean {
+  markEntityUsed(id: string, timestamp: number = Engine.time.now()): boolean {
     const entity = this.activeEntities.get(id);
     if (!entity) return false;
     entity.touch(timestamp);
@@ -417,7 +417,7 @@ export class EntityManager {
       this.entityDebugMetadata.set(entity.id, {
         type: entity.type,
         pooled: false,
-        createdAt: Date.now(),
+        createdAt: Engine.time.now(),
         createdStack: '[EntityManager] deserialized entity',
       });
       created.push(entity);
@@ -548,7 +548,7 @@ export class EntityManager {
    * Generate unique entity ID
    */
   private generateEntityId(): string {
-    return `entity_${this.entityIdCounter++}_${Date.now()}`;
+    return `entity_${this.entityIdCounter++}_${Engine.time.now()}`;
   }
 
   /**

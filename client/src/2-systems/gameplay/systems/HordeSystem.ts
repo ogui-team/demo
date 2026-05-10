@@ -136,7 +136,7 @@ export class HordeSystem {
     gameBus.emit('HORDE_STARTED', {
       wave: this.waveIndex,
       kills: this.kills,
-      timestamp: Date.now(),
+      timestamp: Engine.time.now(),
     });
     this.emitWaveState('initiated');
     this.beginNextWave();
@@ -198,7 +198,7 @@ export class HordeSystem {
         status: 'stopped',
         wave: this.waveIndex,
         kills: this.kills,
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
       });
     }
   }
@@ -214,13 +214,13 @@ export class HordeSystem {
       status: 'victory',
       wave: this.waveIndex,
       kills: this.kills,
-      timestamp: Date.now(),
+      timestamp: Engine.time.now(),
     });
     gameBus.emit('gameModeEnded', { modeName: 'horde', winnerId: null, reason: 'victory' });
   }
 
   private scheduleNextWave(): void {
-    this.nextWaveTimer = WAVE_DELAY_MIN + Math.random() * (WAVE_DELAY_MAX - WAVE_DELAY_MIN);
+    this.nextWaveTimer = WAVE_DELAY_MIN + Engine.random.next() * (WAVE_DELAY_MAX - WAVE_DELAY_MIN);
     this.emitWaveState('waiting', { nextWaveIn: Number(this.nextWaveTimer.toFixed(2)) });
   }
 
@@ -308,7 +308,7 @@ export class HordeSystem {
       status,
       finished: status === 'victory' || status === 'stopped',
       leaderboard,
-      updatedAt: Date.now(),
+      updatedAt: Engine.time.now(),
     });
   }
 

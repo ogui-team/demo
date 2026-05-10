@@ -248,7 +248,7 @@ export class ModeTransitionManager {
 
       // STEP 7: Prepare for new mode initialization
       console.log('[ModeTransition] STEP 7: Preparing for new mode...');
-      await new Promise((resolve) => setTimeout(resolve, 10)); // Short delay for cleanup
+      await new Promise((resolve) => Engine.timer.setTimeout(resolve, 10)); // Short delay for cleanup
 
       console.log(`[ModeTransition] ${mode} cleanup complete (7-step atomic sequence)`);
     } catch (error) {
@@ -316,7 +316,7 @@ export class ModeTransitionManager {
    */
   private async flushCleanup(): Promise<void> {
     // Wait for any pending promises
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await new Promise((resolve) => Engine.timer.setTimeout(resolve, 50));
   }
 
   /**

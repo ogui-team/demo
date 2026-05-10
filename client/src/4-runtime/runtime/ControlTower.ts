@@ -179,7 +179,7 @@ export class ControlTower implements EngineSystem {
 
   update(): void {
     if (!this.systemContext) return;
-    const now = Date.now();
+    const now = Engine.time.now();
     if (now - this.lastSampleAt < CONTROL_TOWER_SAMPLE_INTERVAL_MS) return;
     this.lastSampleAt = now;
     this.pruneSnapshotWindow(now);
@@ -205,7 +205,7 @@ export class ControlTower implements EngineSystem {
     this.eventDisposers.push(
       gameBus.on('ENTITY_RECONCILED', (payload) => {
         this.recentCorrections.set(payload.playerId, {
-          timestamp: Date.now(),
+          timestamp: Engine.time.now(),
           correctionDistance: payload.correctionDistance,
         });
       }),
@@ -345,7 +345,7 @@ export class ControlTower implements EngineSystem {
       lastLocalSnapshotTick?: number | null;
     },
   ): ControlTowerReplicationState {
-    const now = Date.now();
+    const now = Engine.time.now();
     const localCorrection = networkSync?.getDiagnostics?.() as { bindings?: Array<{ playerId: string; correctionDistance?: number }> } | undefined;
     const localPlayerId = networkSync?.getLocalBindingStatus?.().playerId ?? null;
     const localBinding = localPlayerId && localCorrection?.bindings
@@ -498,7 +498,7 @@ export class ControlTower implements EngineSystem {
 
   private createEmptySnapshot(): ControlTowerState {
     return {
-      generatedAt: Date.now(),
+      generatedAt: Engine.time.now(),
       players: [],
       replication: {
         snapshotRate: 0,

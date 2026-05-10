@@ -139,7 +139,7 @@ export class ProceduralLevel {
 
   constructor(cfg: LevelGenConfig = {}) {
     this.cfg = {
-      seed:            cfg.seed            ?? Math.floor(Math.random() * 999999),
+      seed:            cfg.seed            ?? Math.floor(Engine.random.next() * 999999),
       targetRoomCount: cfg.targetRoomCount ?? 10,
       maxAttempts:     cfg.maxAttempts     ?? 200,
       roomSpacing:     cfg.roomSpacing     ?? 0,

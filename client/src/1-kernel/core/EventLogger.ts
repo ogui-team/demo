@@ -11,7 +11,7 @@ class EventLogger {
   private events: LoggedEvent[] = [];
 
   log(type: string, message: string, details?: Record<string, unknown>): void {
-    this.events.push({ timestamp: Date.now(), type, message, details });
+    this.events.push({ timestamp: Engine.time.now(), type, message, details });
     if (this.events.length > MAX_EVENTS) {
       this.events.splice(0, this.events.length - MAX_EVENTS);
     }

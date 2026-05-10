@@ -285,7 +285,7 @@ export class FailFastGuardsManager {
     return {
       testName: this.testName,
       elapsedSeconds: elapsedSeconds.toFixed(1),
-      timestamp: new Date().toISOString(),
+      timestamp: Engine.time.date().toISOString(),
       memory: this.memory.getDiagnostics(),
       fps: this.fps.getDiagnostics(),
       listeners: this.listeners.getDiagnostics(),

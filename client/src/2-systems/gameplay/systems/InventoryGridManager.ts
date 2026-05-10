@@ -652,7 +652,7 @@ export class InventoryGridManager {
       } else {
         const pos = this._findFreeSlot(def.gridW, def.gridH);
         if (pos) {
-          tempInstanceId = `_opt_${Date.now().toString(36)}`;
+          tempInstanceId = `_opt_${Engine.time.now().toString(36)}`;
           this.inventory.items.push({
             instanceId: tempInstanceId,
             itemId,

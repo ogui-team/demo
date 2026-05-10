@@ -54,7 +54,7 @@ export class EntityLifetimeRegistry {
   registerEntity(entity: Entity, options: EntityRegisterOptions = {}): EntityLifecycleMetadata {
     const existing = this.metadataByEntityId.get(entity.id);
     if (existing) {
-      existing.lastTouchedAt = Date.now();
+      existing.lastTouchedAt = Engine.time.now();
       existing.isActive = true;
       existing.staleSince = null;
       existing.ownerType = options.ownerType ?? existing.ownerType;
@@ -66,7 +66,7 @@ export class EntityLifetimeRegistry {
     }
 
     const handle = this.handleAllocator.allocateNullable();
-    const createdAt = Date.now();
+    const createdAt = Engine.time.now();
     const metadata: EntityLifecycleMetadata = {
       entityId: entity.id,
       handle: handle ?? undefined,
@@ -95,8 +95,8 @@ export class EntityLifetimeRegistry {
     const metadata = this.metadataByEntityId.get(entityId);
     if (metadata) {
       metadata.isActive = false;
-      metadata.staleSince = Date.now();
-      metadata.lastTouchedAt = Date.now();
+      metadata.staleSince = Engine.time.now();
+      metadata.lastTouchedAt = Engine.time.now();
     }
 
     if (handle != null) {
@@ -149,7 +149,7 @@ export class EntityLifetimeRegistry {
     }
     metadata.ownerType = ownerType;
     metadata.ownerId = ownerId;
-    metadata.lastTouchedAt = Date.now();
+    metadata.lastTouchedAt = Engine.time.now();
     return true;
   }
 
@@ -163,7 +163,7 @@ export class EntityLifetimeRegistry {
       return false;
     }
     metadata.chunkId = chunkId;
-    metadata.lastTouchedAt = Date.now();
+    metadata.lastTouchedAt = Engine.time.now();
     return true;
   }
 
@@ -176,7 +176,7 @@ export class EntityLifetimeRegistry {
     if (!metadata) {
       return false;
     }
-    metadata.lastTouchedAt = Date.now();
+    metadata.lastTouchedAt = Engine.time.now();
     metadata.staleSince = null;
     return true;
   }

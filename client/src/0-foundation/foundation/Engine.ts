@@ -521,7 +521,7 @@ export function init(canvasElement: HTMLCanvasElement, options: EngineConfig = {
   });
 
   // Initialize network system
-  const localPlayerId = `player_${Math.random().toString(36).substr(2, 9)}`;
+  const localPlayerId = `player_${random.next().toString(36).substr(2, 9)}`;
   const networkTransport = new LocalNetworkTransport(50, false); // 50ms simulated latency
   networkManager = new NetworkManager(entityManager, networkTransport, localPlayerId, false);
   spatialPartitionSystem = new SpatialPartitionSystem(16);
@@ -2169,4 +2169,89 @@ export function getGasEffectSystem(): EffectSystem | null {
 export function getGasItemSystem(): ItemInstanceSystem | null {
   return gasItems;
 }
+
+// ── Deterministic Time & Random Namespaces ────────────────────────────────────
+// These provide deterministic alternatives to Date.now() and Math.random().
+// Used throughout the codebase for replay/network consistency.
+
+/** Deterministic time utilities. Use instead of Date.now(). */
+export const time = {
+  /** Get current engine time in milliseconds (falls back to Date.now() if game loop not active) */
+  now(): number {
+    const proxy = (globalThis as any).__ENGINE_PROXY__;
+    if (proxy?.time) return proxy.time.now();
+    return Date.now();
+  },
+  /** Get current engine time as seconds */
+  seconds(): number {
+    return this.now() / 1000;
+  },
+  /** Get a deterministic Date object */
+  date(): Date {
+    const proxy = (globalThis as any).__ENGINE_PROXY__;
+    if (proxy?.time) return proxy.time.date();
+    return new Date();
+  },
+};
+
+/** Deterministic random utilities. Use instead of Math.random(). */
+export const random = {
+  /** Get next deterministic random value [0, 1) */
+  next(): number {
+    const proxy = (globalThis as any).__ENGINE_PROXY__;
+    if (proxy?.random) return proxy.random.next();
+    return Math.random();
+  },
+  /** Get random integer in range [min, max) */
+  nextInt(min: number, max: number): number {
+    return min + Math.floor(this.next() * (max - min));
+  },
+  /** Get random float in range [min, max) */
+  nextFloat(min: number, max: number): number {
+    return min + this.next() * (max - min);
+  },
+};
+
+/** Deterministic timer utilities. Use instead of setTimeout/setInterval directly. */
+export const timer = {
+  setTimeout(handler: (...args: any[]) => void, timeout?: number, ...args: any[]): ReturnType<typeof globalThis.setTimeout> {
+    const proxy = (globalThis as any).__ENGINE_PROXY__;
+    if (proxy?.timer?.setTimeout) {
+      return proxy.timer.setTimeout(() => handler(...args), timeout ?? 0);
+    }
+    return globalThis.setTimeout(handler, timeout, ...args);
+  },
+  clearTimeout(id: ReturnType<typeof globalThis.setTimeout>): void {
+    const proxy = (globalThis as any).__ENGINE_PROXY__;
+    if (proxy?.timer?.clearTimeout) {
+      proxy.timer.clearTimeout(id);
+      return;
+    }
+    globalThis.clearTimeout(id);
+  },
+  setInterval(handler: (...args: any[]) => void, timeout?: number, ...args: any[]): ReturnType<typeof globalThis.setInterval> {
+    const proxy = (globalThis as any).__ENGINE_PROXY__;
+    if (proxy?.timer?.setInterval) {
+      return proxy.timer.setInterval(() => handler(...args), timeout ?? 0);
+    }
+    return globalThis.setInterval(handler, timeout, ...args);
+  },
+  clearInterval(id: ReturnType<typeof globalThis.setInterval>): void {
+    const proxy = (globalThis as any).__ENGINE_PROXY__;
+    if (proxy?.timer?.clearInterval) {
+      proxy.timer.clearInterval(id);
+      return;
+    }
+    globalThis.clearInterval(id);
+  },
+};
+
+/**
+ * Attach Engine namespace to globalThis so all files can use
+ * Engine.time.now() / Engine.random.next() without a per-file import.
+ * Called automatically when this module is first loaded.
+ */
+(function initEngineGlobal() {
+  (globalThis as any).Engine = { time, random, timer };
+})();
 

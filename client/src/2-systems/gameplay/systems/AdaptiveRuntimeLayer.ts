@@ -314,7 +314,7 @@ export class AdaptiveRuntimeLayer {
       priority,
       tags: uniqueStrings(tags),
       payload,
-      timestamp: Date.now(),
+      timestamp: Engine.time.now(),
     };
     this.eventCounts.set(channel, (this.eventCounts.get(channel) ?? 0) + 1);
     this.recentEvents.unshift(`${channel}:${message.tags.join('|')}`);
@@ -373,7 +373,7 @@ export class AdaptiveRuntimeLayer {
       priority,
       tags: uniqueStrings(tags),
       snapshot,
-      timestamp: Date.now(),
+      timestamp: Engine.time.now(),
     });
     this.replicationQueue.sort((left, right) => {
       if (right.priority !== left.priority) return right.priority - left.priority;

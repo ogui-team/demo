@@ -126,7 +126,7 @@ export function validateEngineRuntime(deps: SystemValidatorDeps): SystemValidati
 }
 
 export function validateEngineMemory(deps: SystemMemoryValidatorDeps): SystemMemoryValidationReport {
-  const now = deps.now?.() ?? Date.now();
+  const now = deps.now?.() ?? Engine.time.now();
   const activeEntityIds = deps.getActiveEntityIds();
   const physicsBodyIds = deps.getPhysicsBodyIds();
   const activeEntityIdSet = new Set(activeEntityIds);

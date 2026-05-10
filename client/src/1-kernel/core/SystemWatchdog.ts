@@ -23,7 +23,7 @@ export class SystemWatchdog {
   }
 
   private scanSystems(): void {
-    const now = Date.now();
+    const now = Engine.time.now();
 
     for (const entry of listSystems()) {
       const candidate = entry.system as { update?: (dt: number) => void; isEnabled?: () => boolean };
@@ -74,7 +74,7 @@ export class SystemWatchdog {
   }
 
   private warn(key: string, message: string): void {
-    const now = Date.now();
+    const now = Engine.time.now();
     const last = this.lastWarningAt.get(key) ?? 0;
     if (now - last < this.warningCooldownMs) return;
 

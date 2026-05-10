@@ -145,7 +145,7 @@ export class CullingSystem {
       this.visibleCount = this.cullEntries.size;
       this.culledCount = 0;
       this.lastCullChecks = this.cullEntries.size;
-      this.lastUpdatedAt = Date.now();
+      this.lastUpdatedAt = Engine.time.now();
     }
   }
 
@@ -241,7 +241,7 @@ export class CullingSystem {
     mergedGeo.computeBoundingSphere();
 
     const batchedMesh = new THREE.Mesh(mergedGeo, material);
-    batchedMesh.name  = `batched_${Date.now()}`;
+    batchedMesh.name  = `batched_${Engine.time.now()}`;
 
     // Remove originals from scene, add merged
     for (const mesh of meshes) {
@@ -307,7 +307,7 @@ export class CullingSystem {
       ? ((this.averageCullDurationMs * (nextSamples - 1)) + duration) / nextSamples
       : duration;
     this.peakCullDurationMs = Math.max(this.peakCullDurationMs, duration);
-    this.lastUpdatedAt = Date.now();
+    this.lastUpdatedAt = Engine.time.now();
   }
 
   private _updateLOD(): void {

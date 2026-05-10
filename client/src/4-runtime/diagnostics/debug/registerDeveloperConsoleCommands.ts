@@ -4,12 +4,7 @@ import * as AssetLoader from '../../../2-systems/gameplay/systems/AssetLoader';
 import { setContext } from '@engine/1-kernel/core/public-api';
 import { logEvent } from '@engine/1-kernel/core/public-api';
 import type { StatusMovementDebugState } from '../../runtime/RuntimeAuxiliaryAssembly';
-
-interface Vec3 {
-  x: number;
-  y: number;
-  z: number;
-}
+import type { Vector3 as Vec3 } from '@shared/contracts';
 
 interface SpawnableEntity {
   id: string;

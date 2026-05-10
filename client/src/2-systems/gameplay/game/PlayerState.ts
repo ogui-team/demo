@@ -3,12 +3,9 @@ import {
   getTropicalHorrorArchetype,
   type TropicalHorrorArchetypeId,
 } from '@engine/2-systems/ArchetypeDefinitions';
-
-export interface Vec3 {
-  x: number;
-  y: number;
-  z: number;
-}
+import type { Vector3 as Vec3 } from '@shared/contracts';
+import type { GameModeId, RoundStatus, RoundPhase, RoundState } from '@shared/contracts';
+export type { GameModeId, RoundStatus, RoundPhase, RoundState };
 
 export interface PlayerRuntimeState {
   id: string;
@@ -25,23 +22,6 @@ export interface PlayerRuntimeState {
   dead: boolean;
   position: Vec3;
   rotation: Vec3;
-}
-
-export type GameModeId = 'ffa' | 'horde' | 'drift_bomb';
-export type RoundStatus = 'warmup' | 'active' | 'ended';
-export type RoundPhase = 'waiting' | 'starting' | 'in_round' | 'round_end';
-
-export interface RoundState {
-  mode: GameModeId;
-  status: RoundStatus;
-  phase: RoundPhase;
-  roundNumber: number;
-  killLimit: number;
-  timeRemainingMs: number;
-  startedAt: number;
-  endsAt: number;
-  winnerId: string | null;
-  reason: 'timer' | 'kill_limit' | 'manual' | null;
 }
 
 export interface ScoreboardState {

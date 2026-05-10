@@ -105,17 +105,18 @@ export class RuntimeOverlayCoordinator {
   private roundPhaseBannerEl: HTMLDivElement | null = null;
   private roundPhaseBannerHideTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly roundPhaseDisposers: Array<() => void> = [];
+  private readonly runtimeDisposers: Array<() => void> = [];
   private deathScreenActions: DeathScreenActions | null = null;
 
   constructor(config: RuntimeOverlayCoordinatorConfig) {
     this.config = config;
 
-    (gameBus as any).on('offline_return_to_main_menu_requested', () => {
+    this.runtimeDisposers.push((gameBus as any).on('offline_return_to_main_menu_requested', () => {
       Engine.setAppState('menu');
       this.withUiCompositionCoordinator((coordinator) => {
         coordinator.show();
       }, 'offline_return_to_main_menu_requested');
-    });
+    }));
   }
 
   getScoreboardBridge() {
@@ -325,7 +326,7 @@ export class RuntimeOverlayCoordinator {
           },
           buildRuntimeIssueSnapshot: this.config.buildRuntimeIssueSnapshot,
           replaySystem: this.config.replaySystem,
-          getReplaySessionId: () => this.config.mpClient.roomId || `session_${Date.now()}`,
+          getReplaySessionId: () => this.config.mpClient.roomId || `session_${Engine.time.now()}`,
           engineGameModes: this.config.engineGameModes,
           networkSyncSystem: this.config.networkSyncSystem,
           statusMovementDebug: {
@@ -347,12 +348,16 @@ export class RuntimeOverlayCoordinator {
 
   installIssueInspectorHotkey(): void {
     if (typeof window === 'undefined') return;
-    window.addEventListener('keydown', (event) => {
+    const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key !== 'F8' || this.runtimeIssueInspector) return;
       event.preventDefault();
       this.withRuntimeIssueInspector((inspector) => {
         inspector.toggle();
       }, 'issueInspectorHotkey');
+    };
+    window.addEventListener('keydown', onKeyDown);
+    this.runtimeDisposers.push(() => {
+      window.removeEventListener('keydown', onKeyDown);
     });
   }
 
@@ -406,20 +411,46 @@ export class RuntimeOverlayCoordinator {
 
   destroy(): void {
     if (this.roundPhaseBannerHideTimer) {
-      clearTimeout(this.roundPhaseBannerHideTimer);
+      Engine.timer.clearTimeout(this.roundPhaseBannerHideTimer);
       this.roundPhaseBannerHideTimer = null;
     }
     while (this.roundPhaseDisposers.length > 0) {
       this.roundPhaseDisposers.pop()?.();
     }
+    while (this.runtimeDisposers.length > 0) {
+      this.runtimeDisposers.pop()?.();
+    }
     this.roundPhaseBannerEl?.remove();
     this.roundPhaseBannerEl = null;
     this.scoreboard?.destroy();
+    this.scoreboard = null;
+    this.scoreboardPromise = null;
     this.hitFeedbackInstance?.destroy();
+    this.hitFeedbackInstance = null;
+    this.hitFeedbackPromise = null;
     this.uiCompositionCoordinator?.destroy();
+    this.uiCompositionCoordinator = null;
+    this.uiCompositionCoordinatorPromise = null;
     this.netGraph?.destroy();
+    this.netGraph = null;
+    this.netGraphPromise = null;
     this.runtimeIssueInspector?.destroy();
+    this.runtimeIssueInspector = null;
+    this.runtimeIssueInspectorPromise = null;
     this.statusMovementDebugPanel?.destroy();
+    this.statusMovementDebugPanel = null;
+    this.statusMovementDebugPanelPromise = null;
+
+    if (typeof window !== 'undefined') {
+      const overlayWindow = window as unknown as {
+        validateEngine?: () => Promise<unknown>;
+        validateEngineMemory?: () => Promise<unknown>;
+        statusMovementDebug?: unknown;
+      };
+      delete overlayWindow.validateEngine;
+      delete overlayWindow.validateEngineMemory;
+      delete overlayWindow.statusMovementDebug;
+    }
   }
 
   private ensureScoreboard(): Promise<Scoreboard> {
@@ -596,9 +627,9 @@ export class RuntimeOverlayCoordinator {
     this.roundPhaseBannerEl.style.opacity = '1';
     this.roundPhaseBannerEl.style.transform = 'translate(-50%, 0)';
     if (this.roundPhaseBannerHideTimer) {
-      clearTimeout(this.roundPhaseBannerHideTimer);
+      Engine.timer.clearTimeout(this.roundPhaseBannerHideTimer);
     }
-    this.roundPhaseBannerHideTimer = setTimeout(() => {
+    this.roundPhaseBannerHideTimer = Engine.timer.setTimeout(() => {
       if (!this.roundPhaseBannerEl) return;
       this.roundPhaseBannerEl.style.opacity = '0';
       this.roundPhaseBannerEl.style.transform = 'translate(-50%, -12px)';

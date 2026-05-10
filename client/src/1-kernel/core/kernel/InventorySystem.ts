@@ -74,7 +74,7 @@ export class InventorySystem implements BufferSystem {
       gameBus.emit('GLOBAL_STATE_REFRESH', {
         source: 'InventorySystem.FULL_SYNC_DATA',
         playerId,
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
       });
     });
 
@@ -96,7 +96,7 @@ export class InventorySystem implements BufferSystem {
           ammo: ammo ?? undefined,
           itemId: itemId ?? undefined,
           source: 'networkInventorySyncReceived',
-          timestamp: Date.now(),
+          timestamp: Engine.time.now(),
         });
       }
     });
@@ -105,7 +105,7 @@ export class InventorySystem implements BufferSystem {
       this.queueSnapshotData(playerId, {
         ammo: typeof currentAmmo === 'number' && Number.isFinite(currentAmmo) ? currentAmmo : undefined,
         source: 'ammoStateSyncBridge',
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
       });
     });
 
@@ -306,7 +306,7 @@ export class InventorySystem implements BufferSystem {
         dense,
         ammoBuffer: ammoBuffer[dense],
         hudAmmo,
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
       });
     }
   }

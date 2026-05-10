@@ -132,7 +132,7 @@ export class CombatSystemDOD implements IKernelSystem {
     const mitigated = baseDamage * (1 - armorReduction);
 
     // Apply variance (prevents all damage being identical)
-    const variance = 1 + (Math.random() - 0.5) * 2 * this.config.damageRollVariance;
+    const variance = 1 + (Engine.random.next() - 0.5) * 2 * this.config.damageRollVariance;
     return Math.max(1, mitigated * variance);
   }
 

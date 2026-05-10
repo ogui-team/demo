@@ -110,7 +110,7 @@ export function createMovementRuntimeState(tick: number): MovementRuntimeState {
     lastJumpImpulse: 0,
     positionError: { x: 0, y: 0, z: 0 },
     positionErrorDecayRemaining: 0,
-    lastReconciliationTime: Date.now(),
+    lastReconciliationTime: Engine.time.now(),
   };
 }
 

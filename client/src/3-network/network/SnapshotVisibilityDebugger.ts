@@ -65,7 +65,7 @@ export class SnapshotVisibilityDebugger {
   auditSnapshot(snapshot: AuthoritativeSnapshot): SnapshotVisibilityReport {
     const startTime = performance.now();
     const report: SnapshotVisibilityReport = {
-      timestamp: Date.now(),
+      timestamp: Engine.time.now(),
       receivedEntityCount: snapshot.entities.length,
       mappedSuccessfully: 0,
       mappingMissing: 0,

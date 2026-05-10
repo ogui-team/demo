@@ -130,7 +130,7 @@ export class ReplicationSystem {
   captureSnapshots(entityIds: string[] | undefined, tick: number, deltaOnly: boolean = true): NetworkReplicatedEntityState[] {
     const ids = entityIds ?? [...this.bindings.keys()];
     const snapshots: NetworkReplicatedEntityState[] = [];
-    const now = Date.now();
+    const now = Engine.time.now();
     if (this.lastCaptureAt > 0) {
       const elapsedMs = now - this.lastCaptureAt;
       if (elapsedMs > 0) {
@@ -232,7 +232,7 @@ export class ReplicationSystem {
       console.log('[TIER_0C] Cleaning up removed entities (out of relevance)', {
         removedCount: removedIds.length,
         removedIds: removedIds.slice(0, 10),  // Log first 10
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
       });
       
       for (const removedId of removedIds) {

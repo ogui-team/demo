@@ -213,7 +213,7 @@ export class TransactionalKernelMode {
     }
 
     // Update last valid state
-    this.lastValidStateHash = { tick, stateHash, timestamp: Date.now() };
+    this.lastValidStateHash = { tick, stateHash, timestamp: Engine.time.now() };
     this.lastValidTick = tick;
 
     return {

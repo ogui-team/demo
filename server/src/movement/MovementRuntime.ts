@@ -1,5 +1,5 @@
 import { type PlayerStatusMovementModifier } from '../rules/AbilityRules';
-import { PHYSICS_CONSTANTS } from '../PhysicsConstants';
+import { PHYSICS_CONSTANTS } from '@shared/contracts';
 import { type PlayerMovementIntent } from '../gameplay/GameplayTypes';
 import { type Vec3 } from '../sessionContracts';
 

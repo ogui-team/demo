@@ -596,7 +596,7 @@ export class PathfindingSystem {
       const targetPosition = target.getPosition();
       aiController.targetPosition = targetPosition;
       aiController.targetState = 'entity';
-      aiController.lastResolvedAtMs = Date.now();
+      aiController.lastResolvedAtMs = Engine.time.now();
       return targetPosition;
     }
 

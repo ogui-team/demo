@@ -12,7 +12,11 @@ import { SNAPSHOT_SCHEMA_VERSION } from './snapshot/SnapshotContract';
 import { ITEM_CATALOG } from './data/itemCatalog';
 import { getLatestRuntimeMetrics, saveRuntimeMetrics, type RuntimeMetricsSample } from './system/RuntimeMetricsStore';
 import { generateDeterministicPlayerId } from './utils/DeterministicIdHash';  // ─ TIER 0D: Deterministic IDs ─
-import { DEFAULT_TROPICAL_HORROR_ARCHETYPE_ID, resolveTropicalHorrorArchetypeId } from '@shared/contracts';
+import {
+  DEFAULT_TROPICAL_HORROR_ARCHETYPE_ID,
+  resolveTropicalHorrorArchetypeId,
+  type ClientToServerMessage,
+} from '@shared/contracts';
 
 /* Audit bootstrap marker: new InventoryManager() */
 
@@ -288,7 +292,7 @@ wss.on('connection', (ws: WebSocket, req) => {
   };
 
   ws.on('message', (raw: Buffer | string) => {
-    let msg: any;
+    let msg: Partial<ClientToServerMessage> & Record<string, unknown>;
     const rawByteLength = typeof raw === 'string' ? Buffer.byteLength(raw) : raw.byteLength;
     if (rawByteLength > WS_MAX_PAYLOAD_BYTES) {
       rejectSocket(ws, 'PAYLOAD_TOO_LARGE', 'WebSocket payload exceeded configured limit');
@@ -296,7 +300,7 @@ wss.on('connection', (ws: WebSocket, req) => {
     }
 
     try {
-      msg = JSON.parse(raw.toString());
+      msg = JSON.parse(raw.toString()) as Partial<ClientToServerMessage> & Record<string, unknown>;
     } catch {
       socketGuard.malformedMessages += 1;
       if (socketGuard.malformedMessages >= MAX_MALFORMED_MESSAGES) {
@@ -305,8 +309,7 @@ wss.on('connection', (ws: WebSocket, req) => {
       return;
     }
 
-    const type    = msg.type    as string;
-    const payload = msg.payload as any ?? {};
+    const type = typeof msg.type === 'string' ? msg.type : '';
     if (typeof type !== 'string' || !type.trim()) {
       socketGuard.malformedMessages += 1;
       if (socketGuard.malformedMessages >= MAX_MALFORMED_MESSAGES) {
@@ -318,6 +321,13 @@ wss.on('connection', (ws: WebSocket, req) => {
     if (!consumeRateLimit(ws, socketGuard, classifyRateLimitKey(type))) {
       return;
     }
+
+    const messageData = (msg.data && typeof msg.data === 'object')
+      ? (msg.data as Record<string, unknown>)
+      : {};
+    const messageInput = (msg.input && typeof msg.input === 'object')
+      ? (msg.input as Record<string, unknown>)
+      : (msg as Record<string, unknown>);
 
     switch (type) {
 
@@ -447,7 +457,7 @@ wss.on('connection', (ws: WebSocket, req) => {
       case 'PLAYER_INPUT': {
         const session = sessions.get(sessionId);
         if (session) {
-          session.processInput(ws, msg.seq as number, msg.ts as number, msg.input ?? msg);
+          session.processInput(ws, msg.seq as number, msg.ts as number, messageInput);
         }
         break;
       }
@@ -455,7 +465,7 @@ wss.on('connection', (ws: WebSocket, req) => {
       case 'GAMEPLAY_COMMAND': {
         const session = sessions.get(sessionId);
         if (session) {
-          session.handleGameplayCommand(ws, msg.command as string, msg.data ?? {});
+          session.handleGameplayCommand(ws, msg.command as string, messageData);
         }
         break;
       }
@@ -463,7 +473,7 @@ wss.on('connection', (ws: WebSocket, req) => {
       case 'DEV_COMMAND': {
         const session = sessions.get(sessionId);
         if (session) {
-          session.handleDevCommand(ws, msg.command as string, msg.data ?? {});
+          session.handleDevCommand(ws, msg.command as string, messageData);
         }
         break;
       }
@@ -481,9 +491,9 @@ wss.on('connection', (ws: WebSocket, req) => {
         const action = msg.action as string;
         const lobbyActions = new Set(['LOBBY_READY', 'LOBBY_MAP', 'LOBBY_MODE', 'LOBBY_SETTINGS', 'MAP_VOTE', 'LOBBY_FORCE_START', 'LOBBY_ARCHETYPE']);
         if (inLobby && lobbyActions.has(action)) {
-          lobbyManager.handleLobbyAction(ws, action, msg.data ?? {});
+          lobbyManager.handleLobbyAction(ws, action, messageData);
         } else {
-          sessions.get(sessionId)?.handleAction(ws, action, msg.data ?? {});
+          sessions.get(sessionId)?.handleAction(ws, action, messageData);
         }
         break;
       }
@@ -545,8 +555,6 @@ wss.on('connection', (ws: WebSocket, req) => {
       default:
         break;
     }
-
-    void payload;
   });
 
   ws.on('close', () => {

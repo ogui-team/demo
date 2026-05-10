@@ -174,8 +174,8 @@ function applySpread(dir: Vector3, spread: number): Vector3 {
     y: dir.z * right.x - dir.x * right.z,
     z: dir.x * right.y - dir.y * right.x,
   });
-  const angle = Math.random() * Math.PI * 2;
-  const mag   = Math.random() * Math.tan(spread);
+  const angle = Engine.random.next() * Math.PI * 2;
+  const mag   = Engine.random.next() * Math.tan(spread);
   return v3norm({
     x: dir.x + (right.x * Math.cos(angle) + up.x * Math.sin(angle)) * mag,
     y: dir.y + (right.y * Math.cos(angle) + up.y * Math.sin(angle)) * mag,
@@ -469,7 +469,7 @@ export class AbilitySystem {
 
     // ── onCast effects ─────────────────────────────────────────────────────
     for (const effectId of ability.onCastEffectIds ?? []) {
-      this.effects.apply(casterId, effectId, `cast:${abilityId}:${Date.now()}`, 1.0);
+      this.effects.apply(casterId, effectId, `cast:${abilityId}:${Engine.time.now()}`, 1.0);
     }
 
     // ── Delivery ───────────────────────────────────────────────────────────
@@ -494,7 +494,7 @@ export class AbilitySystem {
       abilityId,
       origin:    { x: origin.x,    y: origin.y,    z: origin.z },
       direction: { x: norm.x,      y: norm.y,      z: norm.z },
-      timestamp: Date.now(),
+      timestamp: Engine.time.now(),
     };
     gameBus.emit('abilityActivationRequested', {
       entityId: casterId,
@@ -704,7 +704,7 @@ export class AbilitySystem {
   private sendGameplayCommand(type: string, payload: Record<string, unknown>): void {
     const network = this.systemContext?.network ?? null;
     if (network && (network.getClient() || network.getSync())) {
-      network.sendCommand({ type, payload, abilityId: typeof payload.abilityId === 'string' ? payload.abilityId : undefined, timestamp: Date.now() });
+      network.sendCommand({ type, payload, abilityId: typeof payload.abilityId === 'string' ? payload.abilityId : undefined, timestamp: Engine.time.now() });
       return;
     }
     if (this.multiplayer?.connected) {
@@ -774,7 +774,7 @@ export class AbilitySystem {
         });
         this.emitEntityDamageEvents(hit.entityId, casterId, abilityId, appliedDamage, hit.point);
         for (const effectId of ability.onHitEffectIds ?? []) {
-          this.effects.apply(hit.entityId, effectId, `hit:${abilityId}:${Date.now()}`, 1.0);
+          this.effects.apply(hit.entityId, effectId, `hit:${abilityId}:${Engine.time.now()}`, 1.0);
         }
         for (const cb of this.hitCallbacks) {
           try { cb({ casterId, abilityId, targetId: hit.entityId, damage, point: hit.point }); } catch { /**/ }
@@ -991,9 +991,9 @@ export class AbilitySystem {
     const casterEntity = this.em.getEntity(casterId);
     const casterPos    = casterEntity?.getPosition() ?? { x: 0, y: 0, z: 0 };
     const spawnPos: Vector3 = {
-      x: casterPos.x + (Math.random() - 0.5) * 4,
+      x: casterPos.x + (Engine.random.next() - 0.5) * 4,
       y: casterPos.y,
-      z: casterPos.z + (Math.random() - 0.5) * 4,
+      z: casterPos.z + (Engine.random.next() - 0.5) * 4,
     };
 
     const summonEntity = this.em.createEntity('GAS_Summon', {
@@ -1084,7 +1084,7 @@ export class AbilitySystem {
         const appliedDamage = this.health.applyDamage(tid, { amount: dmg, type: proj.damageType as any, sourceId: proj.casterId });
         this.emitEntityDamageEvents(tid, proj.casterId, proj.abilityId, appliedDamage, proj.position);
         for (const effectId of onHitEffectIds) {
-          this.effects.apply(tid, effectId, `projectile_hit:${Date.now()}`, 1.0);
+          this.effects.apply(tid, effectId, `projectile_hit:${Engine.time.now()}`, 1.0);
         }
       }
       return;
@@ -1097,7 +1097,7 @@ export class AbilitySystem {
     });
     this.emitEntityDamageEvents(primaryTargetId, proj.casterId, proj.abilityId, appliedDamage, proj.position);
     for (const effectId of onHitEffectIds) {
-      this.effects.apply(primaryTargetId, effectId, `projectile_hit:${Date.now()}`, 1.0);
+      this.effects.apply(primaryTargetId, effectId, `projectile_hit:${Engine.time.now()}`, 1.0);
     }
     for (const cb of this.hitCallbacks) {
       try { cb({ casterId: proj.casterId, abilityId: proj.abilityId, targetId: primaryTargetId, damage: proj.damage, point: { ...proj.position } }); } catch { /**/ }
@@ -1204,7 +1204,7 @@ export class AbilitySystem {
       if (dmg <= 0) continue;
       this.health.applyDamage(tid, { amount: dmg, type: zone.damageType as any, sourceId: zone.casterId });
       for (const effectId of zone.onHitEffectIds) {
-        this.effects.apply(tid, effectId, `aoe_hit:${zone.id}:${Date.now()}`, 1.0);
+        this.effects.apply(tid, effectId, `aoe_hit:${zone.id}:${Engine.time.now()}`, 1.0);
       }
       for (const cb of this.hitCallbacks) {
         try { cb({ casterId: zone.casterId, abilityId: zone.abilityId, targetId: tid, damage: dmg, point: { ...zone.center } }); } catch { /**/ }

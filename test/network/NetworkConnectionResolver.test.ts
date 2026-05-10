@@ -1,13 +1,13 @@
-import { gameBus } from '../../client/src/engine/core/public-api'
+import { gameBus } from '../../client/src/1-kernel/core/public-api'
 import {
   NetworkConnectionResolver,
   SafeWebSocketConnection,
-} from '../../client/src/engine/network/NetworkConnectionResolver'
+} from '../../client/src/3-network/network/NetworkConnectionResolver'
 import {
   SNAPSHOT_DELTA_MODE,
   SNAPSHOT_SCHEMA_VERSION,
   isSupportedSnapshotSchema,
-} from '../../client/src/engine/network/SnapshotContract'
+} from '../../client/src/3-network/network/SnapshotContract'
 
 class FakeWebSocket {
   static OPEN = 1

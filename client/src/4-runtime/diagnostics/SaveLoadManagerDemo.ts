@@ -126,7 +126,7 @@ export function exampleDeleteMap() {
  */
 export function exampleAutoSave() {
   setInterval(() => {
-    const timestamp = new Date().toLocaleTimeString();
+    const timestamp = Engine.time.date().toLocaleTimeString();
     Engine.saveMap(`autosave-${timestamp}`);
     console.log(`[${timestamp}] Auto-saved world`);
   }, 30000); // 30 seconds
@@ -173,7 +173,7 @@ export function createSaveLoadUI() {
   }
 
   saveBtn.addEventListener('click', () => {
-    const name = mapNameInput.value || `map-${Date.now()}`;
+    const name = mapNameInput.value || `map-${Engine.time.now()}`;
     const success = Engine.saveMap(name);
     if (success) {
       console.log(`✓ Saved as "${name}"`);

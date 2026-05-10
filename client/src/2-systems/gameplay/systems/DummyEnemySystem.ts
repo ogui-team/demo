@@ -19,6 +19,7 @@ import { createAIControllerComponent } from '../game/components/AIControllerComp
 import { createBoxCollider } from '../game/components/ColliderComponent';
 import { BinaryEntityTemplate } from './BinaryEntityTemplate';
 import type { SpriteComponentData } from '../../../4-runtime/ui/2d/TwoDTypes';
+import type { Vector3 as Vec3 } from '@shared/contracts';
 
 interface DummyHealthSystemAdapter {
   get(entityId: string): { hp: number; maxHp: number; isDead?: boolean } | undefined;
@@ -37,8 +38,6 @@ interface DummyPhysicsSystemAdapter {
   getBody(id: string): DummyPhysicsBodyAdapter | undefined;
   removeBody(id: string): void;
 }
-
-interface Vec3 { x: number; y: number; z: number; }
 
 interface DummyPathfindingAdapter {
   findPath(start: Vec3, end: Vec3): Vec3[];
@@ -335,16 +334,16 @@ export class DummyEnemySystem {
       position: [x, y, z],
       baseY: y, // CRITICAL FIX: Track base Y for idle-bob relative positioning
       isDead: false,
-      createdAt: Date.now(),
+      createdAt: Engine.time.now(),
       hitFlashTimer: 0,
       deathTimer: 0,
       corpseBlockerTimer: 0,
       visualEntityId: null,
       enemyType,
       variantId,
-      orbitPhase: enemyType === 'flyingMask' ? Math.random() * Math.PI * 2 : undefined,
-      orbitRadius: enemyType === 'flyingMask' ? 3.0 + Math.random() * 1.2 : undefined,
-      shootTimer: enemyType === 'flyingMask' ? 0.8 + Math.random() * 0.8 : undefined,
+      orbitPhase: enemyType === 'flyingMask' ? Engine.random.next() * Math.PI * 2 : undefined,
+      orbitRadius: enemyType === 'flyingMask' ? 3.0 + Engine.random.next() * 1.2 : undefined,
+      shootTimer: enemyType === 'flyingMask' ? 0.8 + Engine.random.next() * 0.8 : undefined,
       shotEffectEntityId: null,
       meleeCooldown: 0,
       path: [],
@@ -489,7 +488,7 @@ export class DummyEnemySystem {
             localPlayerPosition,
           );
           dummy.pathIndex = 0;
-          dummy.pathRefreshTimer = 0.45 + Math.random() * 0.15;
+          dummy.pathRefreshTimer = 0.45 + Engine.random.next() * 0.15;
         }
 
         // Choose movement target: next waypoint (if path exists) or direct line.
@@ -632,7 +631,7 @@ export class DummyEnemySystem {
     this.updateProjectileEffects(dt);
 
     // DEBUG: Log update status
-    if (Math.random() < 0.016 && updateCount > 0) {  // ~1/60 frames
+    if (Engine.random.next() < 0.016 && updateCount > 0) {  // ~1/60 frames
       console.log(`[DummyEnemySystem] Updated ${updateCount}/${this.dummies.size} dummies with idle-bob (offset: ${yOffset.toFixed(3)})`);
     }
 
@@ -683,7 +682,7 @@ export class DummyEnemySystem {
 
         // Procedural arm animation: reaching-toward-player pose with walk cycle
         if (dummy.enemyType !== 'flyingMask' && (dummy.armL || dummy.armR)) {
-          const t = Date.now() / 1000;
+          const t = Engine.time.now() / 1000;
           if (dummy.armL) (dummy.armL as any).rotation.x = -Math.PI * 0.75 + Math.sin(t * 3.5) * 0.18;
           if (dummy.armR) (dummy.armR as any).rotation.x = -Math.PI * 0.75 + Math.sin(t * 3.5 + Math.PI) * 0.18;
         }
@@ -816,8 +815,8 @@ export class DummyEnemySystem {
    * Spawn dummy at random position near player
    */
   spawnRandomDummy(playerX: number, playerY: number): EntityHandle | null {
-    const offsetX = (Math.random() - 0.5) * 10;
-    const offsetZ = (Math.random() - 0.5) * 10;
+    const offsetX = (Engine.random.next() - 0.5) * 10;
+    const offsetZ = (Engine.random.next() - 0.5) * 10;
     return this.spawnDummy(playerX + offsetX, playerY + 1, offsetZ);
   }
 
@@ -871,7 +870,7 @@ export class DummyEnemySystem {
           position: [spawnX, spawnY, spawnZ],
           baseY: spawnY, // CRITICAL FIX: Track base Y for idle-bob
           isDead: false,
-          createdAt: Date.now(),
+          createdAt: Engine.time.now(),
           hitFlashTimer: 0,
           deathTimer: 0,
           visualEntityId: null,
@@ -909,7 +908,7 @@ export class DummyEnemySystem {
       handles: spawnedHandles,
       origin,
       spacing,
-      timestamp: Date.now(),
+      timestamp: Engine.time.now(),
     });
 
     return spawnedHandles;
@@ -952,7 +951,7 @@ export class DummyEnemySystem {
       dummy.shootTimer -= dt;
       if (dummy.shootTimer <= 0 && localPlayerPosition) {
         this.fireFlyingMaskShot(dummy, localPlayerPosition);
-        dummy.shootTimer = this.FLYING_MASK_SHOOT_INTERVAL_MIN + Math.random() * (this.FLYING_MASK_SHOOT_INTERVAL_MAX - this.FLYING_MASK_SHOOT_INTERVAL_MIN);
+        dummy.shootTimer = this.FLYING_MASK_SHOOT_INTERVAL_MIN + Engine.random.next() * (this.FLYING_MASK_SHOOT_INTERVAL_MAX - this.FLYING_MASK_SHOOT_INTERVAL_MIN);
       }
     }
   }
@@ -1158,7 +1157,7 @@ export class DummyEnemySystem {
           position: [spawnX, spawnY, spawnZ],
           baseY: spawnY, // CRITICAL FIX: Track base Y for idle-bob
           isDead: false,
-          createdAt: Date.now(),
+          createdAt: Engine.time.now(),
           hitFlashTimer: 0,
           deathTimer: 0,
           visualEntityId: null,

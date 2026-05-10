@@ -466,7 +466,7 @@ export class NetworkSyncSystem {
     this.movementDebugState.lastMovementIntent = queuedIntent;
     this.movementDebugState.lastMovementIntentSource = 'queueMovementIntent';
     this.movementDebugState.lastInputSource = 'movement_intent';
-    this.movementDebugState.timestamp = Date.now();
+    this.movementDebugState.timestamp = Engine.time.now();
   }
 
   update(dt: number): void {
@@ -523,7 +523,7 @@ export class NetworkSyncSystem {
       localNetworkEntityId: this.localPlayerId ? (this.networkEntityIdsByPlayer.get(this.localPlayerId) ?? this.localPlayerId) : null,
       bindingIsBound: !!(this.localPlayerId && binding),
       tick: this.tick,
-      timestamp: Date.now(),
+      timestamp: Engine.time.now(),
     };
   }
 

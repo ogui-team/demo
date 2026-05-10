@@ -59,12 +59,12 @@ const AFFIX_TIER_RANGES: Record<AffixTier, [min: number, max: number]> = {
 };
 
 function randomInRange(min: number, max: number): number {
-  return min + Math.random() * (max - min);
+  return min + Engine.random.next() * (max - min);
 }
 
 function pickAffixTier(level: number): AffixTier {
-  if (level >= 15) return Math.random() < 0.2 ? 'Exalted' : 'Major';
-  if (level >= 7)  return Math.random() < 0.5 ? 'Major'   : 'Minor';
+  if (level >= 15) return Engine.random.next() < 0.2 ? 'Exalted' : 'Major';
+  if (level >= 7)  return Engine.random.next() < 0.5 ? 'Major'   : 'Minor';
   return 'Minor';
 }
 
@@ -75,7 +75,7 @@ function generateUUID(): UUID {
   }
   // Fallback — not cryptographically strong but sufficient for game IDs
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16)|0;
+    const r = (Engine.random.next() * 16)|0;
     const v = c === 'x' ? r : (r & 0x3 | 0x8);
     return v.toString(16);
   });
@@ -200,7 +200,7 @@ export class ItemInstanceSystem {
     const pool = [...(template.affixPool ?? [])];
 
     for (let i = 0; i < affixCount && pool.length > 0; i++) {
-      const idx      = Math.floor(Math.random() * pool.length);
+      const idx      = Math.floor(Engine.random.next() * pool.length);
       const [picked] = pool.splice(idx, 1);     // pick without replacement
       const tier     = pickAffixTier(level);
       const [min, max] = AFFIX_TIER_RANGES[tier];
@@ -219,7 +219,7 @@ export class ItemInstanceSystem {
       affixes,
       currentAmmo:  template.magazineSize,
       reserveAmmo:  template.reserveAmmoCap,
-      lastModified: Date.now(),
+      lastModified: Engine.time.now(),
     };
 
     this.instances.set(instance.uuid, instance);
@@ -314,7 +314,7 @@ export class ItemInstanceSystem {
     }
 
     // 5. Notify observers
-    instance.lastModified = Date.now();
+    instance.lastModified = Engine.time.now();
     for (const cb of this.equipCallbacks) {
       try { cb({ playerId, slot: targetSlot, itemUuid: uuid }); } catch { /**/ }
     }
@@ -427,7 +427,7 @@ export class ItemInstanceSystem {
     if (instance.currentAmmo === undefined) return true;  // infinite ammo
     if (instance.currentAmmo < amount) return false;
     instance.currentAmmo -= amount;
-    instance.lastModified = Date.now();
+    instance.lastModified = Engine.time.now();
     this.emitMutation(`inventory.${playerId}.ammo.${slot}`);
     return true;
   }
@@ -442,7 +442,7 @@ export class ItemInstanceSystem {
     const transfer  = Math.min(needed, reserve);
     instance.currentAmmo  = (instance.currentAmmo ?? 0) + transfer;
     instance.reserveAmmo  = reserve - transfer;
-    instance.lastModified = Date.now();
+    instance.lastModified = Engine.time.now();
     this.emitMutation(`inventory.${playerId}.ammo.${slot}`);
 
     return template.reloadTime;
@@ -454,7 +454,7 @@ export class ItemInstanceSystem {
     if (!instance || instance.reserveAmmo === undefined) return;
     const cap = template?.reserveAmmoCap ?? Number.MAX_SAFE_INTEGER;
     instance.reserveAmmo = Math.min(cap, instance.reserveAmmo + amount);
-    instance.lastModified = Date.now();
+    instance.lastModified = Engine.time.now();
     this.emitMutation(`inventory.${playerId}.ammo.${slot}`);
   }
 

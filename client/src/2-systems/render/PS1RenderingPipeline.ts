@@ -256,9 +256,9 @@ export class PS1RenderingPipeline {
     const posArray = positions.array as Float32Array;
 
     for (let i = 0; i < posArray.length; i += 3) {
-      posArray[i] += (Math.random() - 0.5) * this.config.jitterAmount;
-      posArray[i + 1] += (Math.random() - 0.5) * this.config.jitterAmount;
-      posArray[i + 2] += (Math.random() - 0.5) * this.config.jitterAmount;
+      posArray[i] += (Engine.random.next() - 0.5) * this.config.jitterAmount;
+      posArray[i + 1] += (Engine.random.next() - 0.5) * this.config.jitterAmount;
+      posArray[i + 2] += (Engine.random.next() - 0.5) * this.config.jitterAmount;
     }
 
     positions.needsUpdate = true;

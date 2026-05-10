@@ -155,7 +155,7 @@ export class StateManager {
             path,
             usedSchemaDefault: found,
             recoveryValue: found ? recoveryValue : null,
-            timestamp: Date.now(),
+            timestamp: Engine.time.now(),
           });
           if (found) {
             return recoveryValue;
@@ -446,7 +446,7 @@ export class StateManager {
     }
 
     if (obj instanceof Date) {
-      return new Date(obj.getTime());
+      return obj; // Date objects are immutable, return reference
     }
 
     const cloned: Record<string, any> = {};

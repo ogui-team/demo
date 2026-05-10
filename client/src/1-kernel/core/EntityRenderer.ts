@@ -584,7 +584,7 @@ export class EntityRenderer {
 
     console.log('[EntityRenderer] VISUAL BRIDGE: Fallback meshes created', {
       count: handles.length,
-      timestamp: Date.now(),
+      timestamp: Engine.time.now(),
     });
   }
 
@@ -734,7 +734,7 @@ export class EntityRenderer {
     }
 
     // DEBUG: Log sync status every 60 frames with sample positions
-    if (fallbackMeshCount > 0 && Math.random() < 0.016) {
+    if (fallbackMeshCount > 0 && Engine.random.next() < 0.016) {
       const interpolationStatus = this.kernel.interpolationSystem ? '[INTERPOLATED]' : '[RAW]';
       console.log(`[EntityRenderer] Syncing ${fallbackMeshCount} meshes ${interpolationStatus} | Samples: ${samplePositions.map(([h, [x, y, z]]) => `h${h}@(${x.toFixed(1)},${y.toFixed(1)},${z.toFixed(1)})`).join(', ')}`);
     }

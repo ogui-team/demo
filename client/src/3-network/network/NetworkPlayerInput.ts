@@ -19,7 +19,7 @@ export function queueLocalInput(context: any, input: Record<string, unknown>): N
     playerId: localPlayerId,
     seq: context.networkManager.nextInputSequence(),
     tick: context.lastServerTick,
-    timestamp: Date.now(),
+    timestamp: Engine.time.now(),
     input,
   };
   const queue = context.pendingInputs.get(localPlayerId) ?? [];
@@ -126,7 +126,7 @@ export function stepLocalInput(context: any, input: Record<string, unknown>, dt:
     playerId: localPlayerId,
     seq: -1,
     tick: context.tick,
-    timestamp: Date.now(),
+    timestamp: Engine.time.now(),
     input: { ...input },
   });
 }
@@ -149,7 +149,7 @@ export function requestAbilityActivation(context: any, abilityId: string, payloa
   const request: NetworkAbilityRequest = {
     playerId: localPlayerId,
     abilityId,
-    timestamp: Date.now(),
+    timestamp: Engine.time.now(),
     payload,
   };
   gameBus.emit('abilityActivationRequested', {
@@ -167,7 +167,7 @@ export function requestHitscanValidation(context: any, request: Omit<NetworkHitV
   context.networkManager.sendHitValidationRequest({
     ...request,
     shooterId: localPlayerId,
-    timestamp: Date.now(),
+    timestamp: Engine.time.now(),
   });
   return true;
 }

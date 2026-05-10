@@ -1,6 +1,6 @@
-import { Entity } from '../../client/src/engine/core/Entity'
-import { NetworkManager } from '../../client/src/engine/network/NetworkManager'
-import type { PlayerNetworkState, NetworkInputCommand, NetworkSnapshot } from '../../client/src/engine/network/NetworkRuntimeContracts'
+import { Entity } from '../../client/src/1-kernel/core/Entity'
+import { NetworkManager } from '../../client/src/3-network/network/NetworkManager'
+import type { PlayerNetworkState, NetworkInputCommand, NetworkSnapshot } from '../../client/src/3-network/network/NetworkRuntimeContracts'
 
 class FakeTransport {
   public sentStates: PlayerNetworkState[] = []

@@ -83,7 +83,7 @@ export class DamageNumberUISystem {
       worldPos: worldPos || [0, 0, 0],
       screenPos: this.projectWorldToScreen(worldPos, damageAmount),
       damage: damageAmount,
-      createdAt: Date.now(),
+      createdAt: Engine.time.now(),
       duration,
     };
 
@@ -96,7 +96,7 @@ export class DamageNumberUISystem {
    * Update floating numbers (called each frame)
    */
   update(dt: number): void {
-    const now = Date.now();
+    const now = Engine.time.now();
     const toRemove: string[] = [];
 
     // Update each floating number
@@ -127,7 +127,7 @@ export class DamageNumberUISystem {
   render(): void {
     if (!this.ctx || !this.canvas) return;
 
-    const now = Date.now();
+    const now = Engine.time.now();
 
     for (const [id, number] of this.floatingNumbers) {
       const elapsed = now - number.createdAt;
@@ -182,8 +182,8 @@ export class DamageNumberUISystem {
     const height = this.canvas?.height ?? 0;
     const spread = Math.min(80, 20 + damageAmount * 0.6);
     return [
-      width * 0.5 + (Math.random() - 0.5) * spread,
-      height * 0.42 + (Math.random() - 0.5) * 24,
+      width * 0.5 + (Engine.random.next() - 0.5) * spread,
+      height * 0.42 + (Engine.random.next() - 0.5) * 24,
     ];
   }
 }

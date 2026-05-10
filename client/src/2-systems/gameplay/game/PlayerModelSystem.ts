@@ -533,7 +533,7 @@ export class PlayerModelSystem implements CharacterDashboardSource {
   * Process a batch of authoritative snapshot entity payloads.
    * Spawns players that don't exist yet, queues transform updates for those that do.
    */
-  syncFromPayload(entities: NetworkPlayerPayload[], snapshotTimestamp = Date.now()): void {
+  syncFromPayload(entities: NetworkPlayerPayload[], snapshotTimestamp = Engine.time.now()): void {
     for (const we of entities) {
       try {
         if (!we.id) continue;
@@ -711,7 +711,7 @@ export class PlayerModelSystem implements CharacterDashboardSource {
    */
   update(deltaTime: number): void {
     const dt = Math.min(deltaTime, 0.1);
-    const now = Date.now();
+    const now = Engine.time.now();
     this.lastUpdateDt = Math.max(dt, 1 / 240);
 
     for (const [playerId, rec] of this.players.entries()) {

@@ -157,7 +157,7 @@ export class RuntimeDiagnosticsCoordinator {
       this.serverStatus.sessions = typeof payload.sessions === 'number' ? payload.sessions : null;
       this.serverStatus.transport = payload.transport ?? null;
       this.serverStatus.session = this.selectServerSessionDiagnostics(payload);
-      this.serverStatus.lastUpdatedAt = Date.now();
+      this.serverStatus.lastUpdatedAt = Engine.time.now();
       this.serverStatus.error = null;
       this.publishServerStatus();
       gameBus.emit('stateMutation', {
@@ -180,7 +180,7 @@ export class RuntimeDiagnosticsCoordinator {
     if (this.serverStatus.error) {
       warnings.push(`Server status unavailable: ${this.serverStatus.error}`);
     }
-    if (this.serverStatus.lastUpdatedAt > 0 && Date.now() - this.serverStatus.lastUpdatedAt > RuntimeDiagnosticsCoordinator.NETWORK_PERFORMANCE_BUDGETS.statusStaleWarnMs) {
+    if (this.serverStatus.lastUpdatedAt > 0 && Engine.time.now() - this.serverStatus.lastUpdatedAt > RuntimeDiagnosticsCoordinator.NETWORK_PERFORMANCE_BUDGETS.statusStaleWarnMs) {
       warnings.push('Server status diagnostics are stale');
     }
     if (session?.lastFanoutDurationMs && session.lastFanoutDurationMs > RuntimeDiagnosticsCoordinator.NETWORK_PERFORMANCE_BUDGETS.snapshotFanoutWarnMs) {
@@ -304,6 +304,6 @@ export class RuntimeDiagnosticsCoordinator {
 
   private formatAgeMs(timestamp: number): string {
     if (timestamp <= 0) return 'n/a';
-    return `${Date.now() - timestamp} ms ago`;
+    return `${Engine.time.now() - timestamp} ms ago`;
   }
 }

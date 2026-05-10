@@ -67,7 +67,7 @@ export class Entity implements IPoolable {
     this.touch();
   }
 
-  touch(timestamp: number = Date.now()): void {
+  touch(timestamp: number = Engine.time.now()): void {
     this.lastUsedTime = timestamp;
   }
 
@@ -75,7 +75,7 @@ export class Entity implements IPoolable {
     this.id = id;
     this.type = type;
     this.active = true;
-    this.lastUsedTime = Date.now();
+    this.lastUsedTime = Engine.time.now();
     this.transform.position.x = transform.position?.x ?? 0;
     this.transform.position.y = transform.position?.y ?? 0;
     this.transform.position.z = transform.position?.z ?? 0;
@@ -262,7 +262,7 @@ export class Entity implements IPoolable {
   static fromJSON(data: EntityData): Entity {
     const entity = new Entity(data.id, data.type, data.transform);
     entity.active = data.active;
-    entity.lastUsedTime = typeof data.lastUsedTime === 'number' ? data.lastUsedTime : Date.now();
+    entity.lastUsedTime = typeof data.lastUsedTime === 'number' ? data.lastUsedTime : Engine.time.now();
 
     // Recreate components (without update functions - those are handled by system)
     for (const [name, componentData] of Object.entries(data.components)) {

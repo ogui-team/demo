@@ -23,6 +23,7 @@ export { FeatureManager } from '@engine/1-kernel/core/public-api';
 export { EngineController, type AppState } from '@engine/1-kernel/core/public-api';
 export { InputManager } from '@engine/1-kernel/core/public-api';
 export { SystemWatchdog } from '@engine/1-kernel/core/public-api';
+export { GameEngineSDKImpl, exposeGameEngineSDK } from './GameEngineSdk';
 export { getSystem, registerSystemMetadata } from '@engine/1-kernel/core/public-api';
 export {
   bindSystemContext,

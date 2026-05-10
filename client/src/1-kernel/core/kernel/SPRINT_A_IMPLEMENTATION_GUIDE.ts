@@ -180,12 +180,12 @@
  *       gameBus.emit('HEALTH_CHANGED', { entityId: cmd.handle, health: newHealth, source: cmd.source });
  *     } else {
  *       gameBus.emit('ENTITY_DIED', { entityId: cmd.handle, source: cmd.source });
- *       this.kernel.enqueueCommand(0, Date.now(), 'system', 'MESH_DESTROY_CMD', null, { handle: cmd.handle });
+ *       this.kernel.enqueueCommand(0, Engine.time.now(), 'system', 'MESH_DESTROY_CMD', null, { handle: cmd.handle });
  *     }
  *   }
  *   
  *   ### WeaponSystem: consumeCommand(handle, cmd)
- *   if (cmd.type === 'FIRE_CMD') {\n *     const dense = this.kernel.entities.getDenseIndex(cmd.handle);\n *     const ammo = this.kernel.inventories.getAmmo(dense);\n *     if (ammo < 1) {\n *       gameBus.emit('FIRE_FAILED', { reason: 'NO_AMMO', entityId: cmd.handle });\n *       return;\n *     }\n *     // raycast logic...\n *     const hitHandle = rayCast(fromPos, targetPos, entityFilter);\n *     if (hitHandle) {\n *       this.kernel.enqueueCommand(1, Date.now(), cmd.source, 'DAMAGE_CMD', null, \n *         { handle: hitHandle, amount: 25, source: cmd.handle });\n *       gameBus.emit('HITSCAN_HIT', { attacker: cmd.handle, target: hitHandle });\n *     } else {\n *       gameBus.emit('HITSCAN_MISS', { attacker: cmd.handle });\n *     }\n *     this.kernel.inventories.setAmmo(dense, ammo - 1);\n *   }\n * 
+ *   if (cmd.type === 'FIRE_CMD') {\n *     const dense = this.kernel.entities.getDenseIndex(cmd.handle);\n *     const ammo = this.kernel.inventories.getAmmo(dense);\n *     if (ammo < 1) {\n *       gameBus.emit('FIRE_FAILED', { reason: 'NO_AMMO', entityId: cmd.handle });\n *       return;\n *     }\n *     // raycast logic...\n *     const hitHandle = rayCast(fromPos, targetPos, entityFilter);\n *     if (hitHandle) {\n *       this.kernel.enqueueCommand(1, Engine.time.now(), cmd.source, 'DAMAGE_CMD', null, \n *         { handle: hitHandle, amount: 25, source: cmd.handle });\n *       gameBus.emit('HITSCAN_HIT', { attacker: cmd.handle, target: hitHandle });\n *     } else {\n *       gameBus.emit('HITSCAN_MISS', { attacker: cmd.handle });\n *     }\n *     this.kernel.inventories.setAmmo(dense, ammo - 1);\n *   }\n * 
  * ## TASK 5: Create Smoke Tests for Kernel Systems
  * 
  *   Time: ~1 hour

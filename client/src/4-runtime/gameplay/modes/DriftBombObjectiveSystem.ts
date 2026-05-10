@@ -158,11 +158,11 @@ export class DriftBombObjectiveSystem {
     }
 
     // Select random zone
-    const zone = zones[Math.floor(Math.random() * zones.length)];
+    const zone = zones[Math.floor(Engine.random.next() * zones.length)];
 
     // Select random position within zone radius
-    const angle = Math.random() * Math.PI * 2;
-    const radius = Math.random() * zone.radius;
+    const angle = Engine.random.next() * Math.PI * 2;
+    const radius = Engine.random.next() * zone.radius;
 
     return {
       x: zone.position.x + Math.cos(angle) * radius,

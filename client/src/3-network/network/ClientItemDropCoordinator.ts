@@ -59,10 +59,10 @@ export class ClientItemDropCoordinator {
         return;
       }
 
-      const requestId = `drop_${itemId}_${Date.now()}`;
+      const requestId = `drop_${itemId}_${Engine.time.now()}`;
 
       // Create timeout handler
-      const timeout = setTimeout(() => {
+      const timeout = Engine.timer.setTimeout(() => {
         this.pendingDrops.delete(requestId);
         reject(new Error(`Item drop timeout for ${itemId}`));
         console.warn(
@@ -77,7 +77,7 @@ export class ClientItemDropCoordinator {
         playerId,
         itemId,
         position,
-        createdAt: Date.now(),
+        createdAt: Engine.time.now(),
         timeout,
       };
       this.pendingDrops.set(requestId, pendingDrop);
@@ -100,7 +100,7 @@ export class ClientItemDropCoordinator {
         );
 
         if (spawnedEvent) {
-          clearTimeout(timeout);
+          Engine.timer.clearTimeout(timeout);
           this.pendingDrops.delete(requestId);
           console.log(
             `[ItemDrop] Confirmed item ${itemId} on server, entityId=${spawnedEvent.id}`,
@@ -144,7 +144,7 @@ export class ClientItemDropCoordinator {
       );
 
       if (spawned) {
-        clearTimeout(pendingDrop.timeout);
+        Engine.timer.clearTimeout(pendingDrop.timeout);
         this.pendingDrops.delete(requestId);
         console.log(
           `[ItemDrop] Server-confirmed spawn: itemId=${pendingDrop.itemId} → entityId=${spawned.id}`,
@@ -173,7 +173,7 @@ export class ClientItemDropCoordinator {
       itemId: drop.itemId,
       playerId: drop.playerId,
       position: drop.position,
-      ageMs: Date.now() - drop.createdAt,
+      ageMs: Engine.time.now() - drop.createdAt,
     }));
   }
 
@@ -182,7 +182,7 @@ export class ClientItemDropCoordinator {
    */
   clear(): void {
     for (const drop of this.pendingDrops.values()) {
-      clearTimeout(drop.timeout);
+      Engine.timer.clearTimeout(drop.timeout);
     }
     this.pendingDrops.clear();
   }

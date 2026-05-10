@@ -115,7 +115,7 @@ export class RuntimeEventQueue implements RuntimeEventSink {
     event.chunkId = options.chunkId ?? null;
     event.entityId = options.entityId ?? null;
     event.tier = tier;
-    event.timestamp = Date.now();
+    event.timestamp = Engine.time.now();
     event.cancelled = false;
 
     this.getQueueForTier(tier).push(event);
@@ -172,7 +172,7 @@ export class RuntimeEventQueue implements RuntimeEventSink {
 
     this.drainedCount += drained;
     this.lastDrainCount = drained;
-    this.lastDrainedAt = Date.now();
+    this.lastDrainedAt = Engine.time.now();
     return drained;
   }
 

@@ -153,7 +153,7 @@ export class SaveLoadManager {
 
     const saved: SavedWorldState = {
       version: '2.0',
-      timestamp: Date.now(),
+      timestamp: Engine.time.now(),
       entities: entitiesData.map((entityData) => ({
         id: entityData.id,
         type: entityData.type,

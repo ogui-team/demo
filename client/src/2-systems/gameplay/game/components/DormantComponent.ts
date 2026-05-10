@@ -9,7 +9,7 @@ export function createDormantComponent(active = true, reason?: string): DormantC
   return {
     type: 'dormant',
     active,
-    sinceMs: Date.now(),
+    sinceMs: Engine.time.now(),
     reason,
   };
 }

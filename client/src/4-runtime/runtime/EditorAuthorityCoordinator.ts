@@ -204,14 +204,14 @@ export class EditorAuthorityCoordinator {
           position: data.position,
           rotation: data.rotation,
           source: 'ui',
-          timestamp: Date.now(),
+          timestamp: Engine.time.now(),
         });
         return true;
       }
 
       if (!this.mpClient.connected) return false;
       this.mpClient.sendWorldObjectPlace({
-        id: `world_object_request_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        id: `world_object_request_${Engine.time.now()}_${Engine.random.next().toString(36).slice(2, 8)}`,
         entityType: data.entityType,
         position: data.position,
         rotation: data.rotation,

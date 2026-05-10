@@ -412,7 +412,7 @@ export class SimulationKernel {
    */
   private recordFrameToBite(activeCount: number): number {
     const frameIndex = this.tickValue;
-    const timestamp = Date.now();
+    const timestamp = Engine.time.now();
     const stateHash = this.computeStateHash(activeCount);
     const commandCount = this.commands.length ?? 0;
 

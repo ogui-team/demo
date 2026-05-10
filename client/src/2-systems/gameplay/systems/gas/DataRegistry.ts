@@ -1280,7 +1280,7 @@ export function demonstrateGAS(): void {
     affixes:      [savageAffix],
     currentAmmo:  pistolTemplate.magazineSize,
     reserveAmmo:  pistolTemplate.reserveAmmoCap,
-    lastModified: Date.now(),
+    lastModified: Engine.time.now(),
   };
 
   console.groupCollapsed('[GAS Demo] Level 5 Savage Pistol');

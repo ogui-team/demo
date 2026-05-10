@@ -68,6 +68,10 @@ export type { EventBus } from './EventBus';
 
 export { logEvent, getRecentEvents } from './EventLogger';
 
+// ─── Teardown Registry ───────────────────────────────────────────────────────
+export { TeardownRegistry } from './TeardownRegistry';
+export type { DisposableLike, TeardownLike, TeardownTarget } from './TeardownRegistry';
+
 // ─── System Registry ────────────────────────────────────────────────────────
 export {
   registerSystem,

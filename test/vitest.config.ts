@@ -23,8 +23,12 @@ export default defineConfig({
   resolve: {
     alias: [
       {
-        find: /^@engine\/(.*)$/,
-        replacement: path.resolve(__dirname, '../client/src/engine/$1'),
+        find: '@engine',
+        replacement: path.resolve(__dirname, '../client/src'),
+      },
+      {
+        find: '@shared/contracts',
+        replacement: path.resolve(__dirname, '../packages/shared-contracts/src/index.ts'),
       },
     ],
   },

@@ -181,12 +181,12 @@ export class RuntimeIssueInspector {
 
   private render(): void {
     const snapshot = {
-      generatedAt: new Date().toISOString(),
+      generatedAt: Engine.time.date().toISOString(),
       ...this.getSnapshot(),
     };
     this.snapshotText = JSON.stringify(snapshot, null, 2);
     this.bodyEl.textContent = this.snapshotText;
-    this.setStatus(`${this.hotkey} toggle • ${this.frozen ? 'frozen' : 'live'} • ${new Date().toLocaleTimeString()}`);
+    this.setStatus(`${this.hotkey} toggle • ${this.frozen ? 'frozen' : 'live'} • ${Engine.time.date().toLocaleTimeString()}`);
   }
 
   private setStatus(message: string): void {

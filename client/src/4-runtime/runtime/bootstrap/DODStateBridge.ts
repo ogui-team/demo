@@ -55,7 +55,7 @@ export class DODStateBridge {
         tick,
         networkEntityId,
         reason: 'Snapshot verification complete - buffers hydrated from kernel',
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
       });
     });
   }
@@ -113,7 +113,7 @@ export class DODStateBridge {
       ammo,
       itemId,
       source,
-      timestamp: Date.now(),
+      timestamp: Engine.time.now(),
     });
   }
 }

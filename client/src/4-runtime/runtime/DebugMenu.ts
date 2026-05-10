@@ -493,7 +493,7 @@ function getColliderCount(): number {
 };
 
 // Auto-update debug menu every 100ms when visible
-setInterval(() => {
+Engine.timer.setInterval(() => {
   if (debugMenuVisible && debugMenuElement) {
     updateDebugMenuContent();
   }

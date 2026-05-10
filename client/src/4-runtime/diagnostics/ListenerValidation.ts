@@ -200,7 +200,7 @@ export class ListenerValidation {
       tier0a: this.validateTier0A(),
       memory: this.getMemoryStats(),
       historySize: this.metricsHistory.length,
-      timestamp: new Date().toISOString(),
+      timestamp: Engine.time.date().toISOString(),
     };
   }
 

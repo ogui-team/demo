@@ -46,14 +46,14 @@ export function registerPlayer(context: any, binding: NetworkSyncBinding, option
 
   if (options.local) {
     context.localPlayerId = binding.playerId;
-    context.movementDebugState.lastBindingResetAt = Date.now();
+    context.movementDebugState.lastBindingResetAt = Engine.time.now();
     context.movementDebugState.lastBindingResetDetails = {
       playerId: binding.playerId,
       entityId: binding.entity.id,
       networkEntityId,
     };
     context.movementDebugState.lastInputSource = 'bindLocalPlayer';
-    context.movementDebugState.timestamp = Date.now();
+    context.movementDebugState.timestamp = Engine.time.now();
   }
 }
 
@@ -126,7 +126,7 @@ export function queueLocalInput(context: any, input: Record<string, unknown>): N
     playerId: localPlayerId,
     seq: context.networkManager.nextInputSequence(),
     tick: context.lastServerTick,
-    timestamp: Date.now(),
+    timestamp: Engine.time.now(),
     input,
   };
   const queue = context.pendingInputs.get(localPlayerId) ?? [];
@@ -151,7 +151,7 @@ export function queueLocalInput(context: any, input: Record<string, unknown>): N
   context.movementDebugState.pendingInputCount = queue.length;
   context.movementDebugState.lastInputSource = 'queueLocalInput';
   context.movementDebugState.lastMovementIntentSource = null;
-  context.movementDebugState.timestamp = Date.now();
+  context.movementDebugState.timestamp = Engine.time.now();
 
   gameBus.emit('playerInput', { ...command, input: { ...input } });
   gameBus.emit('INPUT_BUFFERED', {
@@ -203,7 +203,7 @@ export function stepLocalInput(context: any, input: Record<string, unknown>, dt:
   context.movementDebugState.lastLiveInput = { ...input };
   context.movementDebugState.lastLiveInputDt = dt;
   context.movementDebugState.lastInputSource = 'stepLocalInput';
-  context.movementDebugState.timestamp = Date.now();
+  context.movementDebugState.timestamp = Engine.time.now();
 
   if (context.authorityMode === 'remote' && context.remotePredictionMode === 'rotation-only') {
     applyRotation({
@@ -266,7 +266,7 @@ export function stepLocalInput(context: any, input: Record<string, unknown>, dt:
     playerId: localPlayerId,
     seq: -1,
     tick: context.tick,
-    timestamp: Date.now(),
+    timestamp: Engine.time.now(),
     input: { ...input },
   });
 }
@@ -289,7 +289,7 @@ export function requestAbilityActivation(context: any, abilityId: string, payloa
   const request: NetworkAbilityRequest = {
     playerId: localPlayerId,
     abilityId,
-    timestamp: Date.now(),
+    timestamp: Engine.time.now(),
     payload,
   };
   gameBus.emit('abilityActivationRequested', {
@@ -307,7 +307,7 @@ export function requestHitscanValidation(context: any, request: Omit<NetworkHitV
   context.networkManager.sendHitValidationRequest({
     ...request,
     shooterId: localPlayerId,
-    timestamp: Date.now(),
+    timestamp: Engine.time.now(),
   });
   return true;
 }
@@ -339,7 +339,7 @@ export function forceLocalState(
     context.pendingInputs.set(localPlayerId, []);
     context.movementDebugState.pendingInputCount = 0;
     context.movementDebugState.lastInputSource = 'forceLocalState';
-    context.movementDebugState.timestamp = Date.now();
+    context.movementDebugState.timestamp = Engine.time.now();
   }
 
   context.spatialPartition.updateEntry(binding.entity.id, binding.entity.getPosition(), {

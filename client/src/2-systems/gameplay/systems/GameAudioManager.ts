@@ -312,12 +312,12 @@ export class GameAudioManager {
    */
   playFootstep(position: { x: number; y: number; z: number }, entityId?: string): string | null {
     // Generate a simple footstep sound: short low-frequency tone with slight randomization
-    const frequency = 80 + Math.random() * 40; // 80-120 Hz for a thud
+    const frequency = 80 + Engine.random.next() * 40; // 80-120 Hz for a thud
     const handle = this.audioEngine.playToneAt(frequency, position, {
       category: 'footstep',
-      volume: 0.4 + Math.random() * 0.2, // 0.4-0.6
-      durationMs: 150 + Math.random() * 100, // 150-250ms
-      pitch: 0.8 + Math.random() * 0.4, // slight pitch variation
+      volume: 0.4 + Engine.random.next() * 0.2, // 0.4-0.6
+      durationMs: 150 + Engine.random.next() * 100, // 150-250ms
+      pitch: 0.8 + Engine.random.next() * 0.4, // slight pitch variation
       entityId,
     });
     if (!handle) return null;
@@ -335,18 +335,18 @@ export class GameAudioManager {
 
     switch (soundType) {
       case 'growl':
-        frequency = 100 + Math.random() * 50; // low growl
-        duration = 500 + Math.random() * 500;
+        frequency = 100 + Engine.random.next() * 50; // low growl
+        duration = 500 + Engine.random.next() * 500;
         volume = 0.6;
         break;
       case 'attack':
-        frequency = 200 + Math.random() * 100; // higher pitched attack
-        duration = 200 + Math.random() * 200;
+        frequency = 200 + Engine.random.next() * 100; // higher pitched attack
+        duration = 200 + Engine.random.next() * 200;
         volume = 0.8;
         break;
       case 'death':
-        frequency = 150 + Math.random() * 50; // medium death groan
-        duration = 800 + Math.random() * 400;
+        frequency = 150 + Engine.random.next() * 50; // medium death groan
+        duration = 800 + Engine.random.next() * 400;
         volume = 0.7;
         break;
     }

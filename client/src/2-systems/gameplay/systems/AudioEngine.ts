@@ -146,7 +146,7 @@ export class AudioEngine {
   playFootstep(soundKey: string, position: { x: number; y: number; z: number }, entityId?: string): SoundHandle | null {
     return this.playAt(soundKey, position, {
       category: 'footstep',
-      pitch:    0.9 + Math.random() * 0.2,
+      pitch:    0.9 + Engine.random.next() * 0.2,
       entityId,
     });
   }
@@ -424,7 +424,7 @@ export class AudioEngine {
     for (let c = 0; c < 2; c++) {
       const channel = impulse.getChannelData(c);
       for (let i = 0; i < length; i++) {
-        channel[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, 2);
+        channel[i] = (Engine.random.next() * 2 - 1) * Math.pow(1 - i / length, 2);
       }
     }
 

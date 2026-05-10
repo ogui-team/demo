@@ -19,7 +19,7 @@ export function processAuthoritativeInputs(context: any): void {
     if (!binding) continue;
     context.movementDebugState.lastProcessedAuthoritativeInput = command;
     context.movementDebugState.lastInputSource = 'authoritative_input';
-    context.movementDebugState.timestamp = Date.now();
+    context.movementDebugState.timestamp = Engine.time.now();
     applyInput({
       binding,
       input: command.input,
@@ -53,7 +53,7 @@ export function applyLiveLocalInput(context: any, dt: number): void {
   context.movementDebugState.lastLiveInput = { ...liveInput };
   context.movementDebugState.lastLiveInputDt = dt;
   context.movementDebugState.lastInputSource = 'applyLiveLocalInput';
-  context.movementDebugState.timestamp = Date.now();
+  context.movementDebugState.timestamp = Engine.time.now();
 
   try {
     if (context.remotePredictionMode === 'rotation-only') {
@@ -101,7 +101,7 @@ export function broadcastSnapshot(context: any): void {
   if (snapshots.length === 0 && !context.localPlayerId) return;
   context.networkManager.sendSnapshot({
     tick: context.tick,
-    timestamp: Date.now(),
+    timestamp: Engine.time.now(),
     ackInputSeq: context.localPlayerId ? (context.lastProcessedInputSeq.get(context.localPlayerId) ?? 0) : 0,
     ...(context.localPlayerId && { lastProcessedInput: context.lastProcessedInputSeq.get(context.localPlayerId) ?? 0 }),
     entities: snapshots,
@@ -159,7 +159,7 @@ export function captureHistoryFrame(context: any): void {
   const fullSnapshots = context.replicationSystem.captureSnapshots(undefined, context.tick, false);
   context.historyBuffer.push({
     tick: context.tick,
-    timestamp: Date.now(),
+    timestamp: Engine.time.now(),
     entities: new Map(fullSnapshots.map((snapshot: any) => [snapshot.entityId, snapshot])),
   });
   const maxFrames = Math.max(1, Math.ceil(context.historySeconds * context.tickRate));
@@ -216,7 +216,7 @@ export function validateAbilityRequest(context: any, request: NetworkAbilityRequ
     abilityId: request.abilityId,
     accepted,
     reason: accepted ? undefined : String(verdict),
-    timestamp: Date.now(),
+    timestamp: Engine.time.now(),
     payload: request.payload,
   };
   context.networkManager.sendAbilityValidation(validation);

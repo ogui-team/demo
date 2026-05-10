@@ -599,7 +599,7 @@ export class ObjectCreatorSystem {
 
 let _idCounter = 0;
 function _genId(): string {
-  return `obj_${Date.now()}_${_idCounter++}`;
+  return `obj_${Engine.time.now()}_${_idCounter++}`;
 }
 
 function _disposeGroup(group: THREE.Group): void {

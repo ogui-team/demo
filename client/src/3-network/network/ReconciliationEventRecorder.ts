@@ -118,7 +118,7 @@ export class ReconciliationEventRecorder {
     }
 
     const event = this.events[this.eventCount];
-    event.timestamp = Date.now();
+    event.timestamp = Engine.time.now();
     event.entityId = data.entityId ?? 0;
     event.errorType = 0; // Position correction
     event.deltaX = data.correctionDistance ?? 0; // Store magnitude in deltaX for simplicity

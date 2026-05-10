@@ -1,4 +1,4 @@
-import { DeterminismValidator, calculateClientPositionHash } from '../../client/src/engine/network/DeterminismValidator'
+import { DeterminismValidator, calculateClientPositionHash } from '../../client/src/3-network/network/DeterminismValidator'
 
 describe('DeterminismValidator', () => {
   it('calculates deterministic position hashes consistently', () => {

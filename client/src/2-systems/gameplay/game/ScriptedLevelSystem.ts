@@ -291,7 +291,7 @@ export class ScriptedLevelSystem {
         this.audioManager.playMusic(action.trackId);
       }
       if (action.type === 'triggerBurst' && action.preset && action.position) {
-        this.vfxMaker.triggerPreset(`${level.id}_script_${action.preset}_${Math.random().toString(36).slice(2, 7)}`, action.preset, action.position);
+        this.vfxMaker.triggerPreset(`${level.id}_script_${action.preset}_${Engine.random.next().toString(36).slice(2, 7)}`, action.preset, action.position);
       }
       if (action.type === 'setFog') {
         if (action.density !== undefined) Engine.setEngineFogDensity(action.density);

@@ -245,8 +245,8 @@ function applySpread(direction: Vector3, spread: number): Vector3 {
     y: direction.z * right.x - direction.x * right.z,
     z: direction.x * right.y - direction.y * right.x,
   });
-  const angle = Math.random() * Math.PI * 2;
-  const magnitude = Math.random() * Math.tan(spread);
+  const angle = Engine.random.next() * Math.PI * 2;
+  const magnitude = Engine.random.next() * Math.tan(spread);
   return v3norm({
     x: direction.x + (right.x * Math.cos(angle) + up.x * Math.sin(angle)) * magnitude,
     y: direction.y + (right.y * Math.cos(angle) + up.y * Math.sin(angle)) * magnitude,
@@ -418,7 +418,7 @@ export class WeaponSystem {
     });
 
     return {
-      timestamp: Date.now(),
+      timestamp: Engine.time.now(),
       registeredWeapons: this.definitions.size,
       trackedPlayers: this.playerStates.size,
       equippedPlayers: players.filter((entry) => entry.equippedWeaponId).length,
@@ -861,7 +861,7 @@ export class WeaponSystem {
       reloadTimer: 0,
       burstRemaining: 0,
       burstTimer: 0,
-      equippedAt: Date.now(),
+      equippedAt: Engine.time.now(),
     };
   }
 
@@ -884,7 +884,7 @@ export class WeaponSystem {
     if (!weaponState) return false;
 
     playerState.equippedWeaponId = weaponId;
-    weaponState.equippedAt = Date.now();
+    weaponState.equippedAt = Engine.time.now();
     this.syncWeaponState(playerId);
 
     if (emitCallbacks) {
@@ -902,7 +902,7 @@ export class WeaponSystem {
 
   private _sendEquipCommandWithThrottling(playerId: string, weaponId: string): void {
     const lastSync = this.lastEquipNetworkSync.get(playerId);
-    const now = Date.now();
+    const now = Engine.time.now();
     
     // Only send if weapon changed or enough time has passed (50ms throttle)
     if (lastSync && lastSync.weaponId === weaponId && (now - lastSync.timestamp) < 50) {
@@ -940,7 +940,7 @@ export class WeaponSystem {
 
   private _sendReloadCommandWithThrottling(playerId: string, weaponId: string): void {
     const lastSync = this.lastReloadNetworkSync.get(playerId);
-    const now = Date.now();
+    const now = Engine.time.now();
     
     // Only send if weapon changed or enough time has passed (50ms throttle)
     if (lastSync && lastSync.weaponId === weaponId && (now - lastSync.timestamp) < 50) {
@@ -1009,7 +1009,7 @@ export class WeaponSystem {
         origin,
         direction: normalizedDirection,
         shotId: `${playerId}_${weaponId}_${++this.shotCounter}`,
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
       });
     }
 
@@ -1202,7 +1202,7 @@ export class WeaponSystem {
   private sendGameplayCommand(type: string, payload: Record<string, unknown>): void {
     const network = this.systemContext?.network ?? null;
     if (network && (network.getClient() || network.getSync())) {
-      network.sendCommand({ type, payload, timestamp: Date.now() });
+      network.sendCommand({ type, payload, timestamp: Engine.time.now() });
       return;
     }
     if (this.multiplayer?.connected) {

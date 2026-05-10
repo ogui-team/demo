@@ -1,5 +1,5 @@
-import { gameBus } from '../../client/src/engine/core/public-api'
-import { CollisionAuthoritySystem } from '../../client/src/engine/network/CollisionAuthoritySystem'
+import { gameBus } from '../../client/src/1-kernel/core/public-api'
+import { CollisionAuthoritySystem } from '../../client/src/3-network/network/CollisionAuthoritySystem'
 
 describe('CollisionAuthoritySystem', () => {
   let system: CollisionAuthoritySystem

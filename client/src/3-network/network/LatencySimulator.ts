@@ -60,7 +60,7 @@ export class LatencySimulator implements INetworkTransport {
     if (delay <= 0) {
       this.inner.sendState(state);
     } else {
-      const t = setTimeout(() => this.inner.sendState(state), delay);
+      const t = Engine.timer.setTimeout(() => this.inner.sendState(state), delay);
       this._timers.push(t);
     }
   }
@@ -73,14 +73,14 @@ export class LatencySimulator implements INetworkTransport {
       if (delay <= 0) {
         callback(state);
       } else {
-        const t = setTimeout(() => callback(state), delay);
+        const t = Engine.timer.setTimeout(() => callback(state), delay);
         this._timers.push(t);
       }
     });
   }
 
   disconnect(): void {
-    for (const t of this._timers) clearTimeout(t);
+    for (const t of this._timers) Engine.timer.clearTimeout(t);
     this._timers.length = 0;
     this.inner.disconnect();
   }
@@ -89,12 +89,12 @@ export class LatencySimulator implements INetworkTransport {
 
   private _computeDelay(base: number): number {
     const jitter = this.config.jitter > 0
-      ? (Math.random() * 2 - 1) * this.config.jitter
+      ? (Engine.random.next() * 2 - 1) * this.config.jitter
       : 0;
     return Math.max(0, Math.round(base + jitter));
   }
 
   private _shouldDrop(): boolean {
-    return this.config.packetLoss > 0 && Math.random() < this.config.packetLoss;
+    return this.config.packetLoss > 0 && Engine.random.next() < this.config.packetLoss;
   }
 }

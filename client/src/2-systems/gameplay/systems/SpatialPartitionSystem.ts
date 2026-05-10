@@ -122,7 +122,7 @@ export class SpatialPartitionSystem {
       radius: options.radius ?? existing?.radius ?? 1,
       tags: [...(options.tags ?? existing?.tags ?? [])],
       isActive: options.isActive ?? existing?.isActive ?? true,
-      lastUsedTime: options.lastUsedTime ?? existing?.lastUsedTime ?? Date.now(),
+      lastUsedTime: options.lastUsedTime ?? existing?.lastUsedTime ?? Engine.time.now(),
       cellKey: nextCellKey,
     };
     this.entries.set(id, entry);
@@ -155,7 +155,7 @@ export class SpatialPartitionSystem {
     const entry = this.entries.get(id);
     if (!entry) return;
     entry.isActive = isActive;
-    entry.lastUsedTime = Date.now();
+    entry.lastUsedTime = Engine.time.now();
     gameBus.emit('stateMutation', {
       source: 'spatialPartitionSystem',
       path: `spatialPartition.entries.${id}.active`,
@@ -163,7 +163,7 @@ export class SpatialPartitionSystem {
     });
   }
 
-  markUsed(id: string, timestamp: number = Date.now()): void {
+  markUsed(id: string, timestamp: number = Engine.time.now()): void {
     const entry = this.entries.get(id);
     if (!entry) return;
     entry.lastUsedTime = timestamp;
@@ -208,7 +208,7 @@ export class SpatialPartitionSystem {
     return this.queryRadius(center, radius, options).map((entry) => entry.id);
   }
 
-  getInactiveEntityIds(maxIdleMs: number, now: number = Date.now()): string[] {
+  getInactiveEntityIds(maxIdleMs: number, now: number = Engine.time.now()): string[] {
     const matches: string[] = [];
     for (const entry of this.entries.values()) {
       if (!entry.isActive || now - entry.lastUsedTime >= maxIdleMs) {

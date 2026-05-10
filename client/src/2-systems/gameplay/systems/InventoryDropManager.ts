@@ -87,7 +87,7 @@ export class InventoryDropManager {
       itemInstance,
       position: { ...worldPosition },
       dropRequestId: this._generateDropRequestId(),
-      timestamp: Date.now(),
+      timestamp: Engine.time.now(),
     });
   }
 
@@ -102,7 +102,7 @@ export class InventoryDropManager {
       itemInstance: this.buildGridItemInstance(item),
       position: { ...worldPosition },
       dropRequestId: this._generateDropRequestId(),
-      timestamp: Date.now(),
+      timestamp: Engine.time.now(),
     });
   }
 
@@ -121,7 +121,7 @@ export class InventoryDropManager {
           : undefined,
         currentAmmo: typeof candidate.currentAmmo === 'number' ? candidate.currentAmmo : undefined,
         reserveAmmo: typeof candidate.reserveAmmo === 'number' ? candidate.reserveAmmo : undefined,
-        lastModified: typeof candidate.lastModified === 'number' ? candidate.lastModified : Date.now(),
+        lastModified: typeof candidate.lastModified === 'number' ? candidate.lastModified : Engine.time.now(),
       };
     }
 
@@ -131,7 +131,7 @@ export class InventoryDropManager {
       level: 1,
       rarity: 'Common',
       affixes: [],
-      lastModified: Date.now(),
+      lastModified: Engine.time.now(),
     };
   }
 
@@ -166,7 +166,7 @@ export class InventoryDropManager {
       // Record as pending
       this.pendingDropRequests.set(request.dropRequestId, {
         requestId: request.dropRequestId,
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
         playerId: request.playerId,
       });
 
@@ -198,8 +198,8 @@ export class InventoryDropManager {
    * Used for idempotency: if network retransmits, server recognizes duplicate.
    */
   private _generateDropRequestId(): string {
-    const timestamp = Date.now();
-    const random = Math.random().toString(36).substring(2, 9);
+    const timestamp = Engine.time.now();
+    const random = Engine.random.next().toString(36).substring(2, 9);
     return `drop_${timestamp}_${random}`;
   }
 
@@ -208,8 +208,8 @@ export class InventoryDropManager {
    * Prevents the map from growing unbounded if drop confirmations are lost.
    */
   private _startCleanupTimer(): void {
-    setInterval(() => {
-      const now = Date.now();
+    Engine.timer.setInterval(() => {
+      const now = Engine.time.now();
       const expired: string[] = [];
 
       for (const [requestId, record] of this.pendingDropRequests.entries()) {

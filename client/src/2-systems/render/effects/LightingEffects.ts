@@ -63,7 +63,7 @@ export class LightingEffects {
         Math.sin(this.time * this.ambientFlickerSpeed * 2.5) * 0.5 +
         Math.sin(this.time * this.ambientFlickerSpeed * 1.8) * 0.3;
 
-      const noise = Math.random() * this.ambientFlickerIntensity * 0.3;
+      const noise = Engine.random.next() * this.ambientFlickerIntensity * 0.3;
       this.ambientLight.intensity =
         this.baseAmbientIntensity + flicker * this.ambientFlickerIntensity + noise;
     }

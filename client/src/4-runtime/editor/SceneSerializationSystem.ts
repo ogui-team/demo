@@ -225,7 +225,7 @@ export class SceneSerializationSystem {
 
     const map: SerializedSceneMap = {
       version: 'editor-scene-v1',
-      savedAt: Date.now(),
+      savedAt: Engine.time.now(),
       entityCount: entities.length,
       entities,
     };

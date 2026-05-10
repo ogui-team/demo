@@ -1,4 +1,4 @@
-import { SnapshotVisibilityDebugger } from '../../client/src/engine/network/SnapshotVisibilityDebugger'
+import { SnapshotVisibilityDebugger } from '../../client/src/3-network/network/SnapshotVisibilityDebugger'
 
 describe('SnapshotVisibilityDebugger', () => {
   const entityRegistry = {

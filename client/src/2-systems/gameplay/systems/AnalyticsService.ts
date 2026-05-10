@@ -52,7 +52,7 @@ export interface AnalyticsEvent {
   name:      AnalyticsEventName;
   playerId:  string;
   timestamp: number;  // ms since session start
-  wallTime:  number;  // Date.now()
+  wallTime:  number;  // Engine.time.now()
   data:      Record<string, unknown>;
 }
 
@@ -117,8 +117,8 @@ class _AnalyticsService {
 
   startSession(playerId: string, sessionId?: string): void {
     this._playerId    = playerId;
-    this._sessionId   = sessionId ?? `sess_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-    this._sessionStart = Date.now();
+    this._sessionId   = sessionId ?? `sess_${Engine.time.now()}_${Engine.random.next().toString(36).slice(2, 6)}`;
+    this._sessionStart = Engine.time.now();
     this._events      = [];
     this._counts      = {};
     this._shotsHit    = 0;
@@ -129,13 +129,13 @@ class _AnalyticsService {
     this.track('session_start', { sessionId: this._sessionId });
 
     if (this._flushTarget) {
-      this._flushTimer = setInterval(() => this._flush(), this._flushInterval);
+      this._flushTimer = Engine.timer.setInterval(() => this._flush(), this._flushInterval);
     }
   }
 
   endSession(): SessionReport {
     this.track('session_end', { durationMs: this._elapsed() });
-    if (this._flushTimer) { clearInterval(this._flushTimer); this._flushTimer = null; }
+    if (this._flushTimer) { Engine.timer.clearInterval(this._flushTimer); this._flushTimer = null; }
     return this.generateReport();
   }
 
@@ -148,7 +148,7 @@ class _AnalyticsService {
       name,
       playerId:  this._playerId,
       timestamp: this._elapsed(),
-      wallTime:  Date.now(),
+      wallTime:  Engine.time.now(),
       data,
     };
 
@@ -264,7 +264,7 @@ class _AnalyticsService {
   getPlayerId():  string { return this._playerId; }
 
   private _elapsed(): number {
-    return this._sessionStart ? Date.now() - this._sessionStart : 0;
+    return this._sessionStart ? Engine.time.now() - this._sessionStart : 0;
   }
 }
 

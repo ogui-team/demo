@@ -40,7 +40,7 @@ export class NetworkTrafficDebugger {
     if (!this.enabled) return;
 
     const event: NetworkTrafficEvent = {
-      timestamp: Date.now(),
+      timestamp: Engine.time.now(),
       direction: 'outgoing',
       type,
       commandType,
@@ -74,7 +74,7 @@ export class NetworkTrafficDebugger {
     if (!this.enabled) return;
 
     const event: NetworkTrafficEvent = {
-      timestamp: Date.now(),
+      timestamp: Engine.time.now(),
       direction: 'incoming',
       type,
       commandType,
@@ -105,7 +105,7 @@ export class NetworkTrafficDebugger {
     entityId?: string,
     maxDelayMs: number = 5000,
   ): NetworkTrafficEvent | null {
-    const now = Date.now();
+    const now = Engine.time.now();
     const outgoing = this.events.find(
       (e) =>
         e.direction === 'outgoing' &&
@@ -172,7 +172,7 @@ export class NetworkTrafficDebugger {
           Type: e.type,
           Command: e.commandType,
           EntityId: e.entityId || '-',
-          Age: `${Date.now() - e.timestamp}ms`,
+          Age: `${Engine.time.now() - e.timestamp}ms`,
         })),
       );
     }

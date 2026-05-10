@@ -50,7 +50,7 @@ interface EmitterRuntime {
 }
 
 function randomRange(range: NumberRange): number {
-  return range.min + Math.random() * (range.max - range.min);
+  return range.min + Engine.random.next() * (range.max - range.min);
 }
 
 function randomVector(range: VectorRange): THREE.Vector3 {
@@ -378,9 +378,9 @@ export class VFXMaker {
     slot.sizeStart = randomRange(emitter.config.startSize);
     slot.sizeEnd = randomRange(emitter.config.endSize);
     slot.position.set(
-      emitter.config.origin.x + (Math.random() - 0.5) * volume.x,
-      emitter.config.origin.y + (Math.random() - 0.5) * volume.y,
-      emitter.config.origin.z + (Math.random() - 0.5) * volume.z,
+      emitter.config.origin.x + (Engine.random.next() - 0.5) * volume.x,
+      emitter.config.origin.y + (Engine.random.next() - 0.5) * volume.y,
+      emitter.config.origin.z + (Engine.random.next() - 0.5) * volume.z,
     );
     slot.velocity.copy(randomVector(emitter.config.velocity));
     slot.colorStart.setHex(emitter.config.colorStart);

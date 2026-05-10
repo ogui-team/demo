@@ -55,7 +55,7 @@ export class InventoryHudSyncHub {
       reserve: 0,
       max: snapshot.ammo,
       isReloading: false,
-      timestamp: Date.now(),
+      timestamp: Engine.time.now(),
     });
   }
 }

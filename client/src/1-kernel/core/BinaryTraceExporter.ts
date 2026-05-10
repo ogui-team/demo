@@ -30,7 +30,7 @@ export class BinaryTraceExporter {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `titan_session_trace_${Date.now()}.trace`;
+    link.download = `titan_session_trace_${Engine.time.now()}.trace`;
 
     // Trigger download
     document.body.appendChild(link);

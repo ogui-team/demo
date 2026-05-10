@@ -266,7 +266,7 @@ export class LocalPlayerBootstrapCoordinator {
     this.localPlayerFoundInSnapshot = false;
     this.lastValidSnapshotTick = null;
     this.actualizationLatencyMs = null;
-    this.authoritativeSpawnRequestedAt = Date.now();
+    this.authoritativeSpawnRequestedAt = Engine.time.now();
     this.cancelActualizationFailsafe();
     this.scheduleActualizationFailsafe('request_authoritative_spawn_sync');
     this.config.stopInputSending();
@@ -278,7 +278,7 @@ export class LocalPlayerBootstrapCoordinator {
     const entityId = options.entityId ?? binding.entityId ?? this.config.getLocalPlayerEntity()?.id ?? null;
     const tick = options.tick ?? this.lastValidSnapshotTick ?? this.config.getLastLocalSnapshotTick() ?? this.config.getLastAppliedSnapshotTick() ?? null;
     const forced = options.forced ?? false;
-    const latencyMs = this.authoritativeSpawnRequestedAt > 0 ? Date.now() - this.authoritativeSpawnRequestedAt : null;
+    const latencyMs = this.authoritativeSpawnRequestedAt > 0 ? Engine.time.now() - this.authoritativeSpawnRequestedAt : null;
 
     this.actualizationLatencyMs = latencyMs;
     this.actualizationState = forced ? 'forced' : 'actualized';
@@ -310,7 +310,7 @@ export class LocalPlayerBootstrapCoordinator {
         entityId,
         playerId,
         source: 'local_player_actualization',
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
       });
     }
   }
@@ -320,7 +320,7 @@ export class LocalPlayerBootstrapCoordinator {
     const multiplayerState = this.config.getMultiplayerState();
     if (!this.awaitingAuthoritativeSpawn || !multiplayerState.connected) return;
 
-    this.actualizationTimeoutId = window.setTimeout(() => {
+    this.actualizationTimeoutId = Engine.timer.setTimeout(() => {
       this.actualizationTimeoutId = null;
       const currentMultiplayerState = this.config.getMultiplayerState();
       if (!this.awaitingAuthoritativeSpawn || !currentMultiplayerState.connected) return;
@@ -340,7 +340,7 @@ export class LocalPlayerBootstrapCoordinator {
 
   private cancelActualizationFailsafe(): void {
     if (this.actualizationTimeoutId !== null) {
-      window.clearTimeout(this.actualizationTimeoutId);
+      Engine.timer.clearTimeout(this.actualizationTimeoutId);
       this.actualizationTimeoutId = null;
     }
   }

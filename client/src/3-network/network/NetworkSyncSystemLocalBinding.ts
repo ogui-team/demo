@@ -122,6 +122,6 @@ export function dropNetworkEntityCache(context: any, networkEntityId: string, re
   console.warn('[NetworkSyncSystem] Cleared stale network entity cache', {
     networkEntityId,
     reason,
-    timestamp: Date.now(),
+    timestamp: Engine.time.now(),
   });
 }

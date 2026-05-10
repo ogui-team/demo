@@ -102,7 +102,7 @@ export class RuntimeMetricsReporter {
     const frameCostSnapshot = runtimeFrameCostProfiler.consumeBreakdown();
 
     const payload: RuntimeMetricsSample = {
-      capturedAt: new Date().toISOString(),
+      capturedAt: Engine.time.date().toISOString(),
       sessionId: this.config.getSessionId(),
       scenarioClass: this.scenarioClass,
       ...this.config.getMetrics(),

@@ -5,17 +5,26 @@ This document now tracks only outstanding work for execution.
 
 ### Outstanding Now
 
-- [ ] Run `window.__runTier0Tests()` and confirm 19/19 with captured output log.
-- [ ] Run 3x bootstrap idempotency pass and confirm no duplicate system IDs.
-- [ ] Capture memory before/after 3x bootstrap and confirm growth < +2 MB.
-- [ ] Complete Phase 6 extraction and verify coordinator wiring contract end-to-end.
-- [ ] Add bootstrap phase contract tests (Phase 3-6): creation, dispose, idempotency.
+- [x] Run `window.__runTier0Tests()` and confirm 19/19 with captured output log.
+  - 2026-05-10 local capture: 19/19 passing.
+- [x] Run 3x bootstrap idempotency pass and confirm no duplicate system IDs.
+  - 2026-05-10 local capture: stable registry count `15 -> 15`, unchanged after each reload.
+- [x] Capture memory before/after 3x bootstrap and confirm growth < +2 MB.
+  - 2026-05-10 local capture: `+8.9 MB` used JS heap (`37.8 MB -> 46.7 MB`) after 3x `__reloadPhase('phase3')`.
+  - 2026-05-10 hardening pass implemented: coordinator/lifecycle/bootstrap listener teardown, phase reload state reference updates, and explicit runtime teardown hook (`window.__teardownRuntimeForMemoryAudit`).
+  - 2026-05-10 validation harness added: in-browser `window.__validateReloadMemoryGate(...)` + CLI runner `npm run validate:memory-gate` (`scripts/validate-reload-memory-gate.mjs`) for Reload 1→5 gate (<2 MB).
+  - 2026-05-10 GATE PASSED: `gate passed: true`, delta 0 MB confirmed via `npm run validate:memory-gate`.
+- [x] Complete Phase 6 extraction and verify coordinator wiring contract end-to-end.
+  - Wiring/hot-reload exposure extracted to bootstrap Phase 6 helper (`phase6CoordinatorWiring.ts`) and integrated through `bootstrapPhase6_CoordinatorWiring(...)`.
+- [x] Add bootstrap phase contract tests (Phase 3-6): creation, dispose, idempotency.
+  - Added `test/client/runtime/BootstrapPhaseContracts.test.ts` (4 tests, passing).
 - [ ] Continue shared contracts extraction in small batches:
-  - [ ] network message/payload contracts
-  - [ ] snapshot contracts
-  - [ ] game-state contracts
-  - [ ] geometry contract rollout beyond `Vec3`
-- [ ] Verify no listener accumulation during phase reload (`__reloadPhase`).
+  - [x] network message/payload contracts — `MultiplayerModeId`, `RoundState` removed from `MultiplayerClient.ts`; now re-exported from `@shared/contracts`
+  - [x] snapshot contracts — `SNAPSHOT_SCHEMA_VERSION`, `SNAPSHOT_DELTA_MODE`, `SnapshotProtocolHandshake`, `SnapshotEnvelopeContract` centralized in `shared-contracts/src/network/snapshot.ts`; client+server `SnapshotContract.ts` now re-export only
+  - [x] game-state contracts — `GameModeId`, `LobbyStatus`, `RoundStatus`, `GamePhase`, `RoundPhase`, `RoundState` in `shared-contracts/src/gameplay/session.ts`; removed from `server/sessionContracts.ts` and `client/PlayerState.ts`
+  - [x] geometry contract rollout beyond `Vec3`
+- [x] Verify no listener accumulation during phase reload (`__reloadPhase`).
+  - 2026-05-10 local capture: listener count remained stable `67 -> 67` across 3 reloads.
 
 ---
 

@@ -11,12 +11,23 @@ module.exports = (_env, argv = {}) => {
   const analyzeBundle = process.env.ANALYZE_BUNDLE === 'true';
 
   const config = {
-    cache: {
-      type: 'filesystem',
-      cacheDirectory: path.resolve(__dirname, '.webpack_cache'),
-      buildDependencies: {
-        config: [__filename],
-      },
+    // Keep filesystem cache for production builds, but use in-memory cache in
+    // dev to avoid stale managedPaths snapshots under Windows workspaces.
+    cache: isProduction
+      ? {
+          type: 'filesystem',
+          cacheDirectory: path.resolve(__dirname, '.webpack_cache'),
+          buildDependencies: {
+            config: [__filename],
+          },
+        }
+      : {
+          type: 'memory',
+        },
+    snapshot: {
+      // Disable node_modules managed-path optimization to avoid false
+      // "isn't a directory" warnings from FileSystemInfo on some setups.
+      managedPaths: [],
     },
     entry: {
       bootloader: './src/bootloader.ts',

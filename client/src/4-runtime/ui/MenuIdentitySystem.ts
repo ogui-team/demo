@@ -468,7 +468,7 @@ export class MenuIdentitySystem {
       this.animationFrameId = window.requestAnimationFrame(tick);
       if (!this.previewActive) return;
       if (this.previewAvatar) {
-        this.previewAvatar.rotation.y = Date.now() * 0.0008;
+        this.previewAvatar.rotation.y = Engine.time.now() * 0.0008;
       }
       this.renderer.render(this.previewScene, this.previewCamera);
     };

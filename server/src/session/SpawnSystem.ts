@@ -1,30 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import type { EntityState, PlayerState } from '../core/GameSession';
-import type { Vec3 } from '../sessionContracts';
-
-interface PlayerSpawnResult {
-  player: PlayerState;
-  entity: EntityState;
-}
-
-interface PlayerPrefabDefinition {
-  id: string;
-  entityType: string;
-  flags?: {
-    isPlayerControlled?: boolean;
-  };
-  dodComponents?: {
-    health?: {
-      hp?: number;
-      maxHp?: number;
-    };
-    inventory?: {
-      loadout?: string[];
-      equipped?: string;
-    };
-  };
-}
+import type { EntityState, PlayerState, PlayerPrefabDefinition, PlayerSpawnResult, Vec3 } from '@shared/contracts';
 
 function resolvePlayerPrefabPath(fileName: string): string {
   const candidates = [

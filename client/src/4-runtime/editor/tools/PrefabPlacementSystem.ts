@@ -199,7 +199,7 @@ export class PrefabPlacementSystem implements RoutedInputHandler {
       gameBus.emit('EDITOR_SNAP_TO_FLOOR_REQUESTED', {
         entityId: selected.id,
         source: 'shortcut',
-        timestamp: Date.now(),
+        timestamp: Engine.time.now(),
       });
       return true;
     }
@@ -259,7 +259,7 @@ export class PrefabPlacementSystem implements RoutedInputHandler {
       position: entity.getPosition(),
       rotation: entity.getRotation(),
       scale: entity.getScale(),
-      timestamp: Date.now(),
+      timestamp: Engine.time.now(),
     });
 
     gameBus.emit('stateMutation', {
@@ -327,7 +327,7 @@ export class PrefabPlacementSystem implements RoutedInputHandler {
       previousPosition,
       position: nextPosition,
       hitPoint: hit.point,
-      timestamp: Date.now(),
+      timestamp: Engine.time.now(),
     });
     gameBus.emit('stateMutation', {
       source: 'PrefabPlacementSystem',

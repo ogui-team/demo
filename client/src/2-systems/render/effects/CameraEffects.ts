@@ -56,9 +56,9 @@ export class CameraEffects {
     const swayZ = Math.cos(this.time * this.swaySpeed * 0.7) * this.swayIntensity;
 
     // Random jitter
-    const jitterX = (Math.random() - 0.5) * this.jitterIntensity;
-    const jitterY = (Math.random() - 0.5) * this.jitterIntensity;
-    const jitterZ = (Math.random() - 0.5) * this.jitterIntensity;
+    const jitterX = (Engine.random.next() - 0.5) * this.jitterIntensity;
+    const jitterY = (Engine.random.next() - 0.5) * this.jitterIntensity;
+    const jitterZ = (Engine.random.next() - 0.5) * this.jitterIntensity;
 
     // Store and apply new offset
     this._prevOffset.set(swayX + jitterX, jitterY, swayZ + jitterZ);
