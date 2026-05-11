@@ -14,7 +14,13 @@
  * 4. If you can't implement your feature with public API, file an issue
  */
 
-import type { GamePlugin, PluginInitContext } from '@shared/contracts';
+import {
+  isDeterminismShimActive,
+  type GamePlugin,
+  type IAudioService,
+  type ISettingsService,
+  type PluginInitContext,
+} from '@shared/contracts';
 
 /**
  * EmptyPlugin: Minimal plugin using only public API
@@ -40,6 +46,25 @@ export class EmptyPlugin implements GamePlugin {
   async init(context: PluginInitContext): Promise<void> {
     // Use logger from context
     context.logger.log('[EmptyPlugin] Initializing...');
+
+    const settingsService = context.sdk.getService<ISettingsService>('settings');
+    if (settingsService) {
+      settingsService.set('ui.optionsMenu.lastOpenedBy', this.id);
+      context.logger.log('[EmptyPlugin] SettingsService write/read:', settingsService.get('ui.optionsMenu.lastOpenedBy'));
+    } else {
+      context.logger.warn('[EmptyPlugin] SettingsService unavailable');
+    }
+
+    const audioService = context.sdk.getService<IAudioService>('audio');
+    if (audioService) {
+      audioService.setMasterVolume(0.9);
+      audioService.play('ui_confirm', { volume: 0.7 });
+      context.logger.log('[EmptyPlugin] AudioService volume:', audioService.getMasterVolume());
+    } else {
+      context.logger.warn('[EmptyPlugin] AudioService unavailable');
+    }
+
+    context.logger.log('[EmptyPlugin] Determinism shim active:', isDeterminismShimActive());
     
     // Subscribe to game events using public event bus
     const gameStartUnsub = context.gameBus.on('game:start', () => {

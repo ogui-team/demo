@@ -6,4 +6,5 @@
  */
 
 export * from './plugin-contracts';
+export * from './services';
 export * from './deterministic-utils';

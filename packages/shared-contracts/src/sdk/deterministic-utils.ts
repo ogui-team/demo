@@ -297,16 +297,17 @@ export function injectDeterminismShim(engine?: EngineProxy): void {
   if (typeof globalThis === 'undefined') {
     return; // Node environment, skip
   }
-  
+
   const win = globalThis as any;
-  if (typeof win.document === 'undefined') {
-    return; // Not a browser, skip
-  }
   
   // Default implementations if engine not provided
   const defaultTime = new DeterministicTimeImpl();
   const defaultRandom = new DeterministicRandomImpl();
-  const proxy = engine || { time: defaultTime, random: defaultRandom };
+  const proxy: EngineProxy = engine || {
+    time: defaultTime,
+    random: defaultRandom,
+    timer: new DeterministicTimerImpl(),
+  };
   
   // Save originals for reference
   const originalDateNow = Date.now;

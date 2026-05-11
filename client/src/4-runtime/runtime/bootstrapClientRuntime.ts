@@ -82,6 +82,8 @@ import { PublicSystemRegistry } from '../../1-kernel/core/PublicSystemRegistry';
 import { PublicEventBus } from '../../1-kernel/core/PublicEventBus';
 import { PluginRegistry } from './PluginRegistry';
 import { GameEngineSDKImpl, createPluginLogger, exposeGameEngineSDK } from './GameEngineSdk';
+import { SettingsPlugin } from './SettingsPlugin';
+import { AudioPlugin } from './AudioPlugin';
 import {
   cloneTropicalHorrorArchetypeAppearance,
   getTropicalHorrorArchetype,
@@ -1214,10 +1216,13 @@ export function bootstrapRuntime(): void {
     const gameEngineSdk = exposeGameEngineSDK(
       new GameEngineSDKImpl(pluginRegistry, publicSystemRegistry, publicEventBus),
     );
+    pluginRegistry.register(new AudioPlugin());
+    pluginRegistry.register(new SettingsPlugin());
 
     // Create plugin initialization context
     // Note: Engine.time.now() and Engine.random.next() are already shimmed to be deterministic
     const pluginContext = {
+      sdk: gameEngineSdk,
       gameLoop: Engine,
       systemContext: publicSystemRegistry,
       systemRegistry: publicSystemRegistry,
@@ -1234,6 +1239,10 @@ export function bootstrapRuntime(): void {
       logger: createPluginLogger('SDK'),
     };
 
+    void pluginRegistry.initializeAll(pluginContext).then(() => {
+      console.log('[SDK] Built-in plugins initialized', pluginRegistry.getLoadedPlugins());
+    });
+
     // Store on window for plugin access
     (window as any).__gameEngineSdk = {
       ...gameEngineSdk,
@@ -1247,6 +1256,7 @@ export function bootstrapRuntime(): void {
     runtimeTeardownRegistry.register(async () => {
       console.log('[SDK] Shutting down plugin system...');
       await pluginRegistry.unloadAll();
+      gameEngineSdk.dispose?.();
       pluginRegistry.dispose();
       publicSystemRegistry.dispose();
       publicEventBus.dispose();

@@ -1,4 +1,4 @@
-import type { GameEngineSdk, IEventBus, IPluginRegistry, ISystemRegistry } from '@shared/contracts';
+import type { GameEngineSdk, IEventBus, IPluginRegistry, IService, ISystemRegistry, ServiceRegistry } from '@shared/contracts';
 import { FeatureManager } from '@engine/1-kernel/core/public-api';
 
 type ConfigValue = unknown;
@@ -8,6 +8,57 @@ export interface PluginLogger {
   warn(...args: unknown[]): void;
   error(...args: unknown[]): void;
   debug(...args: unknown[]): void;
+}
+
+export class RuntimeServiceRegistry implements ServiceRegistry {
+  private readonly services = new Map<string, IService>();
+  private disposed = false;
+
+  registerService<T extends IService>(id: string, service: T): void {
+    if (this.disposed) {
+      throw new Error('RuntimeServiceRegistry has been disposed');
+    }
+
+    if (this.services.has(id)) {
+      throw new Error(`Service "${id}" is already registered`);
+    }
+
+    this.services.set(id, service);
+  }
+
+  unregisterService(id: string): void {
+    const service = this.services.get(id);
+    if (!service) {
+      return;
+    }
+
+    service.dispose();
+    this.services.delete(id);
+  }
+
+  getService<T extends IService>(id: string): T | undefined {
+    return this.services.get(id) as T | undefined;
+  }
+
+  hasService(id: string): boolean {
+    return this.services.has(id);
+  }
+
+  listServices(): string[] {
+    return Array.from(this.services.keys());
+  }
+
+  dispose(): void {
+    if (this.disposed) {
+      return;
+    }
+
+    for (const serviceId of this.listServices()) {
+      this.unregisterService(serviceId);
+    }
+
+    this.disposed = true;
+  }
 }
 
 class RuntimeConfigManager {
@@ -73,6 +124,7 @@ export class GameEngineSDKImpl implements GameEngineSdk {
   readonly version = '0.3.0';
   readonly config: RuntimeConfigManager;
   readonly features: RuntimeFeatureFacade;
+  readonly services: RuntimeServiceRegistry;
 
   constructor(
     readonly plugins: IPluginRegistry,
@@ -82,6 +134,23 @@ export class GameEngineSDKImpl implements GameEngineSdk {
   ) {
     this.config = new RuntimeConfigManager(initialConfig);
     this.features = new RuntimeFeatureFacade();
+    this.services = new RuntimeServiceRegistry();
+  }
+
+  getService<T extends IService>(id: string): T | undefined {
+    return this.services.getService<T>(id);
+  }
+
+  registerService<T extends IService>(id: string, service: T): void {
+    this.services.registerService(id, service);
+  }
+
+  unregisterService(id: string): void {
+    this.services.unregisterService(id);
+  }
+
+  dispose(): void {
+    this.services.dispose();
   }
 }
 

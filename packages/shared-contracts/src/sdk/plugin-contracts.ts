@@ -1,3 +1,5 @@
+import type { IService, ServiceRegistry } from './services';
+
 /**
  * SDK Plugin Interfaces
  * 
@@ -21,17 +23,17 @@ export interface IDisposable {
  * Provides access to core systems and utilities without exposing internal details.
  */
 export interface PluginInitContext {
+  sdk: GameEngineSdk;
+
   // Core engine references
   gameLoop: any; // GameLoop system
   stateManager: any; // State management
   systemContext: any; // System registry context
+  systemRegistry: ISystemRegistry;
   
   // Event system
-  gameBus: {
-    emit(event: string, data?: any): void;
-    on(event: string, handler: (data: any) => void): () => void;
-    once(event: string, handler: (data: any) => void): () => void;
-  };
+  gameBus: IEventBus;
+  eventBus: IEventBus;
   
   // Logging
   logger: {
@@ -145,7 +147,7 @@ export interface IPluginRegistry extends IDisposable {
  * This is what plugins should interact with.
  * Only these interfaces should be in the public API.
  */
-export interface GameEngineSdk {
+export interface GameEngineSdk extends IDisposable {
   // Plugins
   plugins: IPluginRegistry;
   
@@ -154,6 +156,13 @@ export interface GameEngineSdk {
   
   // Events
   events: IEventBus;
+
+  // Services
+  services: ServiceRegistry;
+
+  getService<T extends IService>(id: string): T | undefined;
+  registerService<T extends IService>(id: string, service: T): void;
+  unregisterService(id: string): void;
   
   // Configuration
   config: {

@@ -86,11 +86,15 @@ export interface IDisposable {
 
 ```typescript
 export interface PluginInitContext {
+  sdk: GameEngineSdk;
+
   gameLoop: any;           // Deterministic game loop
   stateManager: any;       // State management
   systemContext: any;      // System registry context
+  systemRegistry: ISystemRegistry;
   
-  gameBus: IEventBus;      // Event subscription
+  gameBus: IEventBus;      // Event subscription/emission
+  eventBus: IEventBus;     // Alias for compatibility
   logger: ILogger;         // Structured logging
   features: IFeatures;     // Feature flags
   config: IConfig;         // Configuration
@@ -135,6 +139,68 @@ export interface IPluginRegistry extends IDisposable {
   isInitialized(): boolean;
   getLoadedPlugins(): string[];
 }
+
+#### Service Framework
+
+```typescript
+export interface IService {
+  readonly id: string;
+  dispose(): void;
+}
+
+export interface ServiceRegistry {
+  registerService<T extends IService>(id: string, service: T): void;
+  unregisterService(id: string): void;
+  getService<T extends IService>(id: string): T | undefined;
+  hasService(id: string): boolean;
+  listServices(): string[];
+}
+
+export interface ISettingsService extends IService {
+  show(): void;
+  hide(): void;
+  isVisible(): boolean;
+  get<T = unknown>(key: string): T | undefined;
+  set<T = unknown>(key: string, value: T): void;
+}
+
+export interface IAudioService extends IService {
+  play(trackId: string, options?: { volume?: number; loop?: boolean }): void;
+  stop(trackId: string): void;
+  setMasterVolume(volume: number): void;
+  getMasterVolume(): number;
+  setMuted(muted: boolean): void;
+  isMuted(): boolean;
+}
+```
+
+Built-in services are auto-registered during bootstrap:
+
+- `settings` (deterministic UI/options state via StateManager)
+- `audio` (deterministic audio intents + state via StateManager)
+
+Plugin usage:
+
+```typescript
+import type { GamePlugin, ISettingsService, IAudioService, PluginInitContext } from '@shared/contracts';
+
+export class UiPlugin implements GamePlugin {
+  readonly id = 'ui-plugin';
+  readonly name = 'UI Plugin';
+  readonly version = '1.0.0';
+
+  init(context: PluginInitContext): void {
+    const settings = context.sdk.getService<ISettingsService>('settings');
+    settings?.set('ui.volume', 85);
+
+    const audio = context.sdk.getService<IAudioService>('audio');
+    audio?.setMasterVolume(0.85);
+    audio?.play('ui_confirm');
+  }
+
+  dispose(): void {}
+}
+```
 ```
 
 ### Currently Exposed Game Systems
@@ -176,6 +242,7 @@ Through `client/src/index.ts`:
 ✓ Do NOT use global state        → Use plugin instance state
 ✓ Do clear all subscriptions in dispose()
 ✓ Do implement IDisposable interface
+✓ Use context.sdk service APIs instead of touching engine internals
 ```
 
 ### Example: Deterministic Random
@@ -200,6 +267,12 @@ plugin:{pluginId}:{event}
 ```
 
 This prevents collisions with engine events.
+
+### Runtime Boundary Rules
+
+- Plugins only receive the documented public SDK contracts.
+- No direct `window`, `document`, render pipeline, or kernel internals are exposed through `PluginInitContext`.
+- Determinism shim utilities can run in browser and Node-based smoke tests.
 
 ---
 
