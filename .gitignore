@@ -9,6 +9,7 @@ tmp
 # Build outputs - TypeScript compilation artifacts
 client/src/**/*.js
 client/src/**/*.d.ts
+!client/src/global.d.ts
 !client/src/**/*.config.js
 !client/src/**/webpack.config.js
 
