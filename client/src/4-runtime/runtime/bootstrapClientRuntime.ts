@@ -84,6 +84,8 @@ import { PluginRegistry } from './PluginRegistry';
 import { GameEngineSDKImpl, createPluginLogger, exposeGameEngineSDK } from './GameEngineSdk';
 import { SettingsPlugin } from './SettingsPlugin';
 import { AudioPlugin } from './AudioPlugin';
+import { DODInspectorPlugin } from './DODInspectorPlugin';
+import { EditorShellPlugin } from './EditorShellPlugin';
 import {
   cloneTropicalHorrorArchetypeAppearance,
   getTropicalHorrorArchetype,
@@ -951,6 +953,9 @@ export function bootstrapRuntime(): void {
   );
   phaseResults.set('phase6', phase6Result);
 
+  const dodInspectorPlugin = new DODInspectorPlugin();
+  const editorShellPlugin = new EditorShellPlugin();
+
   registerRuntimeSystems({
     mpClient,
     gameModeManager,
@@ -990,6 +995,8 @@ export function bootstrapRuntime(): void {
     vfxSystem,
     pathfindingSystem,
     debugManager,
+    dodInspectorPlugin,
+    editorShellPlugin,
     scriptedLevelSystem,
   });
 
@@ -1216,6 +1223,8 @@ export function bootstrapRuntime(): void {
     const gameEngineSdk = exposeGameEngineSDK(
       new GameEngineSDKImpl(pluginRegistry, publicSystemRegistry, publicEventBus),
     );
+    pluginRegistry.register(dodInspectorPlugin);
+    pluginRegistry.register(editorShellPlugin);
     pluginRegistry.register(new AudioPlugin());
     pluginRegistry.register(new SettingsPlugin());
 

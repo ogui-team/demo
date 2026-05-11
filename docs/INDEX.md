@@ -11,11 +11,11 @@
 **Released:** April 18, 2026
 
 **Start Here:**
-1. [EXECUTION_SUMMARY.md](../EXECUTION_SUMMARY.md) - 🚀 **Upgrade ready check** (pick execution strategy)
-2. [V0_3_1_MILESTONE_PLAN.md](../V0_3_1_MILESTONE_PLAN.md) - 13 milestones with Phase Architecture Contract
-3. [V0_3_0_VICTORY_LOG.md](../V0_3_0_VICTORY_LOG.md) - v0.3.0 release highlights
-4. [CHANGELOG.md](../CHANGELOG.md) - Professional release notes
-5. [V0_4_0_HORIZON_PLAN.md](../V0_4_0_HORIZON_PLAN.md) - Multiplayer scale roadmap
+1. [EXECUTION_SUMMARY.md](../archive/root-md/2026-05-11/EXECUTION_SUMMARY.md) - 🚀 **Upgrade ready check** (pick execution strategy)
+2. [V0_3_1_MILESTONE_PLAN.md](../archive/root-md/2026-05-11/V0_3_1_MILESTONE_PLAN.md) - 13 milestones with Phase Architecture Contract
+3. [V0_3_0_VICTORY_LOG.md](../archive/root-md/2026-05-11/V0_3_0_VICTORY_LOG.md) - v0.3.0 release highlights
+4. [CHANGELOG.md](../archive/root-md/2026-05-11/CHANGELOG.md) - Professional release notes
+5. [V0_4_0_HORIZON_PLAN.md](../archive/root-md/2026-05-11/V0_4_0_HORIZON_PLAN.md) - Multiplayer scale roadmap
 
 ---
 
@@ -25,10 +25,10 @@
 **Audit Date:** May 8, 2026
 
 **Start Here:**
-1. [V0_3_1_FEATURE_AUDIT_AND_INDEX.md](../V0_3_1_FEATURE_AUDIT_AND_INDEX.md) - Current feature audit, file index, validation snapshot, and release-gate status
-2. [V0_3_1_MILESTONE_PLAN.md](../V0_3_1_MILESTONE_PLAN.md) - Original milestone and architecture plan
-3. [V0_3_1_VALIDATION_CHECKLIST.md](../V0_3_1_VALIDATION_CHECKLIST.md) - Formal release validation steps
-4. [ARCHIVE_COMPLETED.md](../ARCHIVE_COMPLETED.md) - Previously completed bootstrap/shared-contract work
+1. [V0_3_1_FEATURE_AUDIT_AND_INDEX.md](../archive/root-md/2026-05-11/V0_3_1_FEATURE_AUDIT_AND_INDEX.md) - Current feature audit, file index, validation snapshot, and release-gate status
+2. [V0_3_1_MILESTONE_PLAN.md](../archive/root-md/2026-05-11/V0_3_1_MILESTONE_PLAN.md) - Original milestone and architecture plan
+3. [V0_3_1_VALIDATION_CHECKLIST.md](../archive/root-md/2026-05-11/V0_3_1_VALIDATION_CHECKLIST.md) - Formal release validation steps
+4. [ARCHIVE_COMPLETED.md](../archive/root-md/2026-05-11/ARCHIVE_COMPLETED.md) - Previously completed bootstrap/shared-contract work
 
 ---
 
@@ -38,11 +38,11 @@
 **Status:** ✅ Ready for execution (all specs complete)
 
 **Quick Links:**
-- [EXECUTION_SUMMARY.md](../EXECUTION_SUMMARY.md) - Pick your execution strategy (Sequential/Parallel/Hybrid)
-- [BOOTSTRAP_UPGRADE_READY_CHECK.md](../BOOTSTRAP_UPGRADE_READY_CHECK.md) - Complete checklist (all 12 steps ✅)
-- [BOOTSTRAP_ARCHITECTURE_IMPLEMENTATION.md](../BOOTSTRAP_ARCHITECTURE_IMPLEMENTATION.md) - Copy-paste ready implementation
-- [SYSTEM_REGISTRY_IMPLEMENTATION.md](../SYSTEM_REGISTRY_IMPLEMENTATION.md) - Full TypeScript code + tests
-- [V0_3_1_VALIDATION_CHECKLIST.md](../V0_3_1_VALIDATION_CHECKLIST.md) - Per-milestone validation procedure
+- [EXECUTION_SUMMARY.md](../archive/root-md/2026-05-11/EXECUTION_SUMMARY.md) - Pick your execution strategy (Sequential/Parallel/Hybrid)
+- [BOOTSTRAP_UPGRADE_READY_CHECK.md](../archive/root-md/2026-05-11/BOOTSTRAP_UPGRADE_READY_CHECK.md) - Complete checklist (all 12 steps ✅)
+- [BOOTSTRAP_ARCHITECTURE_IMPLEMENTATION.md](../archive/root-md/2026-05-11/BOOTSTRAP_ARCHITECTURE_IMPLEMENTATION.md) - Copy-paste ready implementation
+- [SYSTEM_REGISTRY_IMPLEMENTATION.md](../archive/root-md/2026-05-11/SYSTEM_REGISTRY_IMPLEMENTATION.md) - Full TypeScript code + tests
+- [V0_3_1_VALIDATION_CHECKLIST.md](../archive/root-md/2026-05-11/V0_3_1_VALIDATION_CHECKLIST.md) - Per-milestone validation procedure
 
 **What's Changing:**
 - 690-line bootstrap function → 50-line orchestrator + 6 independent phases

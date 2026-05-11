@@ -66,6 +66,8 @@ export interface RegisterSystemMetadataOptions {
   vfxSystem: VFXSystem;
   pathfindingSystem: PathfindingSystem;
   debugManager: unknown;
+  dodInspectorPlugin: unknown;
+  editorShellPlugin: unknown;
   scriptedLevelSystem: unknown | null;
   hordeSystem: HordeSystem;
 }
@@ -124,6 +126,8 @@ export function registerRuntimeSystems(options: RegisterSystemMetadataOptions): 
     vfxSystem,
     pathfindingSystem,
     debugManager,
+    dodInspectorPlugin,
+    editorShellPlugin,
     scriptedLevelSystem,
     hordeSystem,
   } = options;
@@ -409,6 +413,18 @@ export function registerRuntimeSystems(options: RegisterSystemMetadataOptions): 
         id: 'debugManager',
         system: debugManager,
         metadata: { displayName: 'Debug Manager', category: 'Debug', order: 2 },
+        capabilities: { exposesDebug: true, deterministic: false },
+      },
+      {
+        id: 'dodInspectorPlugin',
+        system: dodInspectorPlugin,
+        metadata: { displayName: 'DOD Inspector Plugin', category: 'Debug', order: 3 },
+        capabilities: { exposesDebug: true, deterministic: false },
+      },
+      {
+        id: 'editorShellPlugin',
+        system: editorShellPlugin,
+        metadata: { displayName: 'Editor Shell Plugin', category: 'Debug', order: 4 },
         capabilities: { exposesDebug: true, deterministic: false },
       },
     ],

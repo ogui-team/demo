@@ -261,6 +261,61 @@
 			"command": "git tag -l v0.3.0",
 			"problemMatcher": [],
 			"group": "build"
+		},
+		{
+			"label": "git-push-main",
+			"type": "shell",
+			"command": "git push origin main",
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "git-push-tag",
+			"type": "shell",
+			"command": "git push origin v0.3.0",
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "git-push-final-follow-tags",
+			"type": "shell",
+			"command": "git push origin main --follow-tags",
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "archive-root-markdowns",
+			"type": "shell",
+			"command": "$archiveDir = 'archive/root-md/2026-05-11'; New-Item -ItemType Directory -Force -Path $archiveDir | Out-Null; Get-ChildItem -Path . -File -Filter *.md | Where-Object { $_.Name -ne 'ENGINE_OVERVIEW.md' } | Move-Item -Destination $archiveDir -Force; Write-Output 'Moved root markdown files to archive.'; Get-ChildItem -Path . -File -Filter *.md | Select-Object -ExpandProperty Name",
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "post-doc-cleanup-status",
+			"type": "shell",
+			"command": "git status --short; Write-Output '---'; Get-ChildItem -Path archive/root-md/2026-05-11 -File -Filter *.md | Measure-Object | Select-Object -ExpandProperty Count",
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "fix-doc-index-links-after-archive",
+			"type": "shell",
+			"command": "$p = 'docs/INDEX.md'; $raw = Get-Content -Path $p -Raw; $raw = $raw.Replace('](../', '](../archive/root-md/2026-05-11/'); Set-Content -Path $p -Value $raw -NoNewline; Write-Output 'Updated docs/INDEX.md links.'",
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "verify-overview-and-index",
+			"type": "shell",
+			"command": "git status --short; Write-Output '---'; Get-ChildItem -Path . -File -Filter *.md | Select-Object -ExpandProperty Name; Write-Output '---'; Select-String -Path docs/INDEX.md -Pattern '\\.\\./archive/root-md/2026-05-11/' | Measure-Object | Select-Object -ExpandProperty Count",
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "run-dodinspector-test",
+			"type": "shell",
+			"command": "node .\\node_modules\\vitest\\vitest.mjs run --config test/vitest.config.ts test/sdk/DODInspector.test.ts",
+			"group": "test"
 		}
 	]
 }

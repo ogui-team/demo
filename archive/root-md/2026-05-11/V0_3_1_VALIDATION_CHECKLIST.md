@@ -6,6 +6,19 @@
 
 ---
 
+## Walkthrough Status (May 11, 2026)
+
+This section summarizes the latest known execution state while preserving the original checklist below.
+
+- Type-check (client): PASS (`npm run type-check --prefix client`)
+- Type-check (server): PASS (`npm run type-check --prefix server`)
+- Targeted SDK plugin test: PASS (`test/sdk/PluginSystem.test.ts`, 6/6)
+- External consumer smoke tests: PASS (`sandbox-test` Empty + Zombie plugin runs)
+- Build status: PASS with existing webpack size warnings (no new blocker identified in this pass)
+- Tier0 browser gate run (`window.__runTier0Tests()`): NOT RE-EXECUTED in this cleanup pass, last known baseline remained green in prior milestone runs
+
+---
+
 ## 📋 MILESTONE COMPLETION CHECKLIST
 
 Every milestone must satisfy this checklist before being marked COMPLETE.
