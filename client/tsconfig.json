@@ -26,7 +26,6 @@
       "@shared/contracts/*": ["../packages/shared-contracts/src/*"]
     }
   },
-  "files": ["src/global.d.ts"],
   "include": ["src/**/*.ts", "src/**/*.d.ts"],
   "exclude": ["node_modules", "dist"]
 }
