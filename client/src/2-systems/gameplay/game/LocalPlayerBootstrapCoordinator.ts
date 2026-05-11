@@ -96,7 +96,7 @@ export class LocalPlayerBootstrapCoordinator {
   private lastValidSnapshotTick: number | null = null;
   private actualizationLatencyMs: number | null = null;
   private authoritativeSpawnRequestedAt = 0;
-  private actualizationTimeoutId: number | null = null;
+  private actualizationTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
   constructor(config: LocalPlayerBootstrapCoordinatorConfig) {
     this.config = config;

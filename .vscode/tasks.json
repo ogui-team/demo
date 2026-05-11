@@ -12,6 +12,255 @@
 			"type": "shell",
 			"command": "Set-Location sandbox-test; npm run build; npm run start",
 			"isBackground": false
+		},
+		{
+			"label": "sdk-service-typecheck",
+			"type": "shell",
+			"command": "npm run type-check",
+			"isBackground": false
+		},
+		{
+			"label": "sdk-service-tests",
+			"type": "shell",
+			"command": "node ./node_modules/vitest/vitest.mjs run test/sdk/PluginSystem.test.ts --config test/vitest.config.ts",
+			"isBackground": false
+		},
+		{
+			"label": "sdk-service-compile",
+			"type": "shell",
+			"command": "npm --prefix packages/shared-contracts run build; npm --prefix server run type-check; npm --prefix client run type-check",
+			"isBackground": false
+		},
+		{
+			"label": "sdk-service-sandbox-verify",
+			"type": "shell",
+			"command": "npm --prefix packages/shared-contracts run build; npm --prefix server run type-check; npm --prefix client run type-check; node scripts/build-sdk-release.mjs; Set-Location sandbox-test; npm install ../dist-release/my-engine-sdk/my-engine-sdk-0.3.0.tgz --save; npm run build:empty; npm run start:empty; npm run build:zombie; npm run start:zombie",
+			"isBackground": false
+		},
+		{
+			"label": "sdk-service-sandbox-verify-v2",
+			"type": "shell",
+			"command": "npm --prefix packages/shared-contracts run build; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm --prefix server run type-check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm --prefix client run type-check; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; node scripts/build-sdk-release.mjs; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; Set-Location dist-release/my-engine-sdk; npm pack; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; Set-Location ../../sandbox-test; npm install ../dist-release/my-engine-sdk/my-engine-sdk-0.3.0.tgz --save; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run build:empty; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run start:empty; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run build:zombie; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run start:zombie",
+			"isBackground": false
+		},
+		{
+			"label": "sdk-service-sprint-verify",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"run",
+				"build",
+				"--prefix",
+				"packages/shared-contracts",
+				";",
+				"npm",
+				"run",
+				"type-check",
+				"--prefix",
+				"client",
+				";",
+				"npm",
+				"run",
+				"type-check",
+				"--prefix",
+				"server",
+				";",
+				"npm",
+				"run",
+				"test",
+				"--prefix",
+				"test",
+				"--",
+				"sdk/PluginSystem.test.ts"
+			],
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "sdk-pack-release",
+			"type": "shell",
+			"command": "node scripts/build-sdk-release.mjs; Set-Location dist-release/my-engine-sdk; npm pack",
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "sandbox-empty-verify",
+			"type": "shell",
+			"command": "Set-Location sandbox-test; npm install; npm run build:empty; npm run start:empty",
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "sandbox-refresh-sdk",
+			"type": "shell",
+			"command": "Set-Location sandbox-test; npm uninstall my-engine-sdk; npm install ../dist-release/my-engine-sdk/my-engine-sdk-0.3.0.tgz",
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "sandbox-empty-verify-fresh",
+			"type": "shell",
+			"command": "Set-Location sandbox-test; if (Test-Path dist) { Remove-Item -Recurse -Force dist }; npm run build:empty; npm run start:empty",
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "sandbox-zombie-verify",
+			"type": "shell",
+			"command": "Set-Location sandbox-test; npm run build:zombie; npm run start:zombie",
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "sdk-plugin-test-only",
+			"type": "shell",
+			"command": "npm run test --prefix test -- sdk/PluginSystem.test.ts",
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "sdk-plugin-test-only-2",
+			"type": "shell",
+			"command": "Set-Location test; npm test -- sdk/PluginSystem.test.ts",
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "sdk-plugin-vitest-direct",
+			"type": "shell",
+			"command": "npx vitest run --config test/vitest.config.ts test/sdk/PluginSystem.test.ts",
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "sdk-plugin-vitest-direct-2",
+			"type": "shell",
+			"command": "npx vitest run --config test/vitest.config.ts sdk/PluginSystem.test.ts --reporter=verbose",
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "sdk-pack-release-final",
+			"type": "shell",
+			"command": "node scripts/build-sdk-release.mjs; Set-Location dist-release/my-engine-sdk; npm pack",
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "sdk-pack-release-final-2",
+			"type": "shell",
+			"command": "node scripts/build-sdk-release.mjs",
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "sdk-verify-core-retry",
+			"type": "shell",
+			"command": "npm run build --prefix packages/shared-contracts; npm run type-check --prefix client; npm run type-check --prefix server",
+			"problemMatcher": [
+				"$tsc"
+			],
+			"group": "test"
+		},
+		{
+			"label": "sdk-retry-smoke-task",
+			"type": "shell",
+			"command": "Write-Output 'sdk retry task ok'",
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "sdk-verify-core-retry-2",
+			"type": "shell",
+			"command": "npm run build --prefix packages/shared-contracts; npm run type-check --prefix client; npm run type-check --prefix server",
+			"problemMatcher": [
+				"$tsc"
+			],
+			"group": "test"
+		},
+		{
+			"label": "sdk-plugin-test-retry",
+			"type": "shell",
+			"command": "node ./node_modules/vitest/vitest.mjs run --config test/vitest.config.ts test/sdk/PluginSystem.test.ts",
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "sdk-release-pack-retry",
+			"type": "shell",
+			"command": "node scripts/build-sdk-release.mjs; Set-Location dist-release/my-engine-sdk; npm pack",
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "sandbox-empty-retry",
+			"type": "shell",
+			"command": "Set-Location sandbox-test; npm uninstall my-engine-sdk; npm install ../dist-release/my-engine-sdk/my-engine-sdk-0.3.0.tgz; if (Test-Path dist) { Remove-Item -Recurse -Force dist }; npm run build:empty; npm run start:empty",
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "sandbox-empty-run-retry",
+			"type": "shell",
+			"command": "Set-Location sandbox-test; npm run start:empty",
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "sandbox-zombie-retry",
+			"type": "shell",
+			"command": "Set-Location sandbox-test; npm run build:zombie; npm run start:zombie",
+			"problemMatcher": [],
+			"group": "test"
+		},
+		{
+			"label": "git-status-retry",
+			"type": "shell",
+			"command": "git status --short",
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "sdk-final-cleanup",
+			"type": "shell",
+			"command": "if (Test-Path sandbox-test/dist) { Remove-Item -Recurse -Force sandbox-test/dist }; if (Test-Path sandbox-test/node_modules) { Remove-Item -Recurse -Force sandbox-test/node_modules }; if (Test-Path dist-release/my-engine-sdk) { Remove-Item -Recurse -Force dist-release/my-engine-sdk }; Get-ChildItem -Path . -Recurse -Filter *.tsbuildinfo -File | Remove-Item -Force; git status --short",
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "sdk-stage-selected",
+			"type": "shell",
+			"command": "git add SDK_README.md scripts/build-sdk-release.mjs packages/shared-contracts/src/sdk/deterministic-utils.ts packages/shared-contracts/src/sdk/index.ts packages/shared-contracts/src/sdk/plugin-contracts.ts packages/shared-contracts/src/sdk/services.ts client/src/4-runtime/runtime/GameEngineSdk.ts client/src/4-runtime/runtime/bootstrapClientRuntime.ts client/src/4-runtime/runtime/AudioPlugin.ts client/src/4-runtime/runtime/SettingsPlugin.ts test/sdk/EmptyPlugin.ts test/sdk/PluginSystem.test.ts; git add -u dist-release/my-engine-sdk; git status --short",
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "sdk-commit-final",
+			"type": "shell",
+			"command": "git commit -m \"feat(sdk): finalize Tier 2 service framework & enable plugin-based extensibility\"; git tag -l v0.3.0; git branch --show-current",
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "sdk-commit-final-retry",
+			"type": "shell",
+			"command": "git commit -m 'feat(sdk): finalize Tier 2 service framework & enable plugin-based extensibility'",
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "sdk-tag-and-status",
+			"type": "shell",
+			"command": "git tag -a v0.3.0 -m 'v0.3.0'; git branch --show-current; git status --short",
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "verify-tag",
+			"type": "shell",
+			"command": "git tag -l v0.3.0",
+			"problemMatcher": [],
+			"group": "build"
 		}
 	]
 }

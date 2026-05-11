@@ -81,7 +81,7 @@ export class LocalPlayerAuthorityCoordinator {
   private readonly pendingMeshRetryKeys = new Set<string>();
   private isBindingLocked = false;
   private bindingLockedReason = '';
-  private bindingLockTimeoutId: number | null = null;
+  private bindingLockTimeoutId: ReturnType<typeof setTimeout> | null = null;
   private authorityValidatedPlayerId: string | null = null;
   private lastExecutedBinding: { playerId: string; entityId: string; authorityMode: 'local' | 'remote' } | null = null;
   private lastMeshReadyRebindKey: string | null = null;
