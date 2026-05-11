@@ -54,6 +54,27 @@ interface StateManagerAdapter {
 
 export type PlayerHUDMode = 'play' | 'editor' | 'spectator' | 'hidden' | 'loading';
 
+export type HUDRuntimeControlKind = 'toggle' | 'number' | 'text' | 'action';
+
+export interface HUDRuntimeControlDefinition {
+  id: string;
+  label: string;
+  kind: HUDRuntimeControlKind;
+  value?: unknown;
+  min?: number;
+  max?: number;
+  step?: number;
+  emitEvent: string;
+  payload?: Record<string, unknown>;
+  disabled?: boolean;
+}
+
+export interface HUDRuntimePanelDefinition {
+  title: string;
+  subtitle?: string;
+  controls: HUDRuntimeControlDefinition[];
+}
+
 // ─── HUD config ───────────────────────────────────────────────────────────────
 
 export interface HUDConfig {
@@ -157,6 +178,10 @@ export class HUDSystem {
   private timerEl:           HTMLDivElement | null = null;
   private roundInfoEl:       HTMLDivElement | null = null;
   private enemyInfoEl:       HTMLDivElement | null = null;
+  private runtimePanelHostEl: HTMLDivElement | null = null;
+
+  private readonly runtimePanelDefinitions = new Map<string, HUDRuntimePanelDefinition>();
+  private readonly runtimePanelElements = new Map<string, HTMLDivElement>();
 
   private visible:           boolean = false;
   private mounted:           boolean = false;
@@ -233,6 +258,8 @@ export class HUDSystem {
     this.unsubs = [];
     document.body.removeChild(this.root);
     this.root = null;
+    this.runtimePanelHostEl = null;
+    this.runtimePanelElements.clear();
     this.mounted = false;
   }
 
@@ -405,6 +432,28 @@ export class HUDSystem {
     this.debugEl.innerHTML = `FPS: ${this.fps}<br>${lines}`;
   }
 
+  upsertRuntimePanel(panelId: string, panel: HUDRuntimePanelDefinition): void {
+    this.runtimePanelDefinitions.set(panelId, panel);
+    this._renderRuntimePanel(panelId, panel);
+  }
+
+  removeRuntimePanel(panelId: string): void {
+    this.runtimePanelDefinitions.delete(panelId);
+    const panelEl = this.runtimePanelElements.get(panelId);
+    if (panelEl) {
+      panelEl.remove();
+      this.runtimePanelElements.delete(panelId);
+    }
+  }
+
+  clearRuntimePanels(): void {
+    for (const panelEl of this.runtimePanelElements.values()) {
+      panelEl.remove();
+    }
+    this.runtimePanelElements.clear();
+    this.runtimePanelDefinitions.clear();
+  }
+
   // ─── DOM building ──────────────────────────────────────────────────────────
 
   private _buildDOM(): void {
@@ -558,6 +607,20 @@ export class HUDSystem {
     });
     this.root.appendChild(this.playerListEl);
 
+    this.runtimePanelHostEl = this._el('div', {
+      position: 'absolute',
+      top: '72px',
+      right: '12px',
+      width: '280px',
+      maxHeight: '70vh',
+      overflowY: 'auto',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '8px',
+      pointerEvents: 'auto',
+    });
+    this.root.appendChild(this.runtimePanelHostEl);
+
     // ── Centre-top: notification
     this.notificationEl = this._el('div', {
       position: 'absolute', top: '14%', left: '50%',
@@ -638,6 +701,10 @@ export class HUDSystem {
     this.root.appendChild(this.teamBarEl);
 
     document.body.appendChild(this.root);
+
+    for (const [panelId, panel] of this.runtimePanelDefinitions.entries()) {
+      this._renderRuntimePanel(panelId, panel);
+    }
 
     // Apply initial mode
     this._applyTheme();
@@ -972,6 +1039,10 @@ export class HUDSystem {
     this._updateHealth();
     this._updateAmmo();
     this._updateTeamBar();
+
+    for (const [panelId, panelDef] of this.runtimePanelDefinitions.entries()) {
+      this._renderRuntimePanel(panelId, panelDef);
+    }
   }
 
   private _resetStateSubscriptions(): void {
@@ -1080,5 +1151,184 @@ export class HUDSystem {
     const el = document.createElement(tag) as HTMLDivElement;
     Object.assign(el.style, styles);
     return el;
+  }
+
+  private _renderRuntimePanel(panelId: string, panel: HUDRuntimePanelDefinition): void {
+    if (!this.runtimePanelHostEl) {
+      return;
+    }
+
+    const existing = this.runtimePanelElements.get(panelId);
+    if (existing) {
+      existing.remove();
+      this.runtimePanelElements.delete(panelId);
+    }
+
+    const wrapper = this._el('div', {
+      background: this.theme.panel,
+      border: `1px solid ${this.theme.border}`,
+      boxShadow: `0 0 12px ${this.theme.shadow}`,
+      padding: '8px',
+      color: this.theme.text,
+      fontFamily: OGUI.font,
+      fontSize: '10px',
+      letterSpacing: '0.6px',
+    });
+    wrapper.dataset['runtimePanelId'] = panelId;
+
+    const title = this._el('div', {
+      fontSize: '10px',
+      fontWeight: 'bold',
+      color: this.theme.accent,
+      letterSpacing: '2px',
+      marginBottom: '6px',
+      textTransform: 'uppercase',
+    });
+    title.textContent = panel.title;
+    wrapper.appendChild(title);
+
+    if (panel.subtitle) {
+      const subtitle = this._el('div', {
+        color: this.theme.text,
+        opacity: '0.85',
+        marginBottom: '8px',
+      });
+      subtitle.textContent = panel.subtitle;
+      wrapper.appendChild(subtitle);
+    }
+
+    for (const control of panel.controls) {
+      wrapper.appendChild(this._buildRuntimeControl(panelId, control));
+    }
+
+    this.runtimePanelHostEl.appendChild(wrapper);
+    this.runtimePanelElements.set(panelId, wrapper);
+  }
+
+  private _buildRuntimeControl(panelId: string, control: HUDRuntimeControlDefinition): HTMLDivElement {
+    const row = this._el('div', {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: '8px',
+      marginBottom: '6px',
+    });
+
+    const label = this._el('div', {
+      flex: '1 1 auto',
+      color: this.theme.text,
+      opacity: control.disabled ? '0.55' : '1',
+    });
+    label.textContent = control.label;
+    row.appendChild(label);
+
+    switch (control.kind) {
+      case 'toggle': {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.disabled = control.disabled === true;
+        button.textContent = control.value === true ? 'ON' : 'OFF';
+        Object.assign(button.style, {
+          cursor: button.disabled ? 'default' : 'pointer',
+          background: control.value === true ? this.theme.healthFull : 'rgba(0,0,0,0.25)',
+          color: this.theme.text,
+          border: `1px solid ${this.theme.border}`,
+          padding: '2px 8px',
+          minWidth: '54px',
+          fontFamily: OGUI.font,
+          fontSize: '10px',
+          letterSpacing: '1px',
+          opacity: button.disabled ? '0.6' : '1',
+        });
+        button.addEventListener('click', () => {
+          this._emitRuntimePanelEvent(panelId, control, control.value !== true);
+        });
+        row.appendChild(button as unknown as HTMLDivElement);
+        break;
+      }
+      case 'number': {
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.disabled = control.disabled === true;
+        if (typeof control.min === 'number') input.min = String(control.min);
+        if (typeof control.max === 'number') input.max = String(control.max);
+        if (typeof control.step === 'number') input.step = String(control.step);
+        if (typeof control.value === 'number') input.value = String(control.value);
+        Object.assign(input.style, {
+          width: '84px',
+          background: 'rgba(0,0,0,0.25)',
+          border: `1px solid ${this.theme.border}`,
+          color: this.theme.text,
+          padding: '2px 4px',
+          fontFamily: OGUI.font,
+          fontSize: '10px',
+          opacity: input.disabled ? '0.6' : '1',
+        });
+        input.addEventListener('change', () => {
+          const parsed = Number(input.value);
+          if (Number.isFinite(parsed)) {
+            this._emitRuntimePanelEvent(panelId, control, parsed);
+          }
+        });
+        row.appendChild(input as unknown as HTMLDivElement);
+        break;
+      }
+      case 'text': {
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.disabled = control.disabled === true;
+        input.value = typeof control.value === 'string' ? control.value : '';
+        Object.assign(input.style, {
+          width: '120px',
+          background: 'rgba(0,0,0,0.25)',
+          border: `1px solid ${this.theme.border}`,
+          color: this.theme.text,
+          padding: '2px 4px',
+          fontFamily: OGUI.font,
+          fontSize: '10px',
+          opacity: input.disabled ? '0.6' : '1',
+        });
+        input.addEventListener('change', () => {
+          this._emitRuntimePanelEvent(panelId, control, input.value);
+        });
+        row.appendChild(input as unknown as HTMLDivElement);
+        break;
+      }
+      case 'action':
+      default: {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.disabled = control.disabled === true;
+        button.textContent = 'RUN';
+        Object.assign(button.style, {
+          cursor: button.disabled ? 'default' : 'pointer',
+          background: 'rgba(0,0,0,0.25)',
+          color: this.theme.text,
+          border: `1px solid ${this.theme.border}`,
+          padding: '2px 8px',
+          minWidth: '54px',
+          fontFamily: OGUI.font,
+          fontSize: '10px',
+          letterSpacing: '1px',
+          opacity: button.disabled ? '0.6' : '1',
+        });
+        button.addEventListener('click', () => {
+          this._emitRuntimePanelEvent(panelId, control, true);
+        });
+        row.appendChild(button as unknown as HTMLDivElement);
+        break;
+      }
+    }
+
+    return row;
+  }
+
+  private _emitRuntimePanelEvent(panelId: string, control: HUDRuntimeControlDefinition, value: unknown): void {
+    (gameBus as any).emit(control.emitEvent, {
+      panelId,
+      controlId: control.id,
+      value,
+      ...(control.payload ?? {}),
+    });
   }
 }

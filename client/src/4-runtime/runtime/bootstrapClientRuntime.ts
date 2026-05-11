@@ -86,6 +86,7 @@ import { SettingsPlugin } from './SettingsPlugin';
 import { AudioPlugin } from './AudioPlugin';
 import { DODInspectorPlugin } from './DODInspectorPlugin';
 import { EditorShellPlugin } from './EditorShellPlugin';
+import { RuntimeMixerPlugin } from './RuntimeMixerPlugin';
 import {
   cloneTropicalHorrorArchetypeAppearance,
   getTropicalHorrorArchetype,
@@ -955,6 +956,7 @@ export function bootstrapRuntime(): void {
 
   const dodInspectorPlugin = new DODInspectorPlugin();
   const editorShellPlugin = new EditorShellPlugin();
+  const runtimeMixerPlugin = new RuntimeMixerPlugin();
 
   registerRuntimeSystems({
     mpClient,
@@ -997,6 +999,7 @@ export function bootstrapRuntime(): void {
     debugManager,
     dodInspectorPlugin,
     editorShellPlugin,
+    runtimeMixerPlugin,
     scriptedLevelSystem,
   });
 
@@ -1225,6 +1228,7 @@ export function bootstrapRuntime(): void {
     );
     pluginRegistry.register(dodInspectorPlugin);
     pluginRegistry.register(editorShellPlugin);
+    pluginRegistry.register(runtimeMixerPlugin);
     pluginRegistry.register(new AudioPlugin());
     pluginRegistry.register(new SettingsPlugin());
 

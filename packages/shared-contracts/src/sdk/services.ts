@@ -28,3 +28,57 @@ export interface IAudioService extends IService {
   setMuted(muted: boolean): void;
   isMuted(): boolean;
 }
+
+export interface RuntimeMixerTrackState {
+  id: string;
+  enabled: boolean;
+  isolated: boolean;
+}
+
+export interface IRuntimeMixerService extends IService {
+  listTracks(): RuntimeMixerTrackState[];
+  setTrackEnabled(trackId: string, enabled: boolean): boolean;
+  isolateTrack(trackId: string | null): void;
+}
+
+export type InspectorFieldKind = 'number' | 'boolean' | 'text';
+
+export interface InspectorFieldDescriptor {
+  id: string;
+  label: string;
+  componentName: string;
+  path: string;
+  kind: InspectorFieldKind;
+  value: unknown;
+  min?: number;
+  max?: number;
+  step?: number;
+  readOnly?: boolean;
+}
+
+export interface InspectorEntitySnapshot {
+  entityId: string;
+  entityType: string;
+  fields: InspectorFieldDescriptor[];
+}
+
+export interface IInspectorService extends IService {
+  inspectSelectedEntity(): InspectorEntitySnapshot | null;
+  inspectEntity(entityId: string): InspectorEntitySnapshot | null;
+  applyFieldValue(entityId: string, componentName: string, path: string, value: unknown): boolean;
+}
+
+export interface StateImportResult {
+  success: boolean;
+  entitiesCreated: number;
+  settingsApplied: number;
+}
+
+export interface IStatePersistenceService extends IService {
+  saveMap(name: string): boolean;
+  loadMap(name: string): StateImportResult;
+  listMaps(): string[];
+  deleteMap(name: string): boolean;
+  exportWorld(name?: string): string;
+  importWorld(json: string, name?: string): StateImportResult;
+}

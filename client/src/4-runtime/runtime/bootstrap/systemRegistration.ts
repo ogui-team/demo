@@ -68,6 +68,7 @@ export interface RegisterSystemMetadataOptions {
   debugManager: unknown;
   dodInspectorPlugin: unknown;
   editorShellPlugin: unknown;
+  runtimeMixerPlugin: unknown;
   scriptedLevelSystem: unknown | null;
   hordeSystem: HordeSystem;
 }
@@ -128,6 +129,7 @@ export function registerRuntimeSystems(options: RegisterSystemMetadataOptions): 
     debugManager,
     dodInspectorPlugin,
     editorShellPlugin,
+    runtimeMixerPlugin,
     scriptedLevelSystem,
     hordeSystem,
   } = options;
@@ -426,6 +428,12 @@ export function registerRuntimeSystems(options: RegisterSystemMetadataOptions): 
         system: editorShellPlugin,
         metadata: { displayName: 'Editor Shell Plugin', category: 'Debug', order: 4 },
         capabilities: { exposesDebug: true, deterministic: false },
+      },
+      {
+        id: 'runtimeMixerPlugin',
+        system: runtimeMixerPlugin,
+        metadata: { displayName: 'Runtime Mixer Plugin', category: 'Debug', order: 5 },
+        capabilities: { usesEventBus: true, exposesDebug: true, deterministic: false },
       },
     ],
     contextDeps: getContextDeps(mpClient),
