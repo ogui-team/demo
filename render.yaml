@@ -4,8 +4,8 @@ services:
     env: node
     plan: free
     rootDir: .
-    buildCommand: npm ci && npm run build:server:prod && NODE_OPTIONS=--max-old-space-size=2048 npm run build:client:prod
-    startCommand: npm --prefix server run start
+    buildCommand: npm ci && npx prisma generate && npm run build:server:prod && NODE_OPTIONS=--max-old-space-size=2048 npm run build:client:prod
+    startCommand: npx prisma migrate deploy && npm --prefix server run start
     autoDeploy: true
     envVars:
       - key: NODE_VERSION
@@ -16,3 +16,16 @@ services:
         value: https://demo.onrender.com
       - key: SERVER_WS_URL
         value: wss://demo.onrender.com
+      # ── Set these in the Render dashboard → Environment tab ──────────────
+      - key: GOOGLE_CLIENT_ID
+        sync: false          # paste your value in Render dashboard
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: DISCORD_CLIENT_ID
+        sync: false
+      - key: DISCORD_CLIENT_SECRET
+        sync: false
+      - key: SESSION_SECRET
+        sync: false          # generate: node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
+      - key: DATABASE_URL
+        sync: false          # paste the Internal Database URL from your Render PostgreSQL add-on

@@ -65,50 +65,16 @@ class AuthService implements IAuthManager {
       return true;
     }
 
-    this.transition('AUTHENTICATING', provider, this.status.locked, `Starting ${provider} authentication`);
-
-    try {
-      const callbackPayload = this.collectOAuthPayload(provider);
-      if (!callbackPayload) {
-        this.ensureGuestIdentity(`Cancelled ${provider} login; falling back to guest`);
-        return false;
-      }
-
-      const response = await fetch(`${this.resolveAuthHttpBaseUrl()}/auth/${provider}/callback`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify(callbackPayload),
-      });
-
-      const responseText = await response.text();
-      const body = this.tryParseOAuthResponse(responseText);
-      if (!response.ok || !body.ok || !body.identitySnapshot || !body.gameApiJwt) {
-        throw new Error(body.error || `Auth callback failed with HTTP ${response.status}`);
-      }
-
-      const nextProvider: AuthProvider = body.provider === 'google' || body.provider === 'discord'
-        ? body.provider
-        : provider;
-      const profile: UserProfile = {
-        userId: body.identitySnapshot.userId,
-        provider: nextProvider,
-        displayName: callbackPayload.displayName || body.identitySnapshot.userId,
-        isGuest: body.identitySnapshot.isGuest,
-        permissions: [...body.identitySnapshot.permissions],
-      };
-
-      this.persistJwt(body.gameApiJwt);
-      this.persistProfile(profile);
-      this.setAuthenticated(profile, `${nextProvider} authentication completed`);
-      return true;
-    } catch (error) {
-      console.warn('[AuthPlugin] login failed, preserving guest mode', error);
-      this.ensureGuestIdentity(`Failed ${provider} login; using guest identity`);
-      return false;
+    // Real OAuth: redirect the browser to the server-side initiate route.
+    // The server will redirect to the provider, receive the code, exchange it,
+    // create a session, and redirect back to /?auth_jwt=<token>.
+    if (typeof window !== 'undefined') {
+      const base = this.resolveAuthHttpBaseUrl();
+      window.location.href = `${base}/auth/${provider}`;
     }
+
+    // Return false so the caller knows the flow is async (page will reload).
+    return false;
   }
 
   async logout(): Promise<boolean> {
@@ -483,6 +449,9 @@ export class AuthPlugin implements GamePlugin {
     const authService = new AuthService(context);
     const profileService = new ProfileService(authService);
 
+    // Pick up JWT returned from OAuth redirect-back (e.g. /?auth_jwt=<token>).
+    this.applyJwtFromUrl(authService);
+
     authService.initialize();
 
     if (typeof window !== 'undefined') {
@@ -496,6 +465,65 @@ export class AuthPlugin implements GamePlugin {
     context.sdk.registerService(PROFILE_SERVICE_ID, profileService);
 
     context.logger.log('[AuthPlugin] Registered auth and profile services');
+  }
+
+  private applyJwtFromUrl(authService: AuthService): void {
+    if (typeof window === 'undefined') return;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const jwt = params.get('auth_jwt');
+      const err = params.get('auth_error');
+
+      if (err) {
+        console.warn('[AuthPlugin] OAuth error from server:', err);
+        // Strip from URL so it doesn't persist on reload.
+        params.delete('auth_error');
+        const clean = params.toString() ? `?${params.toString()}` : '';
+        window.history.replaceState({}, '', `${window.location.pathname}${clean}`);
+        return;
+      }
+
+      if (!jwt) return;
+
+      // Decode JWT payload (base64url, part 1).
+      const parts = jwt.split('.');
+      if (parts.length !== 3) return;
+      const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/'))) as {
+        sub?: string;
+        guest?: boolean;
+        permissions?: string[];
+        provider?: string;
+        sid?: string | null;
+      };
+
+      if (!payload.sub) return;
+
+      const provider: AuthProvider =
+        payload.provider === 'google' || payload.provider === 'discord' ? payload.provider : 'guest';
+
+      const profile: UserProfile = {
+        userId: payload.sub,
+        provider,
+        displayName: payload.sub,
+        isGuest: Boolean(payload.guest),
+        permissions: Array.isArray(payload.permissions) ? payload.permissions : ['play'],
+      };
+
+      authService['persistJwt'](jwt);
+      authService['persistProfile'](profile);
+      // Will be applied as part of initialize() which runs after this.
+      authService['writeLocalStorageValue'](PROFILE_STORAGE_KEY, JSON.stringify(profile));
+      authService['writeLocalStorageValue'](JWT_STORAGE_KEY, jwt);
+
+      // Strip jwt from URL so it doesn't linger in browser history.
+      params.delete('auth_jwt');
+      const clean = params.toString() ? `?${params.toString()}` : '';
+      window.history.replaceState({}, '', `${window.location.pathname}${clean}`);
+
+      console.log(`[AuthPlugin] Applied OAuth return JWT for provider: ${provider}`);
+    } catch (e) {
+      console.warn('[AuthPlugin] Failed to apply auth_jwt from URL', e);
+    }
   }
 
   dispose(): void {
