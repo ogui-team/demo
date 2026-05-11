@@ -12,6 +12,11 @@ import { SNAPSHOT_SCHEMA_VERSION } from './snapshot/SnapshotContract';
 import { ITEM_CATALOG } from './data/itemCatalog';
 import { getLatestRuntimeMetrics, saveRuntimeMetrics, type RuntimeMetricsSample } from './system/RuntimeMetricsStore';
 import { generateDeterministicPlayerId } from './utils/DeterministicIdHash';  // ─ TIER 0D: Deterministic IDs ─
+import { sessionMiddleware } from './auth/session-middleware';
+import { oauthRouter } from './auth/oauth-routes';
+import { resolveAuthFromRequest, toRequestLike } from './auth/request-auth';
+import { webSocketIdentityTunnel } from './auth/websocket-identity';
+import { resolvePlayerIdForConnection } from './auth/player-id';
 import {
   DEFAULT_TROPICAL_HORROR_ARCHETYPE_ID,
   resolveTropicalHorrorArchetypeId,
@@ -120,6 +125,8 @@ app.use((_req, res, next) => {
   next();
 });
 app.use(express.json({ limit: HTTP_JSON_LIMIT }));
+app.use(sessionMiddleware);
+app.use('/auth', oauthRouter);
 
 // ─── Shared clients set ───────────────────────────────────────────────────────
 
@@ -248,6 +255,7 @@ lobbyManager.onGameStart((room) => {
   // Move all lobby players into the game session
   for (const p of room.players.values()) {
     session.addPlayer(p.ws, p.id, p.name, p.appearance ?? null, p.archetypeId);
+    const identityBinding = webSocketIdentityTunnel.get(p.ws);
     // Send game start signal individually
     if (p.ws.readyState === WebSocket.OPEN) {
       p.ws.send(JSON.stringify({
@@ -255,6 +263,7 @@ lobbyManager.onGameStart((room) => {
         map:       room.selectedMap,
         mode:      room.selectedMode,
         sessionId: room.id,
+        identitySnapshot: identityBinding?.authContext.identitySnapshot ?? null,
         protocol:  session.getProtocolHandshake(),
       }));
       // Send the player's inventory on session start
@@ -271,9 +280,14 @@ lobbyManager.onGameStart((room) => {
 // ─── Connection handler ───────────────────────────────────────────────────────
 
 wss.on('connection', (ws: WebSocket, req) => {
+  const authResult = resolveAuthFromRequest(toRequestLike(req));
   const origin = typeof req.headers.origin === 'string' ? req.headers.origin : undefined;
   if (!isAllowedOrigin(origin)) {
     rejectSocket(ws, 'ORIGIN_NOT_ALLOWED', `Origin not allowed: ${origin ?? 'unknown'}`);
+    return;
+  }
+  if (authResult.invalidToken) {
+    rejectSocket(ws, 'AUTH_INVALID', 'Invalid auth token during WebSocket handshake');
     return;
   }
 
@@ -285,6 +299,18 @@ wss.on('connection', (ws: WebSocket, req) => {
   let inLobby    = false;
   // ─ TIER 0D: Connection ID for deterministic player ID generation ─
   const connectionId = `conn_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  webSocketIdentityTunnel.bind(ws, {
+    connectionId,
+    authContext: authResult.context,
+    connectedAt: Date.now(),
+  });
+  if (ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({
+      type: 'AUTH_CONTEXT',
+      identitySnapshot: authResult.context.identitySnapshot,
+      sessionId: authResult.context.sessionId,
+    }));
+  }
   const socketGuard: SocketGuardState = {
     malformedMessages: 0,
     rateLimitViolations: 0,
@@ -332,8 +358,12 @@ wss.on('connection', (ws: WebSocket, req) => {
     switch (type) {
 
       case 'HOST_GAME': {
-        // ─ TIER 0D: Use deterministic ID based on session + connection ─
-        playerId = (msg.playerId as string) || generateDeterministicPlayerId(sessionId || 'lobby', connectionId);
+        playerId = resolvePlayerIdForConnection(
+          authResult.context,
+          sessionId || 'lobby',
+          connectionId,
+          msg.playerId as string | undefined,
+        );
         const name = (msg.name as string) || playerId;
         const settings = (msg.settings as RoomCreateOptions | undefined) ?? {};
         const appearance = sanitizePlayerAppearancePayload(msg.appearance);
@@ -374,6 +404,7 @@ wss.on('connection', (ws: WebSocket, req) => {
           playerId,
           roomId: room.id,
           hosted: true,
+          identitySnapshot: authResult.context.identitySnapshot,
           protocol: roomProtocol,
         }));
         console.log(`[Server] Player ${playerId} hosted lobby ${room.id}`);
@@ -382,8 +413,12 @@ wss.on('connection', (ws: WebSocket, req) => {
 
       // ── Join lobby ──────────────────────────────────────────────────────
       case 'PLAYER_JOIN': {
-        // ─ TIER 0D: Use deterministic ID based on session + connection ─
-        playerId = (msg.playerId as string) || generateDeterministicPlayerId(sessionId || 'lobby', connectionId);
+        playerId = resolvePlayerIdForConnection(
+          authResult.context,
+          sessionId || 'lobby',
+          connectionId,
+          msg.playerId as string | undefined,
+        );
         const name = (msg.name as string) || playerId;
         const requestedRoomId = msg.roomId as string | undefined;
         const appearance = sanitizePlayerAppearancePayload(msg.appearance);
@@ -405,6 +440,7 @@ wss.on('connection', (ws: WebSocket, req) => {
               mode:      candidate.selectedMode,
               sessionId: candidate.id,
               playerId,
+              identitySnapshot: authResult.context.identitySnapshot,
               late:      true,
               protocol:  activeSession.getProtocolHandshake(),
             }));
@@ -447,6 +483,7 @@ wss.on('connection', (ws: WebSocket, req) => {
           type:     'JOIN_ACK',
           playerId,
           roomId:   room.id,
+          identitySnapshot: authResult.context.identitySnapshot,
           protocol: roomProtocol,
         }));
         console.log(`[Server] Player ${playerId} joined lobby ${room.id}`);
@@ -561,6 +598,7 @@ wss.on('connection', (ws: WebSocket, req) => {
     inventoryManager.evict(playerId);
     console.log(`[Server] Client disconnected (${playerId || 'unknown'})`);
     clients.delete(ws);
+    webSocketIdentityTunnel.delete(ws);
 
     // Remove from lobby
     lobbyManager.leaveRoom(ws);

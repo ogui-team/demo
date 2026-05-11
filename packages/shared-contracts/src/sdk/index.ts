@@ -7,4 +7,5 @@
 
 export * from './plugin-contracts';
 export * from './services';
+export * from './auth-contracts';
 export * from './deterministic-utils';

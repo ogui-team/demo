@@ -372,28 +372,30 @@ export class MultiplayerRuntimeCoordinator {
     maxPlayers: number;
     forceStart: boolean;
   }): void {
-    this.mpClient.setPendingJoinAppearance(this.getLobbyJoinAppearance());
-    this.mpClient.setPendingJoinArchetypeId(this.getLobbyJoinArchetypeId());
-    this.prepareMultiplayerLobby('host');
-    this.transitionEngineState('lobby', 'autostart_host');
-    const handleLobbyUpdate = (lobby: { roomId?: string; status?: string }) => {
-      if (!this.mpClient.roomId || lobby.roomId !== this.mpClient.roomId) return;
-      if (lobby.status !== 'waiting') return;
-      this.mpClient.setReady(true);
-      if (config.forceStart) {
-        this.mpClient.sendLobbyAction('LOBBY_FORCE_START', {});
-        this.mpClient.off('lobby_update', handleLobbyUpdate);
-      }
-    };
+    void this.runAfterAuthLock('host', () => {
+      this.mpClient.setPendingJoinAppearance(this.getLobbyJoinAppearance());
+      this.mpClient.setPendingJoinArchetypeId(this.getLobbyJoinArchetypeId());
+      this.prepareMultiplayerLobby('host');
+      this.transitionEngineState('lobby', 'autostart_host');
+      const handleLobbyUpdate = (lobby: { roomId?: string; status?: string }) => {
+        if (!this.mpClient.roomId || lobby.roomId !== this.mpClient.roomId) return;
+        if (lobby.status !== 'waiting') return;
+        this.mpClient.setReady(true);
+        if (config.forceStart) {
+          this.mpClient.sendLobbyAction('LOBBY_FORCE_START', {});
+          this.mpClient.off('lobby_update', handleLobbyUpdate);
+        }
+      };
 
-    this.onMpClient('lobby_update', handleLobbyUpdate);
-    this.mpClient.hostRoom(this.serverWsUrl, config.playerName, {
-      name: config.roomName,
-      map: config.map,
-      mode: config.mode ?? 'ffa',
-      killLimit: config.killLimit,
-      roundDurationSec: config.roundDurationSec,
-      maxPlayers: config.maxPlayers,
+      this.onMpClient('lobby_update', handleLobbyUpdate);
+      this.mpClient.hostRoom(this.serverWsUrl, config.playerName, {
+        name: config.roomName,
+        map: config.map,
+        mode: config.mode ?? 'ffa',
+        killLimit: config.killLimit,
+        roundDurationSec: config.roundDurationSec,
+        maxPlayers: config.maxPlayers,
+      });
     });
   }
 
@@ -402,32 +404,34 @@ export class MultiplayerRuntimeCoordinator {
     roomId: string | null;
     autoReady: boolean;
   }): void {
-    this.mpClient.setPendingJoinAppearance(this.getLobbyJoinAppearance());
-    this.mpClient.setPendingJoinArchetypeId(this.getLobbyJoinArchetypeId());
-    this.prepareMultiplayerLobby('join');
-    this.transitionEngineState('lobby', 'autostart_join');
-    const handleLobbyUpdate = (lobby: { roomId?: string; players?: Array<{ id: string; ready: boolean }> }) => {
-      if (!config.autoReady) return;
-      if (!this.mpClient.playerId || lobby.roomId !== this.mpClient.roomId) return;
-      const localPlayer = Array.isArray(lobby.players)
-        ? lobby.players.find((player) => player.id === this.mpClient.playerId)
-        : null;
-      if (!localPlayer || localPlayer.ready) return;
-      this.mpClient.setReady(true);
-    };
+    void this.runAfterAuthLock('join', () => {
+      this.mpClient.setPendingJoinAppearance(this.getLobbyJoinAppearance());
+      this.mpClient.setPendingJoinArchetypeId(this.getLobbyJoinArchetypeId());
+      this.prepareMultiplayerLobby('join');
+      this.transitionEngineState('lobby', 'autostart_join');
+      const handleLobbyUpdate = (lobby: { roomId?: string; players?: Array<{ id: string; ready: boolean }> }) => {
+        if (!config.autoReady) return;
+        if (!this.mpClient.playerId || lobby.roomId !== this.mpClient.roomId) return;
+        const localPlayer = Array.isArray(lobby.players)
+          ? lobby.players.find((player) => player.id === this.mpClient.playerId)
+          : null;
+        if (!localPlayer || localPlayer.ready) return;
+        this.mpClient.setReady(true);
+      };
 
-    this.onMpClient('lobby_update', handleLobbyUpdate);
-    if (config.roomId) {
-      this.mpClient.joinRoom(this.serverWsUrl, config.playerName, config.roomId);
-      return;
-    }
+      this.onMpClient('lobby_update', handleLobbyUpdate);
+      if (config.roomId) {
+        this.mpClient.joinRoom(this.serverWsUrl, config.playerName, config.roomId);
+        return;
+      }
 
-    const resolver = new NetworkConnectionResolver();
-    const httpUrl = resolver.resolveHttpUrl();
-    void this.mpClient.fetchServers(httpUrl).then((servers) => {
-      const target = servers[0];
-      if (!target) return;
-      this.mpClient.joinRoom(this.serverWsUrl, config.playerName, target.id);
+      const resolver = new NetworkConnectionResolver();
+      const httpUrl = resolver.resolveHttpUrl();
+      void this.mpClient.fetchServers(httpUrl).then((servers) => {
+        const target = servers[0];
+        if (!target) return;
+        this.mpClient.joinRoom(this.serverWsUrl, config.playerName, target.id);
+      });
     });
   }
 
@@ -450,6 +454,51 @@ export class MultiplayerRuntimeCoordinator {
     this.gameModeManager.on(eventName as never, handler as never);
     this.gameModeDisposers.push(() => {
       this.gameModeManager.off(eventName as never, handler as never);
+    });
+  }
+
+  private async runAfterAuthLock(action: 'host' | 'join', callback: () => void): Promise<void> {
+    const globalAuthLock = this.getGlobalAuthLockPromise();
+    if (globalAuthLock) {
+      try {
+        await this.withTimeout(globalAuthLock, 3000);
+      } catch (error) {
+        console.warn(`[MultiplayerRuntimeCoordinator] Auth lock timeout before ${action}, continuing with guest fallback`, error);
+      }
+    }
+
+    callback();
+  }
+
+  private getGlobalAuthLockPromise(): Promise<unknown> | null {
+    if (typeof window === 'undefined') {
+      return null;
+    }
+
+    const candidate = (window as any).__authLockReady;
+    if (!candidate || typeof candidate.then !== 'function') {
+      return null;
+    }
+
+    return candidate as Promise<unknown>;
+  }
+
+  private withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        reject(new Error(`Timed out waiting for auth lock after ${timeoutMs}ms`));
+      }, timeoutMs);
+
+      void promise.then(
+        (value) => {
+          clearTimeout(timeoutId);
+          resolve(value);
+        },
+        (error) => {
+          clearTimeout(timeoutId);
+          reject(error);
+        },
+      );
     });
   }
 

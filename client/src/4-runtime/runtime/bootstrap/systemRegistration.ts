@@ -68,6 +68,7 @@ export interface RegisterSystemMetadataOptions {
   debugManager: unknown;
   dodInspectorPlugin: unknown;
   editorShellPlugin: unknown;
+  authPlugin: unknown;
   runtimeMixerPlugin: unknown;
   scriptedLevelSystem: unknown | null;
   hordeSystem: HordeSystem;
@@ -129,6 +130,7 @@ export function registerRuntimeSystems(options: RegisterSystemMetadataOptions): 
     debugManager,
     dodInspectorPlugin,
     editorShellPlugin,
+    authPlugin,
     runtimeMixerPlugin,
     scriptedLevelSystem,
     hordeSystem,
@@ -433,6 +435,12 @@ export function registerRuntimeSystems(options: RegisterSystemMetadataOptions): 
         id: 'runtimeMixerPlugin',
         system: runtimeMixerPlugin,
         metadata: { displayName: 'Runtime Mixer Plugin', category: 'Debug', order: 5 },
+        capabilities: { usesEventBus: true, exposesDebug: true, deterministic: false },
+      },
+      {
+        id: 'authPlugin',
+        system: authPlugin,
+        metadata: { displayName: 'Auth Plugin', category: 'Core', order: 6 },
         capabilities: { usesEventBus: true, exposesDebug: true, deterministic: false },
       },
     ],

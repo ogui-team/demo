@@ -207,6 +207,10 @@ export interface MultiplayerProtocolDiagnostics {
 }
 
 type EventMap = {
+  auth_context: {
+    identitySnapshot: { userId: string; isGuest: boolean; permissions: string[] };
+    sessionId: string | null;
+  };
   connected: { playerId: string; roomId: string; hosted?: boolean };
   disconnected: { reason: string };
   connection_lost: { reason: string; code?: number; wasClean?: boolean };
@@ -344,6 +348,7 @@ export class MultiplayerClient {
   private _recentIncoming: Array<{ receivedAt: number; type: string; parseOk: boolean; rawPreview: string }> = [];
   private _pendingJoinAppearance: Record<string, unknown> | null = null;
   private _pendingJoinArchetypeId: TropicalHorrorArchetypeId | null = null;
+  private _identitySnapshot: { userId: string; isGuest: boolean; permissions: string[] } | null = null;
 
   on<K extends keyof EventMap>(event: K, callback: EventCallback<K>): void {
     if (!this.listeners.has(event)) this.listeners.set(event, new Set());
@@ -642,6 +647,15 @@ export class MultiplayerClient {
   get connected(): boolean { return this._connected; }
   get inGame(): boolean { return this._inGame; }
   get rtt(): number { return this._rtt; }
+  get identitySnapshot(): { userId: string; isGuest: boolean; permissions: string[] } | null {
+    return this._identitySnapshot
+      ? {
+          userId: this._identitySnapshot.userId,
+          isGuest: this._identitySnapshot.isGuest,
+          permissions: [...this._identitySnapshot.permissions],
+        }
+      : null;
+  }
   getLastLobbyState(): LobbyState | null { return this._lastLobbyState ? { ...this._lastLobbyState, players: [...this._lastLobbyState.players] } : null; }
   getLastRoundState(): RoundState | null { return this._lastRoundState ? { ...this._lastRoundState } : null; }
   getLastAuthoritativeSnapshot(): AuthoritativeSnapshotPayload | null {
@@ -766,9 +780,36 @@ export class MultiplayerClient {
     return true;
   }
 
+  private _buildWebSocketUrl(): string {
+    const jwt = this._readStoredJwt();
+    if (!jwt) {
+      return this._serverUrl;
+    }
+
+    try {
+      const parsed = new URL(this._serverUrl, window.location.href);
+      parsed.searchParams.set('token', jwt);
+      return parsed.toString();
+    } catch {
+      return this._serverUrl;
+    }
+  }
+
+  private _readStoredJwt(): string | null {
+    if (typeof window === 'undefined' || !window.localStorage) {
+      return null;
+    }
+
+    try {
+      return window.localStorage.getItem('sdk.auth.jwt');
+    } catch {
+      return null;
+    }
+  }
+
   private _doConnect(): void {
     try {
-      this.ws = new WebSocket(this._serverUrl);
+      this.ws = new WebSocket(this._buildWebSocketUrl());
     } catch (error) {
       this.emit('error', { message: `Connection failed: ${String(error)}` });
       return;
@@ -861,12 +902,29 @@ export class MultiplayerClient {
     this._recordIncoming(raw, typeof msg?.type === 'string' ? msg.type : 'unknown', true);
 
     switch (msg.type) {
+      case 'AUTH_CONTEXT': {
+        const identitySnapshot = this._normalizeIdentitySnapshot(msg.identitySnapshot);
+        if (!identitySnapshot) {
+          break;
+        }
+        this._identitySnapshot = identitySnapshot;
+        (window as any).__serverIdentitySnapshot = identitySnapshot;
+        if (typeof (window as any).__applyServerIdentitySnapshot === 'function') {
+          (window as any).__applyServerIdentitySnapshot(identitySnapshot, identitySnapshot.isGuest ? 'guest' : null);
+        }
+        this.emit('auth_context', {
+          identitySnapshot,
+          sessionId: typeof msg.sessionId === 'string' ? msg.sessionId : null,
+        });
+        break;
+      }
       case 'LOBBY_UPDATE':
         this._lastLobbyState = msg.lobby as LobbyState;
         this.emit('lobby_update', msg.lobby as LobbyState);
         break;
       case 'JOIN_ACK':
         if (!this._validateServerProtocol(msg.protocol as Record<string, unknown> | undefined)) break;
+        this._applyIdentitySnapshot(msg.identitySnapshot);
         this._playerId = msg.playerId;
         this._roomId = msg.roomId;
         if (!this._connected) {
@@ -877,12 +935,14 @@ export class MultiplayerClient {
           playerId: this._playerId,
           roomId: this._roomId,
           hosted: msg.hosted,
+          identitySnapshot: msg.identitySnapshot,
           protocol: msg.protocol,
         });
         this.emit('connected', { playerId: this._playerId, roomId: this._roomId, hosted: msg.hosted });
         break;
       case 'GAME_START':
         if (!this._validateServerProtocol(msg.protocol as Record<string, unknown> | undefined)) break;
+        this._applyIdentitySnapshot(msg.identitySnapshot);
         this._inGame = true;
         this._entitySyncCache.clear();
         logEvent('network', `GAME_START ${msg.map ?? 'unknown'}`);
@@ -892,6 +952,7 @@ export class MultiplayerClient {
           sessionId: msg.sessionId,
           late: !!msg.late,
           playerId: msg.playerId,
+          identitySnapshot: msg.identitySnapshot,
           protocol: msg.protocol,
         });
         // Late join: server sends playerId + roomId directly in GAME_START
@@ -1199,6 +1260,38 @@ export class MultiplayerClient {
         break;
       default:
         break;
+    }
+  }
+
+  private _normalizeIdentitySnapshot(value: unknown): { userId: string; isGuest: boolean; permissions: string[] } | null {
+    if (!value || typeof value !== 'object') {
+      return null;
+    }
+
+    const candidate = value as { userId?: unknown; isGuest?: unknown; permissions?: unknown };
+    if (typeof candidate.userId !== 'string') {
+      return null;
+    }
+
+    return {
+      userId: candidate.userId,
+      isGuest: Boolean(candidate.isGuest),
+      permissions: Array.isArray(candidate.permissions)
+        ? candidate.permissions.filter((permission): permission is string => typeof permission === 'string')
+        : [],
+    };
+  }
+
+  private _applyIdentitySnapshot(value: unknown): void {
+    const identitySnapshot = this._normalizeIdentitySnapshot(value);
+    if (!identitySnapshot) {
+      return;
+    }
+
+    this._identitySnapshot = identitySnapshot;
+    (window as any).__serverIdentitySnapshot = identitySnapshot;
+    if (typeof (window as any).__applyServerIdentitySnapshot === 'function') {
+      (window as any).__applyServerIdentitySnapshot(identitySnapshot, identitySnapshot.isGuest ? 'guest' : null);
     }
   }
 

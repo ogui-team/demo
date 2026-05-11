@@ -64,6 +64,9 @@ const WHITELISTED_EVENTS = new Set([
   'physics:trigger',
   'world:weatherChanged',
   'world:timeChanged',
+
+  // Identity/Auth
+  'auth:changed',
 ]);
 
 /**

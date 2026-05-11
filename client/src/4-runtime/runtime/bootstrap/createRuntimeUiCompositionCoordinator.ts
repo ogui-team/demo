@@ -11,6 +11,7 @@ import type { MenuIdentitySystem } from '../../ui/MenuIdentitySystem';
 import type { UICompositionCoordinator } from '../../ui/UICompositionCoordinator';
 import type { ClientWorldRuntimeCoordinator } from '../coordinators/ClientWorldRuntimeCoordinator';
 import type { MultiplayerRuntimeCoordinator } from '../coordinators/MultiplayerRuntimeCoordinator';
+import { AuthHudPanel } from '../../ui/AuthHudPanel';
 
 interface CreateRuntimeUiCompositionCoordinatorOptions {
   modeManager: ReturnType<typeof Engine.getModeManger> | null;
@@ -30,6 +31,25 @@ export async function createRuntimeUiCompositionCoordinator(
   options: CreateRuntimeUiCompositionCoordinatorOptions,
 ): Promise<UICompositionCoordinator> {
   const { UICompositionCoordinator } = await import('../../ui/UICompositionCoordinator');
+  const authHudPanel = new AuthHudPanel();
+  const menuIdentityPanel = options.menuIdentitySystem.getElement();
+
+  const compositeAccessoryPanel = document.createElement('div');
+  compositeAccessoryPanel.style.cssText = [
+    'display:flex',
+    'flex-direction:column',
+    'gap:12px',
+    'height:100%',
+    'min-height:0',
+  ].join(';');
+
+  const authElement = authHudPanel.getElement();
+  authElement.style.flex = '0 0 auto';
+  compositeAccessoryPanel.appendChild(authElement);
+
+  menuIdentityPanel.style.flex = '1 1 auto';
+  menuIdentityPanel.style.minHeight = '0';
+  compositeAccessoryPanel.appendChild(menuIdentityPanel);
 
   return new UICompositionCoordinator({
     registerModeListener: (listener) => {
@@ -159,7 +179,7 @@ export async function createRuntimeUiCompositionCoordinator(
           options.mpClient.sendLobbyAction('GAME_MODE_SET', { mode: modeId });
         }
       },
-      getIdentityPanel: () => options.menuIdentitySystem.getElement(),
+      getIdentityPanel: () => compositeAccessoryPanel,
       log: (message) => {
         console.log(message);
       },
