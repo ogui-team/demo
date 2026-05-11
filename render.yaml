@@ -13,9 +13,9 @@ services:
       - key: NODE_ENV
         value: production
       - key: SERVER_HTTP_URL
-        value: https://demo.onrender.com
+        value: https://demo-lzj1.onrender.com
       - key: SERVER_WS_URL
-        value: wss://demo.onrender.com
+        value: wss://demo-lzj1.onrender.com
       # ── Set these in the Render dashboard → Environment tab ──────────────
       - key: GOOGLE_CLIENT_ID
         sync: false          # paste your value in Render dashboard

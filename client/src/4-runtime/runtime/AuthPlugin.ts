@@ -379,10 +379,17 @@ class AuthService implements IAuthManager {
   }
 
   private resolveAuthHttpBaseUrl(): string {
+    // 1. Build-time env variable (set in render.yaml / webpack EnvironmentPlugin)
+    const fromEnv = (process.env.SERVER_HTTP_URL ?? '').trim();
+    if (fromEnv) {
+      return fromEnv.replace(/\/$/, '');
+    }
+
     if (typeof window === 'undefined' || typeof window.location === 'undefined') {
       return '';
     }
 
+    // 2. Runtime query override: ?serverHttpUrl=https://...
     try {
       const params = new URLSearchParams(window.location.search);
       const fromQuery = params.get('serverHttpUrl')?.trim();
@@ -393,12 +400,15 @@ class AuthService implements IAuthManager {
       // Fallback to inferred host below.
     }
 
-    const currentPort = window.location.port;
-    const targetPort = !currentPort || currentPort === '80' || currentPort === '443' || currentPort === '8080'
-      ? currentPort
-      : '8080';
-    const suffix = targetPort ? `:${targetPort}` : '';
-    return `${window.location.protocol}//${window.location.hostname}${suffix}`.replace(/\/$/, '');
+    // 3. Same host (production: client and server are on the same origin on Render)
+    const { protocol, hostname, port } = window.location;
+    const isDefaultPort = !port || port === '80' || port === '443';
+    if (isDefaultPort) {
+      return `${protocol}//${hostname}`.replace(/\/$/, '');
+    }
+
+    // 4. Local dev: client on :3000, server on :10001
+    return `${protocol}//${hostname}:10001`.replace(/\/$/, '');
   }
 
   private tryParseOAuthResponse(raw: string): OAuthCallbackResponse {
