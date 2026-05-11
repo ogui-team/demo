@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import * as Engine from '@engine/0-foundation/foundation/Engine';
 import { ParameterBinding } from '../diagnostics/debug/ParameterBinding';
 import {
   DEFAULT_TROPICAL_HORROR_ARCHETYPE_ID,

@@ -13,6 +13,7 @@
  */
 
 import * as THREE from 'three';
+import * as Engine from '@engine/0-foundation/foundation/Engine';
 import { getCameraStateAdapter } from '../../2-systems/camera/CameraStateAdapter';
 import { OGUI } from './OGUITheme';
 

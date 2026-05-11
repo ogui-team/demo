@@ -1,4 +1,5 @@
 import { OGUI } from './OGUITheme';
+import * as Engine from '@engine/0-foundation/foundation/Engine';
 import { getRuntimePerformanceMode, RuntimePerformanceMode } from '@engine/1-kernel/core/public-api';
 
 export interface RuntimeIssueInspectorConfig {
