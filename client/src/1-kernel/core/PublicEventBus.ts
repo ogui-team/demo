@@ -19,6 +19,7 @@ import type { IEventBus, IDisposable } from '@shared/contracts';
  * Whitelisted events that plugins can subscribe to
  */
 const WHITELISTED_EVENTS = new Set([
+  'UI_READY',
   // Game state events
   'game:start',
   'game:end',

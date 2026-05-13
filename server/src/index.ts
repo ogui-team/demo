@@ -109,6 +109,12 @@ const RATE_LIMIT_RULES: Readonly<Record<RateLimitKey, RateLimitRule>> = {
   DEFAULT: { limit: 40, windowMs: 1000 },
 };
 
+app.use((_req, res, next) => {
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+  next();
+});
+
 // Allow cross-origin requests (client may be on different port during dev)
 app.use((_req, res, next) => {
   const requestOrigin = typeof _req.headers.origin === 'string' ? _req.headers.origin : undefined;

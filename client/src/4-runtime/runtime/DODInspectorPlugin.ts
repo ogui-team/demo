@@ -33,6 +33,8 @@ export class DODInspectorPlugin implements GamePlugin {
   private keyHandler: ((event: KeyboardEvent) => void) | null = null;
   private selectedSystem: string | null = null;
   private visible = false;
+  private uiReadyUnsubscribe: (() => void) | null = null;
+  private initialized = false;
 
   init(context: PluginInitContext): void {
     this.context = context;
@@ -42,18 +44,7 @@ export class DODInspectorPlugin implements GamePlugin {
       return;
     }
 
-    const ui2DSystem = context.systemRegistry.getSystem('ui2DSystem');
-    if (!ui2DSystem) {
-      context.logger.warn('[DODInspectorPlugin] ui2DSystem not available; inspector requires Phase 5 UI runtime');
-      return;
-    }
-
-    this.buildUi();
-    this.startRefreshLoop();
-    this.installHotkey();
-    this.refreshSystemList();
-
-    context.logger.log('[DODInspectorPlugin] Initialized (read-only mode)');
+    this.tryInitialize();
   }
 
   getDebugState(): InspectorSummary {
@@ -65,6 +56,11 @@ export class DODInspectorPlugin implements GamePlugin {
   }
 
   dispose(): void {
+    if (this.uiReadyUnsubscribe) {
+      this.uiReadyUnsubscribe();
+      this.uiReadyUnsubscribe = null;
+    }
+
     if (this.refreshTimer) {
       clearInterval(this.refreshTimer);
       this.refreshTimer = null;
@@ -85,6 +81,36 @@ export class DODInspectorPlugin implements GamePlugin {
     this.selectedSystem = null;
     this.visible = false;
     this.context = null;
+    this.initialized = false;
+  }
+
+  private tryInitialize(): void {
+    const context = this.context;
+    if (!context || this.initialized) {
+      return;
+    }
+
+    const ui2DSystem = context.systemRegistry.getSystem('ui2DSystem');
+    if (!ui2DSystem) {
+      if (!this.uiReadyUnsubscribe) {
+        this.uiReadyUnsubscribe = context.eventBus.on('UI_READY', () => {
+          if (this.uiReadyUnsubscribe) {
+            this.uiReadyUnsubscribe();
+            this.uiReadyUnsubscribe = null;
+          }
+          this.tryInitialize();
+        });
+      }
+      return;
+    }
+
+    this.initialized = true;
+    this.buildUi();
+    this.startRefreshLoop();
+    this.installHotkey();
+    this.refreshSystemList();
+
+    context.logger.log('[DODInspectorPlugin] Initialized (read-only mode)');
   }
 
   private buildUi(): void {

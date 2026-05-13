@@ -34,6 +34,8 @@ export class EditorShellPlugin implements GamePlugin {
   private hordeSystemRef: HordeSystemLike | null = null;
   private physicsUpdateOriginal: PhysicsSystemLike['update'] | null = null;
   private hordeUpdateOriginal: HordeSystemLike['update'] | null = null;
+  private uiReadyUnsubscribe: (() => void) | null = null;
+  private initialized = false;
 
   init(context: PluginInitContext): void {
     this.context = context;
@@ -43,16 +45,7 @@ export class EditorShellPlugin implements GamePlugin {
       return;
     }
 
-    const ui2DSystem = context.systemRegistry.getSystem('ui2DSystem');
-    if (!ui2DSystem) {
-      context.logger.warn('[EditorShellPlugin] ui2DSystem not available; editor shell requires Phase 5 UI runtime');
-      return;
-    }
-
-    this.createShellUi();
-    this.decoupleViewportFromHud();
-    this.refreshButtonState();
-    context.logger.log('[EditorShellPlugin] Unreal-Mode shell initialized');
+    this.tryInitialize();
   }
 
   getDebugState(): EditorShellDebugState {
@@ -63,6 +56,11 @@ export class EditorShellPlugin implements GamePlugin {
   }
 
   dispose(): void {
+    if (this.uiReadyUnsubscribe) {
+      this.uiReadyUnsubscribe();
+      this.uiReadyUnsubscribe = null;
+    }
+
     this.restoreSimulationUpdates();
 
     if (this.root) {
@@ -74,6 +72,34 @@ export class EditorShellPlugin implements GamePlugin {
     this.pauseButton = null;
     this.context = null;
     this.paused = false;
+    this.initialized = false;
+  }
+
+  private tryInitialize(): void {
+    const context = this.context;
+    if (!context || this.initialized) {
+      return;
+    }
+
+    const ui2DSystem = context.systemRegistry.getSystem('ui2DSystem');
+    if (!ui2DSystem) {
+      if (!this.uiReadyUnsubscribe) {
+        this.uiReadyUnsubscribe = context.eventBus.on('UI_READY', () => {
+          if (this.uiReadyUnsubscribe) {
+            this.uiReadyUnsubscribe();
+            this.uiReadyUnsubscribe = null;
+          }
+          this.tryInitialize();
+        });
+      }
+      return;
+    }
+
+    this.initialized = true;
+    this.createShellUi();
+    this.decoupleViewportFromHud();
+    this.refreshButtonState();
+    context.logger.log('[EditorShellPlugin] Unreal-Mode shell initialized');
   }
 
   private createShellUi(): void {

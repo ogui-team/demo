@@ -456,6 +456,7 @@ export function bootstrapRuntime(): void {
   const parallax2DSystem = new ParallaxSystem();
   const spriteRenderSystem = new SpriteRenderSystem(Engine.getEntityManager()!);
   const ui2DSystem = new UI2DSystem(Engine.getEntityManager()!, Engine.getEngineRenderer()!);
+  gameBus.emit('UI_READY', { source: 'bootstrapRuntime', systemId: 'ui2DSystem' });
   const spritePrefabExtension = new SpritePrefabExtension();
 
   // inventorySystem created by Phase 5
