@@ -264,12 +264,29 @@ export class Entity implements IPoolable {
     entity.active = data.active;
     entity.lastUsedTime = typeof data.lastUsedTime === 'number' ? data.lastUsedTime : Engine.time.now();
 
-    // Recreate components (without update functions - those are handled by system)
+    // Recreate components (without update functions - those are handled by system).
+    // Handles two serialization formats:
+    //   - Entity.toJSON format:  { name: string, data: object }  (wrapped)
+    //   - SaveLoadManager format: raw data object keyed by component name (flat)
     for (const [name, componentData] of Object.entries(data.components)) {
-      entity.addComponent({
-        name: componentData.name,
-        data: { ...componentData.data },
-      });
+      const raw = componentData as unknown;
+      const isWrapped =
+        raw !== null &&
+        typeof raw === 'object' &&
+        typeof (raw as Record<string, unknown>).name === 'string' &&
+        (raw as Record<string, unknown>).data !== null &&
+        typeof (raw as Record<string, unknown>).data === 'object';
+      entity.addComponent(
+        isWrapped
+          ? {
+              name: (raw as { name: string; data: Record<string, unknown> }).name,
+              data: { ...(raw as { name: string; data: Record<string, unknown> }).data },
+            }
+          : {
+              name,
+              data: { ...(raw as Record<string, unknown>) },
+            },
+      );
     }
 
     return entity;

@@ -46,6 +46,7 @@ export class TransformGizmo {
   private dragPlane: THREE.Plane = new THREE.Plane();
   private dragPoint: THREE.Vector3 = new THREE.Vector3();
   private dragStartPos: { x: number; y: number; z: number } = { x: 0, y: 0, z: 0 };
+  private dragStartPlanePoint: THREE.Vector3 = new THREE.Vector3();
   private dragStartValue: number = 0;
 
   // Event handlers
@@ -321,19 +322,34 @@ export class TransformGizmo {
     const intersects = this.raycaster.intersectObjects(arrowLines, true);
 
     if (intersects.length > 0) {
-      // Determine which axis was clicked
       const hitObject = intersects[0].object;
-      if (hitObject.parent?.parent === this.arrowHelperX) {
-        this.draggedAxis = 'x';
-      } else if (hitObject.parent?.parent === this.arrowHelperY) {
-        this.draggedAxis = 'y';
-      } else if (hitObject.parent?.parent === this.arrowHelperZ) {
-        this.draggedAxis = 'z';
+      let current: THREE.Object3D | null = hitObject;
+
+      while (current && current !== this.gizmoGroup) {
+        if (current === this.arrowHelperX) {
+          this.draggedAxis = 'x';
+          break;
+        }
+        if (current === this.arrowHelperY) {
+          this.draggedAxis = 'y';
+          break;
+        }
+        if (current === this.arrowHelperZ) {
+          this.draggedAxis = 'z';
+          break;
+        }
+        current = current.parent;
       }
 
       if (this.draggedAxis) {
         this.dragStartPos = this.entity.getPosition();
         this.setupDragPlane();
+        const planeIntersection = new THREE.Vector3();
+        if (this.raycaster.ray.intersectPlane(this.dragPlane, planeIntersection)) {
+          this.dragStartPlanePoint.copy(planeIntersection);
+        } else {
+          this.dragStartPlanePoint.set(this.dragStartPos.x, this.dragStartPos.y, this.dragStartPos.z);
+        }
       }
     } else {
       // Click without hitting gizmo = cycle mode
@@ -348,23 +364,12 @@ export class TransformGizmo {
     if (!this.draggedAxis || !this.entity || !this.camera) return;
 
     const pos = this.entity.getPosition();
-    const normal = new THREE.Vector3();
+    const cameraDir = new THREE.Vector3();
+    this.camera.getWorldDirection(cameraDir);
 
-    // Setup plane perpendicular to the dragged axis
-    switch (this.draggedAxis) {
-      case 'x':
-        normal.set(1, 0, 0);
-        break;
-      case 'y':
-        normal.set(0, 1, 0);
-        break;
-      case 'z':
-        normal.set(0, 0, 1);
-        break;
-    }
-
+    // Use a camera-facing plane so drag deltas can be projected onto the selected axis.
     this.dragPlane.setFromNormalAndCoplanarPoint(
-      normal,
+      cameraDir,
       new THREE.Vector3(pos.x, pos.y, pos.z)
     );
 
@@ -393,7 +398,7 @@ export class TransformGizmo {
     this.raycaster.ray.intersectPlane(this.dragPlane, this.dragPoint);
 
     const delta = new THREE.Vector3();
-    delta.copy(this.dragPoint).sub(new THREE.Vector3(this.dragStartPos.x, this.dragStartPos.y, this.dragStartPos.z));
+    delta.copy(this.dragPoint).sub(this.dragStartPlanePoint);
 
     // Calculate drag amount for rotation and scale operations
     const dragAmount = Math.max(Math.abs(delta.x), Math.abs(delta.y), Math.abs(delta.z));
@@ -404,15 +409,23 @@ export class TransformGizmo {
     const currentScale = this.entity.getScale();
 
     switch (this.mode) {
-      case 'move':
-        const newPos = { ...currentPos };
-        if (this.draggedAxis === 'x') newPos.x = this.dragStartPos.x + delta.x;
-        if (this.draggedAxis === 'y') newPos.y = this.dragStartPos.y + delta.y;
-        if (this.draggedAxis === 'z') newPos.z = this.dragStartPos.z + delta.z;
+      case 'move': {
+        const axis = new THREE.Vector3(
+          this.draggedAxis === 'x' ? 1 : 0,
+          this.draggedAxis === 'y' ? 1 : 0,
+          this.draggedAxis === 'z' ? 1 : 0,
+        );
+        const moveDistance = delta.dot(axis);
+        const newPos = {
+          x: this.dragStartPos.x + axis.x * moveDistance,
+          y: this.dragStartPos.y + axis.y * moveDistance,
+          z: this.dragStartPos.z + axis.z * moveDistance,
+        };
         TransformSystem.setPosition(this.entity, this.stateManager, newPos);
         break;
+      }
 
-      case 'rotate':
+      case 'rotate': {
         const angleChange = dragAmount * 2; // Rotation multiplier
         const newRot = { ...currentRot };
 
@@ -422,8 +435,9 @@ export class TransformGizmo {
 
         TransformSystem.setRotation(this.entity, this.stateManager, newRot);
         break;
+      }
 
-      case 'scale':
+      case 'scale': {
         const scaleAmount = 1 + dragAmount;
         const newScale = { ...currentScale };
 
@@ -433,6 +447,7 @@ export class TransformGizmo {
 
         TransformSystem.setScale(this.entity, this.stateManager, newScale);
         break;
+      }
     }
 
     // Update gizmo position
@@ -450,17 +465,36 @@ export class TransformGizmo {
    * Handle mouse wheel for fine adjustment
    */
   private onMouseWheel(e: WheelEvent): void {
-    if (!this.entity || !this.draggedAxis) return;
+    if (!this.entity || !this.camera) return;
 
     e.preventDefault();
 
-    const adjustment = e.deltaY > 0 ? -0.1 : 0.1;
-    const currentPos = this.entity.getPosition();
+    if (this.draggedAxis) {
+      const adjustment = e.deltaY > 0 ? -0.1 : 0.1;
+      const currentPos = this.entity.getPosition();
 
-    const newPos = { ...currentPos };
-    if (this.draggedAxis === 'x') newPos.x += adjustment;
-    if (this.draggedAxis === 'y') newPos.y += adjustment;
-    if (this.draggedAxis === 'z') newPos.z += adjustment;
+      const newPos = { ...currentPos };
+      if (this.draggedAxis === 'x') newPos.x += adjustment;
+      if (this.draggedAxis === 'y') newPos.y += adjustment;
+      if (this.draggedAxis === 'z') newPos.z += adjustment;
+
+      TransformSystem.setPosition(this.entity, this.stateManager, newPos);
+      this.updateGizmoPosition();
+      return;
+    }
+
+    // Mousewheel moves the selected entity along the camera forward/backward direction.
+    const cameraForward = new THREE.Vector3();
+    this.camera.getWorldDirection(cameraForward);
+    cameraForward.normalize();
+
+    const moveDelta = e.deltaY < 0 ? 0.5 : -0.5;
+    const currentPos = this.entity.getPosition();
+    const newPos = {
+      x: currentPos.x + cameraForward.x * moveDelta,
+      y: currentPos.y + cameraForward.y * moveDelta,
+      z: currentPos.z + cameraForward.z * moveDelta,
+    };
 
     TransformSystem.setPosition(this.entity, this.stateManager, newPos);
     this.updateGizmoPosition();

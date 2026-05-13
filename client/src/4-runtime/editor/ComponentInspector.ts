@@ -7,6 +7,7 @@ import {
   type SystemCapabilities,
   type SystemContext,
 } from '@engine/1-kernel/core/public-api';
+import { getGlobalSelectionStore } from '../ui/docking/GlobalSelectionStore';
 
 interface SelectionSystemAdapter {
   onSelect(callback: (entityId: string) => void): () => void;
@@ -16,6 +17,7 @@ interface SelectionSystemAdapter {
 
 interface EntityManagerAdapter {
   getEntity(entityId: string): Entity | null | undefined;
+  onEntityUpdated(callback: (entity: Entity) => void): () => void;
 }
 
 interface EntityRendererAdapter {
@@ -46,6 +48,10 @@ export class ComponentInspector {
     this.lifecycleDisposers.push(
       this.selectionSystem.onSelect((entityId) => this.handleSelection(entityId)),
       this.selectionSystem.onDeselect(() => this.handleDeselection()),
+      this.entityManager.onEntityUpdated((entity) => {
+        if (entity.id !== this.selectedEntityId) return;
+        this.handleSelection(entity.id);
+      }),
       gameBus.on('EDITOR_UPDATE_COMPONENT', (payload) => {
         this.handleComponentUpdate(
           payload.entityId,
@@ -129,6 +135,7 @@ export class ComponentInspector {
 
     this.selectedEntityId = entity.id;
     const payload = this.buildSelectionPayload(entity);
+    getGlobalSelectionStore().setSelection(entity.id, payload);
     gameBus.emit('EDITOR_ENTITY_SELECTED', payload);
     this.log(`Published selection for ${entity.id}`);
     return true;
@@ -137,6 +144,7 @@ export class ComponentInspector {
   private handleDeselection(): void {
     const previousSelection = this.selectedEntityId;
     this.selectedEntityId = null;
+    getGlobalSelectionStore().clear();
     gameBus.emit('EDITOR_ENTITY_DESELECTED', {
       entityId: previousSelection,
       timestamp: Engine.time.now(),

@@ -17,6 +17,32 @@ export function getScene(): THREE.Scene | null {
   return scene;
 }
 
+export function snapshotSceneRoot(filter?: (object: THREE.Object3D) => boolean): THREE.Group | null {
+  if (!scene) return null;
+
+  const root = new THREE.Group();
+  root.name = scene.name || 'engine-scene-root';
+
+  for (const child of scene.children) {
+    if (filter && !filter(child)) {
+      continue;
+    }
+    root.add(child.clone(true));
+  }
+
+  return root;
+}
+
+export function replaceSceneRoot(root: THREE.Object3D): void {
+  if (!scene) return;
+  while (scene.children.length > 0) {
+    scene.remove(scene.children[0]);
+  }
+  for (const child of [...root.children]) {
+    scene.add(child.clone(true));
+  }
+}
+
 export function addToScene(object: THREE.Object3D): void {
   if (!scene) return;
   scene.add(object);

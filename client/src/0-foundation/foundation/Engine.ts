@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { initScene, getScene } from '../../2-systems/render/Scene';
+import { snapshotSceneRoot, replaceSceneRoot } from '../../2-systems/render/Scene';
 import { initCamera, updateCameraAspect, getCamera } from '../../2-systems/render/Camera';
 import { initRenderer, render, setRendererSize, getRenderer } from '../../2-systems/render/Renderer';
 import { initLights, updateGlobalSunlight } from '../../2-systems/render/Lights';
@@ -196,6 +197,7 @@ let inventoryGridManager: InventoryGridManager | null = null;
 let inventoryGridUI: InventoryGridUI | null = null;
 let toolbarSystem: ToolbarSystem | null = null;
 let preferredRuntimePlayerId: string | null = null;
+let globalPrefabDragOverHandler: ((event: DragEvent) => void) | null = null;
 
 // GAS (Gameplay Ability System) instances
 let gasDataRegistry: DataRegistry | null = null;
@@ -689,17 +691,27 @@ export function init(canvasElement: HTMLCanvasElement, options: EngineConfig = {
 
   // Connect selection system to gizmo system
   if (selectionSystem && gizmoSystem) {
-    selectionSystem.onSelect((entityId: string) => {
-      gizmoSystem!.attachEntity(entityId);
+    const activeSelectionSystem = selectionSystem;
+    const syncGizmoSelection = (): void => {
+      gizmoSystem!.setSelectedEntityIds(activeSelectionSystem.getSelectedIds());
+    };
+
+    activeSelectionSystem.onSelect(() => {
+      syncGizmoSelection();
     });
 
-    selectionSystem.onDeselect(() => {
-      gizmoSystem!.detachEntity();
+    activeSelectionSystem.onDeselect(() => {
+      syncGizmoSelection();
     });
   }
 
   // Create controllers
-  editorController = new EditorController({ moveSpeed: 8 });
+  editorController = new EditorController({
+    moveSpeed: 8,
+    forceSessionReset: (reason) => {
+      engineController?.setRuntimeMode('editor', `editor-controller:${reason}`);
+    },
+  });
   playController = new PlayController({ moveSpeed: 6 });
   playController.setScene(scene);
 
@@ -715,6 +727,7 @@ export function init(canvasElement: HTMLCanvasElement, options: EngineConfig = {
       enablePlayRuntimeLifecycle(true);
     },
     onExitPlay: () => {
+      editorController?.forceSessionReset('on_exit_play');
       disablePlayRuntimeLifecycle();
     },
   });
@@ -1142,6 +1155,22 @@ export function init(canvasElement: HTMLCanvasElement, options: EngineConfig = {
   // Setup event listeners
   window.addEventListener('resize', handleWindowResize);
 
+  if (globalPrefabDragOverHandler) {
+    window.removeEventListener('dragover', globalPrefabDragOverHandler, true);
+  }
+
+  globalPrefabDragOverHandler = (event: DragEvent) => {
+    const types = event.dataTransfer?.types ? Array.from(event.dataTransfer.types) : [];
+    if (!types.includes('EDITOR_SPAWN_PREFAB') && !types.includes('application/x-editor-prefab')) {
+      return;
+    }
+    event.preventDefault();
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = 'copy';
+    }
+  };
+  window.addEventListener('dragover', globalPrefabDragOverHandler, true);
+
   // Listen for player spawn events to track local player ID for torch toggle
   // Hook into EntityManager's entity creation to detect local player
   if (entityManager) {
@@ -1441,6 +1470,14 @@ export function setConfig(newConfig: Partial<EngineConfig>): void {
  */
 export function getEngineScene(): THREE.Scene | null {
   return getScene();
+}
+
+export function snapshotEngineSceneRoot(filter?: (object: THREE.Object3D) => boolean): THREE.Group | null {
+  return snapshotSceneRoot(filter);
+}
+
+export function setSceneRoot(root: THREE.Object3D): void {
+  replaceSceneRoot(root);
 }
 
 export function getEngineCamera(): THREE.PerspectiveCamera | null {

@@ -14,6 +14,8 @@ interface SelectionSystemAdapter {
 
 interface EntityManagerAdapter {
   getEntity(entityId: string): Entity | null | undefined;
+  getEntities(): Iterable<Entity>;
+  destroyEntity(idOrEntity: string | Entity): boolean;
 }
 
 interface ToolCoordinatorAdapter {
@@ -67,6 +69,13 @@ export interface GroundRayHit {
   normal: Vector3;
 }
 
+export interface PrefabDropPayload {
+  prefabId: string;
+  clientX: number;
+  clientY: number;
+  source?: 'ui' | 'system';
+}
+
 export interface PlacePrefabOptions {
   position?: Vector3;
   rotation?: Vector3;
@@ -99,6 +108,8 @@ export class PrefabPlacementSystem implements RoutedInputHandler {
   private isMultiplayerConnected: (() => boolean) | null = null;
   private systemContext: SystemContext | null = null;
   private readonly lifecycleDisposers: Array<() => void> = [];
+  private lastSpawnEventSignature: string | null = null;
+  private lastSpawnEventAt = 0;
 
   constructor(config: PrefabPlacementSystemConfig) {
     this.selectionSystem = config.selectionSystem;
@@ -110,12 +121,25 @@ export class PrefabPlacementSystem implements RoutedInputHandler {
 
     this.lifecycleDisposers.push(
       gameBus.on('EDITOR_SPAWN_PREFAB', ({ prefabId, position, rotation, scale, source }) => {
+        const roundedPos = position
+          ? `${position.x.toFixed(3)},${position.y.toFixed(3)},${position.z.toFixed(3)}`
+          : 'none';
+        const spawnSignature = `${prefabId}|${roundedPos}|${source ?? 'unknown'}`;
+        const now = Engine.time.now();
+        if (this.lastSpawnEventSignature === spawnSignature && (now - this.lastSpawnEventAt) < 100) {
+          return;
+        }
+        this.lastSpawnEventSignature = spawnSignature;
+        this.lastSpawnEventAt = now;
         this.placePrefab(prefabId, {
           position,
           rotation,
           scale,
           source,
         });
+      }),
+      gameBus.on('EDITOR_DELETE_ENTITY_REQUESTED', ({ entityId }) => {
+        this.entityManager.destroyEntity(entityId);
       }),
       gameBus.on('EDITOR_SNAP_TO_FLOOR_REQUESTED', ({ entityId, maxDistance, epsilon }) => {
         this.snapEntityToFloor(entityId, maxDistance, epsilon);
@@ -199,7 +223,28 @@ export class PrefabPlacementSystem implements RoutedInputHandler {
       gameBus.emit('EDITOR_SNAP_TO_FLOOR_REQUESTED', {
         entityId: selected.id,
         source: 'shortcut',
-        timestamp: Engine.time.now(),
+        timestamp: Date.now(),
+      });
+      return true;
+    }
+    if (event.code === 'Delete' || event.code === 'Backspace') {
+      const selected = this.selectionSystem.getSelectedEntity();
+      if (!selected) return false;
+      event.preventDefault();
+      gameBus.emit('EDITOR_DELETE_ENTITY_REQUESTED', {
+        entityId: selected.id,
+        timestamp: Date.now(),
+      });
+      return true;
+    }
+    if ((event.ctrlKey || event.metaKey) && event.code === 'KeyD') {
+      const selected = this.selectionSystem.getSelectedEntity();
+      if (!selected) return false;
+      event.preventDefault();
+      const pos = selected.getPosition();
+      this.placePrefab(selected.type, {
+        position: { x: pos.x + 1, y: pos.y, z: pos.z },
+        source: 'system',
       });
       return true;
     }
@@ -212,6 +257,31 @@ export class PrefabPlacementSystem implements RoutedInputHandler {
 
   canResolvePrefab(prefabIdOrEntityType: string): boolean {
     return this.resolvePrefabIdentifier(prefabIdOrEntityType) !== null;
+  }
+
+  handleDrop(data: PrefabDropPayload): Entity | null {
+    const canvas = document.querySelector('canvas') as HTMLCanvasElement | null;
+    if (!canvas) {
+      return this.placePrefab(data.prefabId, {
+        source: data.source ?? 'ui',
+      });
+    }
+
+    const rect = canvas.getBoundingClientRect();
+    this.mouse.x = ((data.clientX - rect.left) / rect.width) * 2 - 1;
+    this.mouse.y = -((data.clientY - rect.top) / rect.height) * 2 + 1;
+    this.raycaster.setFromCamera(this.mouse, this.camera);
+
+    const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    const hitPoint = new THREE.Vector3();
+    const didIntersect = this.raycaster.ray.intersectPlane(groundPlane, hitPoint);
+
+    return this.placePrefab(data.prefabId, {
+      position: didIntersect
+        ? { x: hitPoint.x, y: hitPoint.y, z: hitPoint.z }
+        : undefined,
+      source: data.source ?? 'ui',
+    });
   }
 
   placePrefab(prefabIdOrEntityType: string, options: PlacePrefabOptions = {}): Entity | null {
@@ -280,6 +350,15 @@ export class PrefabPlacementSystem implements RoutedInputHandler {
           ? 'prefab'
           : 'entity';
 
+    const label = this.createEditorPlacementLabel(
+      entity,
+      typeof prefabData?.prefabName === 'string'
+        ? prefabData.prefabName
+        : typeof existing?.prefabId === 'string'
+          ? existing.prefabId
+          : null,
+    );
+
     entity.addComponent({
       name: 'editorPlacement',
       data: {
@@ -289,8 +368,43 @@ export class PrefabPlacementSystem implements RoutedInputHandler {
         prefabId: prefabData?.prefabName ?? existing?.prefabId ?? null,
         entityType: options.entityType ?? entity.type,
         authority: options.authority ?? this.resolveAuthorityMode(),
+        label,
       },
     });
+  }
+
+  private createEditorPlacementLabel(entity: Entity, prefabId: string | null): string {
+    const baseLabel = this.getPrefabDisplayName(prefabId) ?? entity.type;
+    const existingEntities = Array.from(this.entityManager.getEntities());
+    const duplicateCount = existingEntities.reduce((count, candidate) => {
+      if (candidate.id === entity.id) return count;
+      const candidatePrefabId = candidate.getComponent('editorPlacement')?.data?.prefabId as string | null | undefined;
+      if (prefabId && candidatePrefabId === prefabId) {
+        return count + 1;
+      }
+      if (!prefabId && candidate.type === entity.type) {
+        return count + 1;
+      }
+      return count;
+    }, 0);
+
+    if (duplicateCount === 0) {
+      return baseLabel;
+    }
+    return `${baseLabel} ${duplicateCount + 1}`;
+  }
+
+  private getPrefabDisplayName(prefabId: string | null): string | null {
+    if (!prefabId || !this.prefabSystem) {
+      return null;
+    }
+
+    const prefab = this.prefabSystem.getPrefab(prefabId) as { metadata?: { editorMetadata?: { displayName?: string } } } | undefined;
+    const displayName = prefab?.metadata?.editorMetadata?.displayName;
+    if (typeof displayName === 'string' && displayName.trim() !== '') {
+      return displayName.trim();
+    }
+    return null;
   }
 
   snapEntityToFloor(entityId: string, maxDistance = 2048, epsilon = 0.05): boolean {

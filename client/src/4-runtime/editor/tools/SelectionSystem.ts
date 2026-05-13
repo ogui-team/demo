@@ -26,11 +26,13 @@ import { Entity } from '@engine/1-kernel/core/public-api';
 import { gameBus } from '@engine/1-kernel/core/public-api';
 import { SceneGraph } from '@engine/1-kernel/core/public-api';
 import { matchesRaycastLayers } from '@engine/1-kernel/core/public-api';
+import { ViewportRaycastManager } from './ViewportRaycastManager';
 import type { SystemCapabilities, SystemContext } from '@engine/1-kernel/core/public-api';
 
 interface SelectionEntityManagerAdapter {
   onEntityCreated(callback: (entity: Entity) => void): () => void;
   onEntityDestroyed(callback: (entity: Entity) => void): () => void;
+  onEntityUpdated(callback: (entity: Entity) => void): () => void;
   getEntities(): Entity[];
 }
 
@@ -54,11 +56,13 @@ export class SelectionSystem {
 
   // Mouse tracking
   private mouse: THREE.Vector2;
-  private raycaster: THREE.Raycaster;
+  private readonly raycastManager: ViewportRaycastManager;
 
   // Selection state
-  private selectedEntityId: string | null = null;
+  private selectedEntityIds: Set<string> = new Set();
   private selectableEntities: Map<string, Entity> = new Map();
+  private readonly outlineGroup: THREE.Group = new THREE.Group();
+  private readonly outlineHelpers: Map<string, THREE.BoxHelper> = new Map();
 
   // Subscriptions
   private subscribers: Subscription[] = [];
@@ -66,6 +70,7 @@ export class SelectionSystem {
   // Lifecycle subscriptions
   private entityCreatedSubscriber: (() => void) | null = null;
   private entityDestroyedSubscriber: (() => void) | null = null;
+  private entityUpdatedSubscriber: (() => void) | null = null;
 
   // Active state
   private enabled: boolean = false;
@@ -95,8 +100,12 @@ export class SelectionSystem {
 
     // Mouse tracking
     this.mouse = new THREE.Vector2();
-    this.raycaster = new THREE.Raycaster();
-    this.raycaster.far = this.config.raycastDistance;
+    this.raycastManager = new ViewportRaycastManager({ raycastDistance: this.config.raycastDistance });
+
+    this.outlineGroup.name = 'selectionOutlineGroup';
+    this.outlineGroup.userData.isGizmo = true;
+    this.outlineGroup.traverse((child) => { child.userData.isGizmo = true; });
+    this.scene.add(this.outlineGroup);
 
     this.lifecycleDisposers.push(
       gameBus.on('ENGINE_RESET', () => this.clearSelection()),
@@ -124,12 +133,17 @@ export class SelectionSystem {
 
     this.entityDestroyedSubscriber = this.entityManager.onEntityDestroyed((entity: Entity) => {
       this.selectableEntities.delete(entity.id);
-      if (this.selectedEntityId === entity.id) {
+      if (this.selectedEntityIds.has(entity.id)) {
         this.deselect();
       }
       if (this.config.enableLogging) {
         console.log(`[SelectionSystem] Removed selectable entity: ${entity.id}`);
       }
+    });
+
+    this.entityUpdatedSubscriber = this.entityManager.onEntityUpdated((entity: Entity) => {
+      if (!this.selectedEntityIds.has(entity.id)) return;
+      this.updateOutlineForEntity(entity.id);
     });
 
     // Initialize with existing entities
@@ -151,6 +165,7 @@ export class SelectionSystem {
 
     if (this.entityCreatedSubscriber) this.entityCreatedSubscriber();
     if (this.entityDestroyedSubscriber) this.entityDestroyedSubscriber();
+    if (this.entityUpdatedSubscriber) this.entityUpdatedSubscriber();
 
     this.clearSelection();
     this.selectableEntities.clear();
@@ -192,7 +207,7 @@ export class SelectionSystem {
       status: this.enabled ? 'active' : 'idle',
       active: this.enabled,
       metrics: {
-        selectedEntityId: this.selectedEntityId,
+        selectedEntityIds: Array.from(this.selectedEntityIds),
         selectableCount: this.selectableEntities.size,
         hasSceneGraph: this.sceneGraph !== null,
         hasSystemContext: this.systemContext !== null,
@@ -250,7 +265,7 @@ export class SelectionSystem {
       return false;
     }
 
-    const selectionHit = this.performSelection();
+    const selectionHit = this.performSelection(event.shiftKey || event.ctrlKey || event.metaKey);
 
     if (this.config.enableLogging) {
       console.log(
@@ -289,33 +304,30 @@ export class SelectionSystem {
    */
   private isClickOnGizmo(): boolean {
     if (!this.camera) return false;
-    this.raycaster.setFromCamera(this.mouse, this.camera);
-    const hits: THREE.Intersection[] = [];
+    const gizmoObjects: THREE.Object3D[] = [];
     this.scene.traverseVisible((obj) => {
-      if (obj.userData?.isGizmo) hits.push(...this.raycaster.intersectObject(obj, false));
+      if (obj.userData?.isGizmo) gizmoObjects.push(obj);
     });
+    const hits = this.raycastManager.raycastObjects(this.mouse, this.camera, gizmoObjects, false);
     return hits.length > 0;
   }
 
   /**
    * Perform raycast and select entity if hit
    */
-  private performSelection(): boolean {
+  private performSelection(additive: boolean): boolean {
     if (!this.camera || !this.scene) return false;
-
-    // Update raycaster with camera and mouse position
-    this.raycaster.setFromCamera(this.mouse, this.camera);
 
     // Get all selectable entities' meshes
     const selectableObjects = this.getSelectableObjects();
 
     if (selectableObjects.length === 0) {
-      if (this.selectedEntityId) this.deselect();
+      if (this.selectedEntityIds.size > 0) this.clearSelection();
       return false;
     }
 
     // Raycast against selectable objects
-    const intersects = this.raycaster.intersectObjects(selectableObjects, true);
+    const intersects = this.raycastManager.raycastObjects(this.mouse, this.camera, selectableObjects, true);
 
     if (intersects.length > 0) {
       // Get the closest intersected object
@@ -323,16 +335,20 @@ export class SelectionSystem {
       const entityId = this.getEntityIdFromMesh(hitObject);
 
       if (entityId) {
-        this.selectEntity(entityId);
+        if (additive) {
+          this.toggleEntity(entityId);
+        } else {
+          this.selectEntity(entityId);
+        }
         return true;
       }
 
-      if (this.selectedEntityId) this.deselect();
+      if (this.selectedEntityIds.size > 0) this.clearSelection();
       return false;
     }
 
-    if (this.selectedEntityId) {
-      this.deselect();
+    if (!additive && this.selectedEntityIds.size > 0) {
+      this.clearSelection();
     }
 
     return false;
@@ -395,35 +411,66 @@ export class SelectionSystem {
       return;
     }
 
-    // Deselect previous entity
-    if (this.selectedEntityId && this.selectedEntityId !== entityId) {
-      this.notifyDeselection(this.selectedEntityId);
+    const previousSelectedIds = new Set(this.selectedEntityIds);
+    this.selectedEntityIds.clear();
+    this.selectedEntityIds.add(entityId);
+
+    for (const id of previousSelectedIds) {
+      if (id !== entityId) {
+        this.notifyDeselection(id);
+      }
     }
 
-    this.selectedEntityId = entityId;
-
-    // Notify subscribers
     this.notifySelection(entityId);
+    this.updateSelectionOutlines();
 
     if (this.config.enableLogging) {
       console.log(`[SelectionSystem] Selected entity: ${entityId}`);
     }
   }
 
-  /**
-   * Deselect current entity
-   */
-  deselect(): void {
-    if (!this.selectedEntityId) return;
+  toggleEntity(entityId: string): void {
+    if (!this.selectableEntities.has(entityId)) {
+      if (this.config.enableLogging) {
+        console.warn(`[SelectionSystem] Cannot toggle unknown entity: ${entityId}`);
+      }
+      return;
+    }
 
-    const previousId = this.selectedEntityId;
-    this.selectedEntityId = null;
+    if (this.selectedEntityIds.has(entityId)) {
+      this.selectedEntityIds.delete(entityId);
+      this.notifyDeselection(entityId);
+      this.updateSelectionOutlines();
+      if (this.config.enableLogging) {
+        console.log(`[SelectionSystem] Deselected entity: ${entityId}`);
+      }
+      return;
+    }
 
-    this.notifyDeselection(previousId);
+    this.selectedEntityIds.add(entityId);
+    this.notifySelection(entityId);
+    this.updateSelectionOutlines();
 
     if (this.config.enableLogging) {
-      console.log(`[SelectionSystem] Deselected entity: ${previousId}`);
+      console.log(`[SelectionSystem] Multi-selected entity: ${entityId}`);
     }
+  }
+
+  /**
+   * Deselect current entity or entities
+   */
+  deselect(): void {
+    if (this.selectedEntityIds.size === 0) return;
+
+    for (const id of Array.from(this.selectedEntityIds)) {
+      this.selectedEntityIds.delete(id);
+      this.notifyDeselection(id);
+      if (this.config.enableLogging) {
+        console.log(`[SelectionSystem] Deselected entity: ${id}`);
+      }
+    }
+
+    this.updateSelectionOutlines();
   }
 
   clearSelection(): void {
@@ -431,25 +478,93 @@ export class SelectionSystem {
   }
 
   /**
-   * Get currently selected entity ID
+   * Get currently selected entity ID (first selected if multiple)
    */
   getSelected(): string | null {
-    return this.selectedEntityId;
+    return this.selectedEntityIds.values().next().value ?? null;
   }
 
   /**
    * Get currently selected entity
    */
   getSelectedEntity(): Entity | null {
-    if (!this.selectedEntityId) return null;
-    return this.selectableEntities.get(this.selectedEntityId) || null;
+    const firstSelected = this.getSelected();
+    if (!firstSelected) return null;
+    return this.selectableEntities.get(firstSelected) || null;
+  }
+
+  getSelectedIds(): string[] {
+    return Array.from(this.selectedEntityIds);
+  }
+
+  setSelectedIds(entityIds: string[]): void {
+    const desiredIds = new Set(
+      entityIds.filter((entityId) => this.selectableEntities.has(entityId)),
+    );
+
+    const previousIds = new Set(this.selectedEntityIds);
+    this.selectedEntityIds = desiredIds;
+
+    for (const id of previousIds) {
+      if (!this.selectedEntityIds.has(id)) {
+        this.notifyDeselection(id);
+      }
+    }
+
+    for (const id of this.selectedEntityIds) {
+      if (!previousIds.has(id)) {
+        this.notifySelection(id);
+      }
+    }
+
+    this.updateSelectionOutlines();
+  }
+
+  private updateSelectionOutlines(): void {
+    for (const [entityId, helper] of this.outlineHelpers.entries()) {
+      if (this.selectedEntityIds.has(entityId)) continue;
+      helper.removeFromParent();
+      this.outlineHelpers.delete(entityId);
+    }
+
+    for (const entityId of this.selectedEntityIds) {
+      this.updateOutlineForEntity(entityId);
+    }
+  }
+
+  private updateOutlineForEntity(entityId: string): void {
+    const entityMesh = this.scene.getObjectByName(`entity_${entityId}`);
+    const existing = this.outlineHelpers.get(entityId) ?? null;
+
+    if (!entityMesh) {
+      existing?.removeFromParent();
+      this.outlineHelpers.delete(entityId);
+      return;
+    }
+
+    entityMesh.updateWorldMatrix(true, false);
+
+    const helper = existing ?? new THREE.BoxHelper(entityMesh, 0xffd44d);
+    helper.userData.isGizmo = true;
+    helper.raycast = () => {};
+    helper.setFromObject(entityMesh);
+    helper.updateWorldMatrix(true, false);
+
+    if (!existing) {
+      this.outlineHelpers.set(entityId, helper);
+      this.outlineGroup.add(helper);
+    }
   }
 
   validateSelection(): boolean {
-    if (!this.selectedEntityId) return true;
-    if (this.selectableEntities.has(this.selectedEntityId)) return true;
-    this.deselect();
-    return false;
+    const hadSelection = this.selectedEntityIds.size > 0;
+    for (const id of Array.from(this.selectedEntityIds)) {
+      if (!this.selectableEntities.has(id)) {
+        this.selectedEntityIds.delete(id);
+        this.notifyDeselection(id);
+      }
+    }
+    return this.selectedEntityIds.size > 0 || !hadSelection;
   }
 
   isEnabled(): boolean {
@@ -480,9 +595,32 @@ export class SelectionSystem {
     const ids = this.sceneGraph
       ? this.sceneGraph.getSubtree(rootEntityId)
       : [rootEntityId];
+
+    const desiredIds = new Set<string>();
     for (const id of ids) {
-      if (this.selectableEntities.has(id)) this.selectEntity(id);
+      if (this.selectableEntities.has(id)) desiredIds.add(id);
     }
+
+    if (desiredIds.size === 0) {
+      return;
+    }
+
+    const previousIds = new Set(this.selectedEntityIds);
+    this.selectedEntityIds = desiredIds;
+
+    for (const id of previousIds) {
+      if (!this.selectedEntityIds.has(id)) {
+        this.notifyDeselection(id);
+      }
+    }
+
+    for (const id of this.selectedEntityIds) {
+      if (!previousIds.has(id)) {
+        this.notifySelection(id);
+      }
+    }
+
+    this.updateSelectionOutlines();
   }
 
   /**

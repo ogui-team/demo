@@ -84,6 +84,18 @@ Fast reference for common dev tasks (bookmarks this!)
 
 ---
 
+## 🛠️ EDITOR WORKSTREAMS
+
+**[editor/](editor/)** — Editor implementation, repair, and autonomous execution docs
+
+- **[editor/EDITOR_IMPL_PLAN.md](editor/EDITOR_IMPL_PLAN.md)** — First-wave editor implementation plan and task set
+- **[editor/AUTONOMOUS_AGENT_MASTER_PROMPT.md](editor/AUTONOMOUS_AGENT_MASTER_PROMPT.md)** — Original autonomous editor build prompt
+- **[editor/EDITOR_REPAIR_AND_ENHANCEMENT_PLAN.md](editor/EDITOR_REPAIR_AND_ENHANCEMENT_PLAN.md)** — Second-wave repair and enhancement roadmap
+- **[editor/RAPTOR_NIGHT_SHIFT_MASTER_PROMPT.md](editor/RAPTOR_NIGHT_SHIFT_MASTER_PROMPT.md)** — Overnight low-cost autonomous editor repair prompt
+- **[editor/RAPTOR_REPAIR_TASK_QUEUE.md](editor/RAPTOR_REPAIR_TASK_QUEUE.md)** — Live progress queue for Tasks 25-48
+
+---
+
 ## 🏗️ ARCHITECTURE (System Design & Decisions)
 
 **[02_ARCHITECTURE/](02_ARCHITECTURE/)** — Core engine architecture

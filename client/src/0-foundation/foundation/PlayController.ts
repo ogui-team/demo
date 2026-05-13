@@ -56,6 +56,27 @@ export class PlayController {
   private pointerlockChangeHandler: (() => void) | null = null;
   private lifecycleDisposers: Array<() => void> = [];
 
+  private getCursorTarget(): HTMLElement | null {
+    if (this.canvas instanceof HTMLElement && this.canvas.isConnected) {
+      return this.canvas;
+    }
+
+    const canvas = document.querySelector('canvas');
+    return canvas instanceof HTMLElement ? canvas : null;
+  }
+
+  private setGameplayCursorHidden(hidden: boolean): void {
+    const cursor = hidden ? 'none' : '';
+    const target = this.getCursorTarget();
+    if (target) {
+      target.style.cursor = cursor;
+    }
+
+    if (document.body) {
+      document.body.style.cursor = cursor;
+    }
+  }
+
   setScene(scene: THREE.Scene): void {
     this.scene = scene;
   }
@@ -151,6 +172,7 @@ export class PlayController {
     if (this.enabled) return;
 
     this.enabled = true;
+    this.setGameplayCursorHidden(false);
     this.pointerlockChangeHandler = () => this.onPointerLockChange();
     document.addEventListener('pointerlockchange', this.pointerlockChangeHandler);
     gameBus.emit('stateMutation', {
@@ -169,6 +191,7 @@ export class PlayController {
     if (!this.enabled) return;
 
     this.enabled = false;
+    this.setGameplayCursorHidden(false);
 
     // Exit pointer lock if active
     if (this.mouseLocked) {
@@ -254,13 +277,26 @@ export class PlayController {
     
     // Suppress all input when console is open
     if (isConsoleOpen()) return false;
+
+    if (e.key === 'p' || e.key === 'P') {
+      e.preventDefault();
+      if (!e.repeat) {
+        window.dispatchEvent(new CustomEvent('ui:toggle-editor-play'));
+      }
+      return true;
+    }
+
     if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'ControlLeft', 'ControlRight'].includes(e.code)) {
       e.preventDefault();
     }
     this.keys.add(e.key);
     this.keyCodes.add(e.code);
 
-    if (!this.mouseLocked && ['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(e.code)) {
+    if (
+      !this.mouseLocked
+      && !e.repeat
+      && !['Escape', 'p', 'P', 'k', 'K'].includes(e.key)
+    ) {
       this.attemptPointerLock();
     }
 
@@ -416,6 +452,8 @@ export class PlayController {
       this.lastPointerPosition = null;
     }
 
+    this.setGameplayCursorHidden(this.enabled && this.mouseLocked);
+
     if (this.mouseLocked) {
       console.log('[Play] Mouse locked');
     } else {
@@ -524,6 +562,28 @@ export class PlayController {
 
   isMouseLocked(): boolean {
     return this.mouseLocked;
+  }
+
+  beginPlaySessionPointerCapture(): void {
+    if (!this.enableMouseLock) {
+      return;
+    }
+
+    const canvas = this.canvas ?? (document.querySelector('canvas') as HTMLCanvasElement | null);
+    if (!canvas || !canvas.isConnected || canvas.ownerDocument !== document || document.visibilityState !== 'visible') {
+      return;
+    }
+
+    this.inputContextManager.forceSetContext('play');
+    setContext('game');
+
+    const lockRequested = this.inputContextManager.requestPointerLock(canvas);
+    this.pendingLockState = lockRequested ? 'IDLE' : 'PENDING_LOCK';
+    if (!lockRequested) {
+      console.warn('[PlayController] Early play-session pointer capture deferred', {
+        timestamp: Engine.time.now(),
+      });
+    }
   }
 
   requestPointerLock(target?: EventTarget | null): void {

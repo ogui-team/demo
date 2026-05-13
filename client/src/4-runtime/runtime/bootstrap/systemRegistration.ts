@@ -7,6 +7,7 @@ import type { WeaponSystem } from '../../../2-systems/gameplay/systems/WeaponSys
 import type { HealthSystem } from '../../../2-systems/gameplay/systems/HealthSystem';
 import type { InventorySystem } from '../../../2-systems/gameplay/systems/InventorySystem';
 import type { PrefabSystem } from '../../../2-systems/gameplay/systems/PrefabSystem';
+import type { FoliageSystem } from '../../../2-systems/gameplay/systems/2d/FoliageSystem';
 import type { ObjectCreatorSystem } from '../../../2-systems/gameplay/game/ObjectCreatorSystem';
 import type { AudioSystem } from '../../../2-systems/gameplay/systems/AudioSystem';
 import type { AbilitySystem } from '../../../2-systems/gameplay/systems/gas/AbilitySystem';
@@ -58,6 +59,7 @@ export interface RegisterSystemMetadataOptions {
   tilemapSystem: unknown;
   parallax2DSystem: unknown;
   spriteRenderSystem: unknown;
+  foliageSystem: FoliageSystem;
   ui2DSystem: unknown;
   adaptiveRuntime: unknown;
   materialManager: unknown;
@@ -120,6 +122,7 @@ export function registerRuntimeSystems(options: RegisterSystemMetadataOptions): 
     tilemapSystem,
     parallax2DSystem,
     spriteRenderSystem,
+    foliageSystem,
     ui2DSystem,
     adaptiveRuntime,
     materialManager,
@@ -344,6 +347,12 @@ export function registerRuntimeSystems(options: RegisterSystemMetadataOptions): 
         system: spriteRenderSystem,
         metadata: { displayName: 'Sprite Render System', category: 'Rendering', order: 38 },
         capabilities: { usesEventBus: true, usesReplication: true, exposesDebug: true, usesNetworkFacade: true, deterministic: false },
+      },
+      {
+        id: 'foliageSystem',
+        system: foliageSystem,
+        metadata: { displayName: 'Foliage System', category: 'Rendering', order: 39 },
+        capabilities: { exposesDebug: true, deterministic: false },
       },
       {
         id: 'parallax2DSystem',

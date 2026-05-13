@@ -14,9 +14,11 @@
 import * as THREE from 'three';
 import * as Engine from '../../0-foundation/foundation/Engine';
 import { Entity, initializeEntityAttributes, getEntityAttributes, setHitbox, setScriptGate, setInvisible, EntityAttributes as EntityAttributesType } from '@engine/1-kernel/core/public-api';
+import { gameBus } from '@engine/1-kernel/core/public-api';
 import { OGUI } from '../ui/OGUITheme';
 import { createClosablePanel } from '../ui/ClosablePanel';
 import { saveLevelToStorage } from '../ui/LevelPersistence';
+import type { SpawnLibraryMetadata } from '../ui/SpawnLibraryMetadata';
 
 export interface EditorMenuConfig {
   container?: HTMLElement;
@@ -24,13 +26,7 @@ export interface EditorMenuConfig {
   enableLogging?: boolean;
 }
 
-export interface EditorSpawnEntry {
-  id: string;
-  label: string;
-  category: string;
-  description?: string;
-  glyph?: string;
-  accentColor?: string;
+export interface EditorSpawnEntry extends SpawnLibraryMetadata {
   spawn: (position: { x: number; y: number; z: number }) => Entity | null;
   buildSpawnRequest?: (position: { x: number; y: number; z: number }) => {
     entityType: string;
@@ -114,6 +110,13 @@ export class EditorMenu {
   setSpawnLibrary(entries: EditorSpawnEntry[]): void {
     this.librarySpawnEntries = [...entries];
     this.renderSpawnCatalog();
+    window.dispatchEvent(new CustomEvent('editor:spawn-library-updated', {
+      detail: { entries: this.getSpawnLibraryEntries() },
+    }));
+  }
+
+  getSpawnLibraryEntries(): EditorSpawnEntry[] {
+    return [...this.builtinSpawnEntries, ...this.librarySpawnEntries];
   }
 
   constructor(config: EditorMenuConfig = {}) {
@@ -493,7 +496,6 @@ export class EditorMenu {
       { id: 'cube', label: 'Cube', category: 'Primitives', glyph: '□', accentColor: '#d68f5b', description: 'Simple blockout cube for collision and scale checks.', spawn: (position) => this.spawnPrimitive('cube', position), buildSpawnRequest: (position) => this.buildPrimitiveSpawnRequest('cube', position) },
       { id: 'sphere', label: 'Sphere', category: 'Primitives', glyph: '◉', accentColor: '#6d9cff', description: 'Round debug marker for focal points and pickups.', spawn: (position) => this.spawnPrimitive('sphere', position), buildSpawnRequest: (position) => this.buildPrimitiveSpawnRequest('sphere', position) },
       { id: 'plane', label: 'Plane', category: 'Surfaces', glyph: '▱', accentColor: '#7bcf8c', description: 'Flat surface for floor, decal, and collision experiments.', spawn: (position) => this.spawnPrimitive('plane', position), buildSpawnRequest: (position) => this.buildPrimitiveSpawnRequest('plane', position) },
-      { id: 'wall', label: 'Wall', category: 'Structures', glyph: '▦', accentColor: '#82a27f', description: 'Large wall section for level layout, cover, and boundaries.', spawn: (position) => this.spawnPrimitive('wall', position), buildSpawnRequest: (position) => this.buildPrimitiveSpawnRequest('wall', position) },
       { id: 'arch', label: 'Arch', category: 'Structures', glyph: '∩', accentColor: '#b08fdf', description: 'Arched opening for paths, portals and decorative structures.', spawn: (position) => this.spawnPrimitive('arch', position), buildSpawnRequest: (position) => this.buildPrimitiveSpawnRequest('arch', position) },
       { id: 'dust2_template', label: 'Dust2 Shell', category: 'Templates', glyph: '∴', accentColor: '#d6b56c', description: 'Spawn a Dust2-inspired level shell with bombsite walls, mid connector, and walkways.', spawn: (position) => this.spawnDust2Template(position) },
       { id: 'capsule', label: 'Capsule', category: 'Primitives', glyph: '⬭', accentColor: '#ff8a76', description: 'Character-sized volume for traversal and hitbox testing.', spawn: (position) => this.spawnPrimitive('capsule', position), buildSpawnRequest: (position) => this.buildPrimitiveSpawnRequest('capsule', position) },
@@ -960,6 +962,33 @@ export class EditorMenu {
 
     const entity = entry.spawn(spawnPos);
     if (!entity) return null;
+
+    // Stamp editorPlacement so the entity is visible in the hierarchy panel and
+    // survives the editor serialization / play-restore cycle.
+    if (!entity.hasComponent('editorPlacement')) {
+      entity.addComponent({
+        name: 'editorPlacement',
+        data: {
+          serialize: true,
+          kind: 'entity',
+          prefabId: null,
+          entityType: entity.type,
+          authority: 'local',
+          label: entry.label,
+        },
+      });
+      const pos = entity.getPosition();
+      const rot = entity.getRotation();
+      gameBus.emit('EDITOR_PREFAB_PLACED', {
+        prefabId: entry.id,
+        entityId: entity.id,
+        authority: 'local',
+        position: { x: pos.x, y: pos.y, z: pos.z },
+        rotation: { x: rot.x, y: rot.y, z: rot.z },
+        scale: { x: 1, y: 1, z: 1 },
+        timestamp: Date.now(),
+      });
+    }
 
     if (this.config.enableLogging) {
       console.log(`[EditorMenu] Spawned ${entry.id}: ${entity.id}`);

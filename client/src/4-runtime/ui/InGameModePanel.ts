@@ -37,6 +37,8 @@ const BASE_STYLE = `
   color:${OGUI.textPri};
   z-index:${OGUI.zMenu};
   display:flex;flex-direction:column;
+  user-select:none;
+  -webkit-user-select:none;
   outline:none;
 `;
 

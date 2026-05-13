@@ -501,6 +501,34 @@ export class NetworkSyncSystem {
     return getLocalPlayerTransformImpl(this);
   }
 
+  syncTransform(reason = 'manual_sync'): { position: Vector3; rotation: Vector3; velocity: Vector3 } | null {
+    const transform = this.getLocalPlayerTransform();
+    if (!transform) {
+      return null;
+    }
+
+    this.forceLocalState(transform.position, transform.rotation, transform.velocity, {
+      clearPendingInputs: false,
+    });
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('network:sync-transform', {
+        detail: {
+          playerId: this.localPlayerId,
+          reason,
+          timestamp: Engine.time.now(),
+          transform,
+        },
+      }));
+    }
+
+    return transform;
+  }
+
+  reconcile(reason = 'manual_reconcile'): { position: Vector3; rotation: Vector3; velocity: Vector3 } | null {
+    return this.syncTransform(reason);
+  }
+
   getLocalResolvedMovementState(): { isCrouching: boolean; isAirborne: boolean; groundHeight: number; velocity: Vector3 } | null {
     return getLocalResolvedMovementStateImpl(this);
   }

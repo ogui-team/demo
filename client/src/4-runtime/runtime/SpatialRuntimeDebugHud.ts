@@ -30,7 +30,7 @@ export class SpatialRuntimeDebugHud {
   private readonly readSnapshot: () => SpatialRuntimeDebugSnapshot;
   private readonly updateIntervalMs: number;
   private container: HTMLDivElement | null = null;
-  private enabled = true;
+  private enabled = false;  // Disabled by default
   private elapsedMs = 0;
   private fpsSmoothed = 0;
 

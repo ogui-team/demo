@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import * as Engine from '../../../0-foundation/foundation/Engine';
+import type { Entity } from '../../../1-kernel/core/Entity';
 import { PHYSICS_CONSTANTS } from '../../../PhysicsConstants';
 import { setInvisible } from '@engine/1-kernel/core/public-api';
 import { gameBus } from '@engine/1-kernel/core/public-api';
@@ -40,6 +41,12 @@ import type { MeshBindingTable } from '../../../2-systems/render/MeshBindingTabl
 import { getCameraStateAdapter } from '../../../2-systems/camera/CameraStateAdapter';
 import { getTropicalHorrorArchetype } from '@engine/2-systems/ArchetypeDefinitions';
 import { SCHEMA_PATHS } from '../../../0-foundation/foundation/state/hydrateStateManager';
+import { PlayerPossessionService } from '../PlayerPossessionService';
+import { GlobalWorldLightManager } from '../GlobalWorldLightManager';
+import {
+  MapGeneratorCleanupService,
+  type MapGeneratorCleanupLayer,
+} from '../MapGeneratorCleanupService';
 
 interface KernelBridgeAdapter {
   getPlayerHandle(playerId: string): number | null;
@@ -91,7 +98,25 @@ export class ClientWorldRuntimeCoordinator {
     PHYSICS_CONSTANTS.PLAYER_CROUCH_HALF_HEIGHT - 0.15; // ~0.75 - realistic eye position in crouch
 
   private static findExistingLocalPlayerEntity() {
-    return Engine.getEntityManager()?.getEntities().find((entity) => entity.hasComponent('localPlayer')) ?? null;
+    const entities = Engine.getEntityManager()?.getEntities() ?? [];
+    const byPlayerComponent = entities.find((entity) => entity.hasComponent('PlayerComponent'));
+    if (byPlayerComponent) {
+      return byPlayerComponent;
+    }
+
+    const byLocalPlayer = entities.find((entity) => entity.hasComponent('localPlayer'));
+    if (byLocalPlayer) {
+      return byLocalPlayer;
+    }
+
+    const byAvatar = entities.find((entity) => {
+      if (!entity.hasComponent('dodPlayerAvatar')) {
+        return false;
+      }
+      return (entity.type ?? '').toLowerCase().includes('local');
+    });
+
+    return byAvatar ?? null;
   }
 
   private readonly stateManager: StateManager;
@@ -142,6 +167,10 @@ export class ClientWorldRuntimeCoordinator {
   private debugReconciliationOverrideEnabled = false;
   private readonly spawnDiagnosticLogTimes = new Map<string, number>();
   private readonly runtimeDisposers: Array<() => void> = [];
+  private readonly playerPossessionService: PlayerPossessionService;
+  private readonly globalWorldLightManager: GlobalWorldLightManager;
+  private readonly mapGeneratorCleanupService: MapGeneratorCleanupService;
+  private pendingPlayLightingFallbackRequired = false;
 
   constructor(config: ClientWorldRuntimeCoordinatorConfig) {
     this.stateManager = config.stateManager;
@@ -170,6 +199,17 @@ export class ClientWorldRuntimeCoordinator {
     this.kernelBridge = config.kernelBridge;
     this.dummyEnemySystem = config.dummyEnemySystem;
     this.pathfindingSystem = config.pathfindingSystem;
+    this.playerPossessionService = new PlayerPossessionService({
+      networkSyncSystem: this.networkSyncSystem,
+      getMapRootNode: () => this.activeLevelGroup,
+    });
+    this.globalWorldLightManager = new GlobalWorldLightManager({
+      getScene: () => Engine.getEngineScene(),
+    });
+    this.mapGeneratorCleanupService = new MapGeneratorCleanupService({
+      getEntityManager: () => Engine.getEntityManager(),
+      worldObjectAuthorityService: this.worldObjectAuthorityService,
+    });
 
     this.localPlayerAuthorityCoordinator = new LocalPlayerAuthorityCoordinator({
       getLocalPlayerEntity: () => ClientWorldRuntimeCoordinator.findExistingLocalPlayerEntity(),
@@ -329,6 +369,7 @@ export class ClientWorldRuntimeCoordinator {
     }
     this.destroyDebugConsoleOverlay();
     this.destroyDebugWeaponEntity();
+    this.playerPossessionService.dispose();
     this.pendingMultiplayerHordeAutostart = false;
     this.multiplayerHordeAutostartAccumulator = 0;
     this.spawnDiagnosticLogTimes.clear();
@@ -788,6 +829,24 @@ export class ClientWorldRuntimeCoordinator {
     return this.activeLevelGroup;
   }
 
+  getPinnedPlayerSpawnPosition(): { x: number; y: number; z: number } | null {
+    const entities = Engine.getEntityManager()?.getEntities() ?? [];
+    const marker = entities.find((entity) => {
+      const typeLower = (entity.type ?? '').toLowerCase();
+      if (typeLower === 'playerspawnpoint' || typeLower === 'prefab_playerspawnpoint') {
+        return true;
+      }
+
+      const prefabData = entity.getComponent('prefab')?.data as { metadata?: { gameplay?: { markerType?: unknown } } } | undefined;
+      return prefabData?.metadata?.gameplay?.markerType === 'player_spawn';
+    });
+    if (!marker) {
+      return null;
+    }
+    const position = marker.getPosition();
+    return { x: position.x, y: position.y, z: position.z };
+  }
+
   setActiveLevelGroup(group: THREE.Group | null): void {
     this.activeLevelGroup = group;
   }
@@ -798,6 +857,16 @@ export class ClientWorldRuntimeCoordinator {
 
   syncCollisionAuthorityDynamicCollider(authorityId: string, localEntityId: string): void {
     this.worldObjectAuthorityService.syncDynamicCollider(authorityId, localEntityId);
+  }
+
+  rehydrateEditorPlacedColliders(): void {
+    const entities = Engine.getEntityManager()?.getEntities() ?? [];
+    for (const entity of entities) {
+      const placement = entity.getComponent('editorPlacement')?.data as { serialize?: unknown } | undefined;
+      if (placement?.serialize !== true) continue;
+      if (!entity.hasComponent('collider')) continue;
+      this.worldObjectAuthorityService.trackLocalPlacement(entity.id);
+    }
   }
 
   getWorldObjectAuthorityService(): WorldObjectAuthorityService {
@@ -868,9 +937,12 @@ export class ClientWorldRuntimeCoordinator {
     this.localPlayerBootstrapCoordinator.reset();
     this.playerModelSystem.setLocalPlayerId('');
     this.playerModelSystem.bindLocalPlayerEntity(null);
+    this.globalWorldLightManager.clearFallbackLights();
+    this.pendingPlayLightingFallbackRequired = false;
     this.clearActiveLevel();
     this.vfxMaker.clear();
     this.worldObjectAuthorityService.clear();
+    this.cleanupGeneratedMapArtifacts(`hard_reset:${reason}`);
     this.playerModelSystem.clearAll();
     this.characterActorSystem.clearRuntimeState();
     this.abilitySystem.clearRuntimeState();
@@ -892,6 +964,27 @@ export class ClientWorldRuntimeCoordinator {
     this.spawnSystem.clearSpawnPoints();
     this.activeLevelGroup = null;
     this.corridor2DTestSceneBootstrapped = false;
+    gameBus.emit('RUNTIME_RESET', {});
+  }
+
+  onWorldBufferApplied(): void {
+    this.pendingPlayLightingFallbackRequired = !this.globalWorldLightManager.hasAuthoredSceneLights();
+  }
+
+  onSceneLoadComplete(reason: string): void {
+    const requiresFallbackLighting = this.pendingPlayLightingFallbackRequired
+      || !this.globalWorldLightManager.hasAuthoredSceneLights();
+
+    if (requiresFallbackLighting) {
+      this.globalWorldLightManager.ensurePlayLighting(reason);
+    } else {
+      this.globalWorldLightManager.clearFallbackLights();
+    }
+    this.pendingPlayLightingFallbackRequired = false;
+
+    this.networkSyncSystem.reconcile(`scene_load_complete:${reason}`);
+    this.networkSyncSystem.syncTransform(`scene_load_complete:${reason}`);
+    this.playerModelSystem.syncVisualTransformsNow();
   }
 
   registerStaticLevelGeometryForCulling(group: THREE.Group): void {
@@ -939,6 +1032,76 @@ export class ClientWorldRuntimeCoordinator {
   ensureLocalPlayerEntity() {
     const playerId = this.mpClient.playerId || ClientWorldRuntimeCoordinator.LOCAL_FREEPLAY_PLAYER_ID;
     return this.localPlayerAuthorityCoordinator.ensureLocalPlayerEntity(playerId);
+  }
+
+  findReusablePlayerEntity() {
+    return this.playerPossessionService.findReusablePlayerEntity();
+  }
+
+  possessLocalPlayerFromEditorCamera(): boolean {
+    const result = this.playerPossessionService.possessFromEditorCamera();
+    if (!result.success) {
+      this.warnSpawnDiagnostic('PLAYER POSSESSION SKIPPED', { reason: result.reason ?? 'unknown' });
+      return false;
+    }
+
+    this.logSpawnDiagnostic('PLAYER POSSESSION APPLIED', {
+      entityId: result.entityId,
+      source: 'editor_camera',
+    });
+    return true;
+  }
+
+  releasePossessedPlayerToEditor(): boolean {
+    const result = this.playerPossessionService.releaseToEditorMode();
+    this.cleanupEditorTransitionRuntimeState();
+    if (!result.success) {
+      this.warnSpawnDiagnostic('PLAYER RELEASE TO EDITOR SKIPPED', { reason: result.reason ?? 'unknown' });
+      return false;
+    }
+
+    this.logSpawnDiagnostic('PLAYER RELEASED TO EDITOR', {
+      entityId: result.entityId,
+      source: 'editor_transition',
+    });
+    return true;
+  }
+
+  materializeEditorPlayerMarker(): string | null {
+    return this.playerPossessionService.materializeEditorMarker();
+  }
+
+  private cleanupEditorTransitionRuntimeState(): void {
+    this.stopInputSending();
+    this.cleanupGeneratedMapArtifacts('editor_transition');
+    this.collisionAuthoritySystem.clearDynamicColliders();
+    this.collisionAuthoritySystem.clearStaticLayout('editor_transition');
+    this.localPlayerBootstrapCoordinator.reset();
+    this.globalWorldLightManager.clearFallbackLights();
+    this.pendingPlayLightingFallbackRequired = false;
+    this.playerModelSystem.setLocalAvatarVisible(false);
+    this.playerModelSystem.setLocalPlayerId('');
+    this.playerModelSystem.bindLocalPlayerEntity(null);
+    this.playerModelSystem.clearAll();
+    Engine.getPlayController()?.bind(null);
+    Engine.getPlayController()?.reset();
+    Engine.setRuntimePlayerId(null);
+    this.networkSyncSystem.resetRuntimeState();
+    gameBus.emit('RUNTIME_RESET', {});
+  }
+
+  private cleanupGeneratedMapArtifacts(reason: string): void {
+    const result = this.mapGeneratorCleanupService.cleanupRuntimeArtifacts(reason);
+    if (result.orphanedRemaining > 0) {
+      console.warn('[ClientWorldRuntimeCoordinator] Generated map artifacts remain after cleanup', {
+        reason,
+        orphanedRemaining: result.orphanedRemaining,
+      });
+    }
+  }
+
+  private tagGeneratedBoundsEntity(entity: Entity, layer: MapGeneratorCleanupLayer): void {
+    this.mapGeneratorCleanupService.tagEntity(entity, layer);
   }
 
   bindNetworkSyncLocalPlayer(playerId: string, authorityMode: 'local' | 'remote'): void {
@@ -1645,6 +1808,7 @@ export class ClientWorldRuntimeCoordinator {
           position: { x, y, z },
           rotation: { x: 0, y: 0, z: 0 },
         });
+        this.tagGeneratedBoundsEntity(blocker, 'generated-collision-hull');
         blocker.addComponent({
           name: 'collider',
           data: {

@@ -117,6 +117,7 @@ export class EngineController {
   private _state: AppState = 'boot';
   private _runtimeMode: 'editor' | 'play' = 'editor';
   private _gameMode: string | null = null;
+  private _suppressNextMenuShow = false;
   private _systems: ControllerSystems = {};
   private _systemContext: SystemContext | null = null;
   private _cachedAuxEntries: Array<[string, IUpdatable]> = [];
@@ -339,6 +340,11 @@ export class EngineController {
     return this.transition(next);
   }
 
+  /** Suppress the automatic main menu show() on the NEXT 'menu' state entry. */
+  suppressNextMenuShow(): void {
+    this._suppressNextMenuShow = true;
+  }
+
   // ─── Per-frame update ─────────────────────────────────────────────────────
 
   /**
@@ -416,7 +422,10 @@ export class EngineController {
       case 'menu':
         // Editor mode: full editor controls, main menu overlay on top.
         this.setRuntimeMode('editor', 'app-state:menu');
-        s.mainMenu?.show();
+        if (!this._suppressNextMenuShow) {
+          s.mainMenu?.show();
+        }
+        this._suppressNextMenuShow = false;
         s.scoreboard?.hide();
         break;
 
@@ -499,7 +508,18 @@ export class EngineController {
         ? this._runtimeMode === 'play' ? 'game' : 'editor'
         : 'menu';
 
-    setInputContext(this._state === 'in_game' && this._runtimeMode === 'play' ? 'game' : 'ui');
+    // ─ CRITICAL FIX: Input context must respect runtime mode FIRST ─
+    // - If runtimeMode === 'editor': input context is ALWAYS 'editor' (menu, freeplay, in-game editing)
+    // - If runtimeMode === 'play' and in_game: input context is 'game'
+    // - Otherwise (menus): input context is 'ui'
+    let inputContext: 'editor' | 'game' | 'ui' = 'ui';
+    if (this._runtimeMode === 'editor') {
+      inputContext = 'editor';  // Editor mode ALWAYS gets editor input context
+    } else if (this._runtimeMode === 'play' && this._state === 'in_game') {
+      inputContext = 'game';    // Play mode during gameplay
+    }
+    console.log(`[EngineController] syncRuntimeMode: mode=${this._runtimeMode}, state=${this._state}, inputContext=${inputContext} (reason: ${reason})`);
+    setInputContext(inputContext);
     this.writeStateValue('mode', this._runtimeMode);
     void s.modeManager?.syncFromController(this._runtimeMode, { cameraAuthority });
     this.syncGameplayActivation(reason);

@@ -3,7 +3,8 @@ import { setContext } from '@engine/1-kernel/core/public-api';
 import { logEvent } from '@engine/1-kernel/core/public-api';
 import { gameBus } from '@engine/1-kernel/core/public-api';
 import type { SystemCapabilities, SystemContext } from '@engine/1-kernel/core/public-api';
-import { setCameraAuthority, type CameraAuthority } from '../../camera/CameraStateAdapter';
+import { getCamera } from '../../render/Camera';
+import { getCameraStateAdapter, setCameraAuthority, type CameraAuthority } from '../../camera/CameraStateAdapter';
 
 /**
  * Mode Manager
@@ -35,6 +36,8 @@ class ModeManager {
   private state: ModeState;
   private listeners: Set<ModeListener> = new Set();
   private sceneSnapshot: Map<string, any> = new Map();
+  private savedCameraPosition: { x: number; y: number; z: number } | null = null;
+  private savedCameraRotation: { x: number; y: number; z: number } | null = null;
   private systemContext: SystemContext | null = null;
 
   constructor() {
@@ -178,6 +181,14 @@ class ModeManager {
    */
   private saveSceneState(): void {
     this.sceneSnapshot.clear();
+
+    const camera = getCamera();
+    if (camera) {
+      this.savedCameraPosition = { x: camera.position.x, y: camera.position.y, z: camera.position.z };
+      const euler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
+      this.savedCameraRotation = { x: euler.x, y: euler.y, z: euler.z };
+    }
+
     console.log('[Mode] Scene state saved');
   }
 
@@ -185,11 +196,20 @@ class ModeManager {
    * Restore scene state after exiting play mode
    */
   private restoreSceneState(): void {
-    if (this.sceneSnapshot.size === 0) {
+    if (!this.savedCameraPosition || !this.savedCameraRotation) {
       console.log('[Mode] No previous scene state to restore');
-    } else {
-      console.log('[Mode] Scene state restored');
+      return;
     }
+
+    const adapter = getCameraStateAdapter();
+    if (adapter) {
+      adapter.applySnapshot({
+        position: this.savedCameraPosition,
+        rotation: this.savedCameraRotation,
+      }, 'editor');
+    }
+
+    console.log('[Mode] Scene state restored');
   }
 
   /**

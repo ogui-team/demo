@@ -209,8 +209,14 @@ export class SceneSerializationSystem {
         this.worldObjectAuthorityService?.sendRemovedAuthority?.(authorityId);
       }
 
-      if (entity.hasComponent('prefab') && this.prefabSystem?.remove?.(entity.id)) {
-        continue;
+      if (entity.hasComponent('prefab')) {
+        // Prefab removal can report success while leaving an entity instance alive.
+        // Always verify removal and hard-destroy leftovers to avoid clone buildup.
+        this.prefabSystem?.remove?.(entity.id);
+        const stillExists = this.entityManager.getEntities().some((candidate) => candidate.id === entity.id);
+        if (!stillExists) {
+          continue;
+        }
       }
 
       this.entityManager.destroyEntity(entity.id);
@@ -241,7 +247,6 @@ export class SceneSerializationSystem {
       const placement = entity.getComponent('editorPlacement')?.data as { serialize?: unknown } | undefined;
       if (placement?.serialize === true) return true;
       if (entity.hasComponent('triggerVolume')) return true;
-      if (entity.hasComponent('prefab')) return true;
       if (entity.hasComponent('light')) return true;
       return false;
     });
@@ -304,6 +309,12 @@ export class SceneSerializationSystem {
       entity.setRotation(cloneVector3(entry.transform.rotation));
       entity.setScale(cloneVector3(entry.transform.scale));
       this.entityRenderer.syncEntity(entity);
+      // CRITICAL: finalize prefab entities to add editorPlacement component for hierarchy visibility
+      this.prefabPlacementSystem.finalizePlacedEntity(entity, {
+        entityType: entry.entityType,
+        authority: resolvedAuthority,
+        skipAuthoritySync,
+      });
       return entity;
     }
 

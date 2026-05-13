@@ -23,6 +23,7 @@ import { PrefabSystem } from '../../../2-systems/gameplay/systems/PrefabSystem';
 import { SpawnSystem } from '../../../2-systems/gameplay/systems/SpawnSystem';
 import { ObjectCreatorSystem } from '../../../2-systems/gameplay/game/ObjectCreatorSystem';
 import { AbilitySystem } from '../../../2-systems/gameplay/systems/gas/AbilitySystem';
+import { FoliageSystem } from '../../../2-systems/gameplay/systems/2d/FoliageSystem';
 
 export interface PhaseResult {
   systems: Record<string, any>
@@ -104,6 +105,8 @@ export function Phase3_GameplayRuntime(
     Engine.getModeManger?.(),
   );
 
+  const foliageSystem = new FoliageSystem();
+
   const createdSystems = {
     physics: physicsSystem,
     health: healthSystem,
@@ -115,6 +118,7 @@ export function Phase3_GameplayRuntime(
     characterActor: characterActorSystem,
     playerModel: playerModelSystem,
     menuIdentity: menuIdentitySystem,
+    foliage: foliageSystem,
   };
 
   // Collect all systems with stable IDs
@@ -122,7 +126,7 @@ export function Phase3_GameplayRuntime(
     ...createdSystems,
   };
 
-  console.log('[Phase 3] ✓ Gameplay runtime created (10 systems)');
+  console.log('[Phase 3] ✓ Gameplay runtime created (11 systems)');
 
   return {
     systems,

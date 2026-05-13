@@ -185,6 +185,12 @@ export interface GameEvents {
     timestamp: number;
   };
 
+  /** Request to delete the selected editor entity. */
+  EDITOR_DELETE_ENTITY_REQUESTED: {
+    entityId: EntityID;
+    timestamp: number;
+  };
+
   /** Entity position snapped to a floor hit. */
   EDITOR_ENTITY_SNAPPED_TO_FLOOR: {
     entityId: EntityID;

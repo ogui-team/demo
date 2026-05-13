@@ -2,8 +2,10 @@ import type { Group } from 'three';
 import type { DevAutostartActions } from '../diagnostics/debug/devAutostart';
 import type { MultiplayerClient } from '../../3-network/network/MultiplayerClient';
 import type { InGamePlayerMode } from './InGameModePanel';
-import type { AudioMenuChannel, AudioMenuState, GameModeMenuEntry, LevelMenuEntry, MainMenu } from './MainMenu';
+import type { AudioMenuChannel, AudioMenuState, GameModeMenuEntry, LevelMenuEntry, MainMenu, MenuUiSoundKind } from './MainMenu';
 import type { ServerBrowser } from './ServerBrowser';
+import { DEFAULT_SCENE_ROOT_ID, EDITOR_VIEWPORT_ID, PLAY_VIEWPORT_ID } from '../runtime/RendererRebindService';
+import { TransitionGuardSystem } from './TransitionGuardSystem';
 
 type RuntimeAppState = 'menu' | 'lobby' | 'starting' | 'in_game' | 'post_game';
 type EngineMode = 'editor' | 'play';
@@ -22,21 +24,31 @@ interface MultiplayerGameStartPayload {
 
 interface UICompositionCoordinatorConfig {
   registerModeListener?: (listener: ModeListenerRegistration) => void;
+  shortcuts?: {
+    undo?: () => void;
+    redo?: () => void;
+  };
   keyboard: {
     isInGame: () => boolean;
     canSwitchModes: () => boolean;
     setEngineMode: (mode: EngineMode) => void;
+    requestPlayPointerCapture?: () => void;
+  };
+  rendererRebind?: {
+    bindSceneRootToViewport: (sceneRootId: string, viewportId: string) => Promise<boolean>;
   };
   inGamePanel: {
     client: MultiplayerClient;
   };
   mainMenu: {
-    onFreeplay: () => void;
+    onFreeplay: (fromEditor?: boolean) => Promise<void> | void;
     onHorde: () => void;
     onDriftBomb: () => void;
     onQuickStart: () => void;
     onStartLevel: (levelId: string) => void;
     onExit: () => void;
+    closeSessionForEditorTransition: () => void;
+    restoreEditorWorldFromBuffer?: () => Promise<boolean> | boolean;
     builtInMaps: readonly string[];
     configureEditorFeatures: () => void;
     stopMusic: () => void;
@@ -58,6 +70,7 @@ interface UICompositionCoordinatorConfig {
     getAudioState: () => AudioMenuState;
     adjustAudio: (channel: AudioMenuChannel, delta: number) => void;
     toggleAudioMute: () => void;
+    playUiSound: (kind: MenuUiSoundKind) => void;
     openDebug: () => void;
     onCustomize: () => void;
     onCustomizeExit: () => void;
@@ -78,6 +91,14 @@ interface UICompositionCoordinatorConfig {
     onHostGame: (payload: { playerName: string; config: import('../../3-network/network/MultiplayerClient').HostedRoomConfig }) => void;
     onJoinGame: (payload: { playerName: string; roomId: string | null }) => void;
   };
+  dockLayout?: {
+    setEditorMode: (active: boolean) => void;
+    toggleCommandPalette?: () => void;
+    destroy: () => void;
+    getViewportLayer?: () => HTMLElement;
+    getViewportBounds?: () => { width: number; height: number };
+    getSlot?: (slot: 'left' | 'center' | 'right' | 'bottom' | 'topbar') => HTMLElement;
+  };
 }
 
 export class UICompositionCoordinator {
@@ -92,13 +113,65 @@ export class UICompositionCoordinator {
   private pendingInGameMode: InGamePlayerMode = 'play';
   private pendingHostStatus = false;
   private suppressNextEscapeKeyupOpen = false;
+  private readonly transitionGuard = new TransitionGuardSystem();
   private readonly keyboardHandler: (event: KeyboardEvent) => void;
   private readonly keyupHandler: (event: KeyboardEvent) => void;
+  private readonly toggleEditorPlayHandler: (event: Event) => void;
+  private readonly hardResetHandler: () => void;
+  private readonly spawnLibraryDragStartHandler: () => void;
+  private readonly spawnLibraryDragEndHandler: () => void;
+  private currentDockRoot: HTMLElement | null = null;
 
   constructor(config: UICompositionCoordinatorConfig) {
     this.config = config;
     this.builtInMaps = new Set(config.mainMenu.builtInMaps);
     this.keyboardHandler = (event: KeyboardEvent) => {
+      const inEditorWorkspace = this.config.mainMenu.getCurrentMode() === 'editor';
+
+      if (inEditorWorkspace && (event.key === 'F1' || event.key === 'Escape')) {
+        event.preventDefault();
+        return;
+      }
+
+      const isCommandPalette = (event.ctrlKey || event.metaKey) && (event.key === 'k' || event.key === 'K');
+      if (isCommandPalette && (this.config.keyboard.canSwitchModes() || inEditorWorkspace)) {
+        event.preventDefault();
+        this.config.dockLayout?.toggleCommandPalette?.();
+        return;
+      }
+
+      const isSave = (event.ctrlKey || event.metaKey) && (event.key === 's' || event.key === 'S');
+      if (isSave && (this.config.keyboard.canSwitchModes() || inEditorWorkspace)) {
+        event.preventDefault();
+        this.config.mainMenu.log('[Editor] Save shortcut triggered (Ctrl/Cmd+S)');
+        window.dispatchEvent(new CustomEvent('editor:save-shortcut'));
+        return;
+      }
+
+      const isUndo = (event.ctrlKey || event.metaKey) && (event.key === 'z' || event.key === 'Z');
+      if (isUndo && (this.config.keyboard.canSwitchModes() || inEditorWorkspace)) {
+        event.preventDefault();
+        this.config.mainMenu.log('[Editor] Undo shortcut triggered (Ctrl/Cmd+Z)');
+        this.config.shortcuts?.undo?.();
+        return;
+      }
+
+      const isRedo = (event.ctrlKey || event.metaKey)
+        && ((event.shiftKey && (event.key === 'z' || event.key === 'Z')) || event.key === 'y' || event.key === 'Y');
+      if (isRedo && (this.config.keyboard.canSwitchModes() || inEditorWorkspace)) {
+        event.preventDefault();
+        this.config.mainMenu.log('[Editor] Redo shortcut triggered');
+        this.config.shortcuts?.redo?.();
+        return;
+      }
+
+      const isHardReset = (event.ctrlKey || event.metaKey) && !event.shiftKey && (event.key === 'r' || event.key === 'R');
+      if (isHardReset) {
+        event.preventDefault();
+        window.dispatchEvent(new CustomEvent('ui:hard-reset-input-stack'));
+        return;
+      }
+
       if (event.key === 'Escape' && this.isMenuVisible()) {
         // Let MainMenu process Escape (back/hide), but do not reopen on keyup.
         this.suppressNextEscapeKeyupOpen = true;
@@ -118,13 +191,13 @@ export class UICompositionCoordinator {
         event.preventDefault();
         void this.toggleInGameModePanel();
       }
-      if (!this.isMenuVisible() && this.config.keyboard.canSwitchModes()) {
-        if (event.key === 'e' || event.key === 'E') {
-          this.config.keyboard.setEngineMode('editor');
+      if (event.key === 'p' || event.key === 'P') {
+        event.preventDefault();
+        if (event.repeat) {
+          return;
         }
-        if (event.key === 'p' || event.key === 'P') {
-          this.config.keyboard.setEngineMode('play');
-        }
+        void this.toggleEditorPlay();
+        return;
       }
     };
 
@@ -142,12 +215,38 @@ export class UICompositionCoordinator {
       this.show();
     };
 
+    this.toggleEditorPlayHandler = () => {
+      void this.toggleEditorPlay();
+    };
+    this.hardResetHandler = () => {
+      this.hardResetState('event');
+    };
+    this.spawnLibraryDragStartHandler = () => {
+      this.setDockRootPointerEvents('none');
+    };
+    this.spawnLibraryDragEndHandler = () => {
+      this.setDockRootPointerEvents('auto');
+    };
+
     window.addEventListener('keydown', this.keyboardHandler, true);
     window.addEventListener('keyup', this.keyupHandler, true);
+    window.addEventListener('ui:toggle-editor-play', this.toggleEditorPlayHandler as EventListener);
+    window.addEventListener('ui:hard-reset-input-stack', this.hardResetHandler, true);
+    window.addEventListener('editor:spawn-library-drag-start', this.spawnLibraryDragStartHandler as EventListener, true);
+    window.addEventListener('editor:spawn-library-drag-end', this.spawnLibraryDragEndHandler as EventListener, true);
     this.renderHotkeyHint();
+    this.rebindSpawnLibraryDragDelegates();
     this.config.registerModeListener?.({
-      onEnterPlay: () => this.hide(),
-      onEnterEditor: () => {},
+      onEnterPlay: () => {
+        this.config.dockLayout?.setEditorMode(false);
+        this.hide();
+      },
+      onEnterEditor: () => {
+        this.hide();
+        this.setDockRootPointerEvents('auto');
+        this.config.dockLayout?.setEditorMode(true);
+        this.rebindSpawnLibraryDragDelegates();
+      },
     });
   }
 
@@ -270,6 +369,11 @@ export class UICompositionCoordinator {
   destroy(): void {
     window.removeEventListener('keydown', this.keyboardHandler, true);
     window.removeEventListener('keyup', this.keyupHandler, true);
+    window.removeEventListener('ui:toggle-editor-play', this.toggleEditorPlayHandler as EventListener);
+    window.removeEventListener('ui:hard-reset-input-stack', this.hardResetHandler, true);
+    window.removeEventListener('editor:spawn-library-drag-start', this.spawnLibraryDragStartHandler as EventListener, true);
+    window.removeEventListener('editor:spawn-library-drag-end', this.spawnLibraryDragEndHandler as EventListener, true);
+    this.detachSpawnLibraryDragDelegates();
     this.mainMenu?.destroy();
     this.serverBrowser?.destroy();
     void this.ensureInGameModePanel().then((panel) => {
@@ -277,6 +381,56 @@ export class UICompositionCoordinator {
     }).catch(() => {
       // Ignore lazy panel teardown failures during unload.
     });
+    this.transitionGuard.destroy();
+    this.config.dockLayout?.destroy();
+  }
+
+  private setDockRootPointerEvents(value: 'none' | 'auto'): void {
+    if (typeof document === 'undefined') {
+      return;
+    }
+    const root = document.querySelector('.editor-dock-layout') as HTMLElement | null;
+    if (!root) {
+      return;
+    }
+    root.style.pointerEvents = value;
+  }
+
+  private rebindSpawnLibraryDragDelegates(): void {
+    const nextDockRoot = this.resolveDockRoot();
+    if (nextDockRoot === this.currentDockRoot) {
+      return;
+    }
+
+    this.detachSpawnLibraryDragDelegates();
+    this.currentDockRoot = nextDockRoot;
+    if (!this.currentDockRoot) {
+      return;
+    }
+
+    this.currentDockRoot.addEventListener('editor:spawn-library-drag-start', this.spawnLibraryDragStartHandler as EventListener, true);
+    this.currentDockRoot.addEventListener('editor:spawn-library-drag-end', this.spawnLibraryDragEndHandler as EventListener, true);
+  }
+
+  private detachSpawnLibraryDragDelegates(): void {
+    if (!this.currentDockRoot) {
+      return;
+    }
+
+    this.currentDockRoot.removeEventListener('editor:spawn-library-drag-start', this.spawnLibraryDragStartHandler as EventListener, true);
+    this.currentDockRoot.removeEventListener('editor:spawn-library-drag-end', this.spawnLibraryDragEndHandler as EventListener, true);
+    this.currentDockRoot = null;
+  }
+
+  private resolveDockRoot(): HTMLElement | null {
+    const fromLayout = this.config.dockLayout?.getSlot?.('topbar')?.closest('.editor-dock-layout') as HTMLElement | null | undefined;
+    if (fromLayout) {
+      return fromLayout;
+    }
+    if (typeof document === 'undefined') {
+      return null;
+    }
+    return document.querySelector('.editor-dock-layout') as HTMLElement | null;
   }
 
   private async ensureMainMenu(): Promise<MainMenu> {
@@ -315,7 +469,7 @@ export class UICompositionCoordinator {
       this.config.mainMenu.onStartLevel(levelId);
     });
     menu.onOpenEditor(() => {
-      this.openEditor();
+      void this.openEditor();
     });
     menu.onOpenMultiplayer(() => {
       this.openMultiplayer();
@@ -341,6 +495,7 @@ export class UICompositionCoordinator {
     menu.setAudioStateProvider(this.config.mainMenu.getAudioState);
     menu.setAudioAdjust(this.config.mainMenu.adjustAudio);
     menu.setAudioToggleMute(this.config.mainMenu.toggleAudioMute);
+    menu.setUiSoundPlayer(this.config.mainMenu.playUiSound);
     menu.setOpenDebug(this.config.mainMenu.openDebug);
     menu.setCurrentModeProvider(this.config.mainMenu.getCurrentMode);
     menu.setCurrentGameModeProvider(this.config.mainMenu.getCurrentGameMode);
@@ -349,18 +504,88 @@ export class UICompositionCoordinator {
     menu.setIdentityPanel(this.config.mainMenu.getIdentityPanel());
   }
 
-  private openEditor(): void {
-    // Coming from live gameplay, clear runtime session first so editor opens with a clean state.
-    if (this.config.keyboard.isInGame()) {
-      this.config.mainMenu.onExit();
+  private async openEditor(): Promise<void> {
+    this.transitionGuard.arm(500);
+    try {
+      // Coming from live gameplay, clear runtime session first so editor opens with a clean state.
+      if (this.config.keyboard.isInGame()) {
+        this.config.mainMenu.closeSessionForEditorTransition();
+      }
+      this.setDockRootPointerEvents('auto');
+      this.config.mainMenu.configureEditorFeatures();
+      this.config.mainMenu.stopMusic();
+      const restoredFromBuffer = await (this.config.mainMenu.restoreEditorWorldFromBuffer?.() ?? Promise.resolve(false));
+      if (!restoredFromBuffer && !this.config.mainMenu.getHasActiveLevel()) {
+        this.config.mainMenu.setActiveLevelGroup(this.config.mainMenu.buildEditorPreviewLevel());
+      }
+      this.config.dockLayout?.setEditorMode(true);
+      this.rebindSpawnLibraryDragDelegates();
+      await this.config.rendererRebind?.bindSceneRootToViewport(DEFAULT_SCENE_ROOT_ID, EDITOR_VIEWPORT_ID);
+
+      this.config.keyboard.setEngineMode('editor');
+      this.config.mainMenu.setEngineMode('editor');
+      this.config.mainMenu.log('[App] Editor mode entered');
+    } finally {
+      this.transitionGuard.releaseInputLock();
     }
-    this.config.mainMenu.configureEditorFeatures();
-    this.config.mainMenu.stopMusic();
-    if (!this.config.mainMenu.getHasActiveLevel()) {
-      this.config.mainMenu.setActiveLevelGroup(this.config.mainMenu.buildEditorPreviewLevel());
+  }
+
+  private async toggleEditorPlay(): Promise<void> {
+    if (this.transitionGuard.isActive()) {
+      return;
     }
+
+    const currentlyInGame = this.config.keyboard.isInGame();
+    const menuVisible = this.isMenuVisible();
+    this.config.mainMenu.log(`[App] Toggle Editor/Play key received (inGame=${currentlyInGame}, menuVisible=${menuVisible})`);
+
+    if (menuVisible && !currentlyInGame) {
+      return;
+    }
+
+    if (menuVisible && currentlyInGame) {
+      this.hide();
+    }
+
+    this.transitionGuard.arm(500);
+
+    try {
+      this.config.mainMenu.log(`[App] Toggle Editor/Play requested (inGame=${currentlyInGame})`);
+      if (currentlyInGame) {
+        // Going to editor - move canvas into center slot
+        await this.openEditor();
+      } else {
+        // Going to play mode
+        // Set keyboard mode to 'play' FIRST - PlayController.enable() needs this
+        this.config.keyboard.setEngineMode('play');
+        this.config.keyboard.requestPlayPointerCapture?.();
+        this.config.mainMenu.log(`[App] Keyboard input mode switched to PLAY`);
+        
+        await this.config.rendererRebind?.bindSceneRootToViewport(DEFAULT_SCENE_ROOT_ID, PLAY_VIEWPORT_ID);
+        this.hide();
+        this.config.dockLayout?.setEditorMode(false);
+        
+        // Now start freeplay with keyboard already in play mode
+        await this.config.mainMenu.onFreeplay(true);
+      }
+    } catch (error) {
+      throw error;
+    } finally {
+      this.transitionGuard.releaseInputLock();
+    }
+  }
+
+  private hardResetState(source: 'keyboard' | 'event'): void {
+    if (typeof document !== 'undefined' && typeof document.exitPointerLock === 'function' && document.pointerLockElement) {
+      document.exitPointerLock();
+    }
+
+    this.transitionGuard.releaseInputLock();
+    this.setDockRootPointerEvents('auto');
+    this.config.keyboard.setEngineMode('editor');
     this.config.mainMenu.setEngineMode('editor');
-    this.config.mainMenu.log('[App] Editor mode entered');
+    this.config.dockLayout?.setEditorMode(true);
+    this.config.mainMenu.log(`[App] Input stack hard reset (${source})`);
   }
 
   private loadMap(name: string): void {
@@ -443,7 +668,7 @@ export class UICompositionCoordinator {
     if (!uiElement) return;
     uiElement.innerHTML = `
       <p style="color: #888; font-size: 11px; font-family: sans-serif;">
-        F1 / ESC: Main Menu &nbsp;|&nbsp; F2: Control Tower &nbsp;|&nbsp; F3: Debug Panel &nbsp;|&nbsp; E: Editor &nbsp;|&nbsp; P: Play
+        F1 / ESC: Main Menu &nbsp;|&nbsp; F2: Control Tower &nbsp;|&nbsp; F3: Debug Panel &nbsp;|&nbsp; P: Toggle Editor/Play
       </p>
     `;
   }

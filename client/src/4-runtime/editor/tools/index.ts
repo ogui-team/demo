@@ -2,6 +2,7 @@
 export { TransformGizmo, type GizmoMode } from './TransformGizmo';
 export { GizmoSystem } from './GizmoSystem';
 export { SelectionSystem } from './SelectionSystem';
+export { ViewportRaycastManager } from './ViewportRaycastManager';
 export { EditorToolCoordinator } from './EditorToolCoordinator';
 export { PrefabPlacementSystem } from './PrefabPlacementSystem';
 export { EditorPainterSystem } from './EditorPainterSystem';

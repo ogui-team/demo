@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import * as Engine from '../../../0-foundation/foundation/Engine';
 import { FeatureManager } from '@engine/1-kernel/core/public-api';
 import { type GameModeManager } from '../../../2-systems/gameplay/game/GameModeManager';
@@ -15,6 +16,8 @@ import { type SpawnSystem } from '../../../2-systems/gameplay/systems/SpawnSyste
 import { type ClientWorldRuntimeCoordinator } from '../coordinators/ClientWorldRuntimeCoordinator';
 import { type MultiplayerRuntimeCoordinator } from '../coordinators/MultiplayerRuntimeCoordinator';
 import { type StateManager } from '../../../0-foundation/foundation/state/StateManager';
+import { type LifecycleOrchestrator } from '../../debug/LifecycleOrchestrator';
+import { type WorldBuildService } from '../WorldBuildService';
 
 interface CreateGameLaunchCoordinatorOptions {
   engineController: NonNullable<ReturnType<typeof Engine.getEngineController>>;
@@ -32,6 +35,8 @@ interface CreateGameLaunchCoordinatorOptions {
   multiplayerRuntime: MultiplayerRuntimeCoordinator;
   audioManager: GameAudioManager;
   setPendingMatchResetMode: (mode: 'soft' | 'full') => void;
+  lifecycleOrchestrator: LifecycleOrchestrator;
+  worldBuildService: WorldBuildService | null;
 }
 
 export function createGameLaunchCoordinator(options: CreateGameLaunchCoordinatorOptions): GameLaunchCoordinator {
@@ -115,6 +120,28 @@ export function createGameLaunchCoordinator(options: CreateGameLaunchCoordinator
     syncLocalPlayerToAuthoritativeSpawn: (position, rotation) => {
       options.worldRuntime.syncLocalPlayerToAuthoritativeSpawn(position, rotation);
     },
+    possessLocalPlayerFromEditorCamera: () => {
+      return options.worldRuntime.possessLocalPlayerFromEditorCamera();
+    },
+    releasePossessedPlayerToEditor: () => {
+      return options.worldRuntime.releasePossessedPlayerToEditor();
+    },
+    getCameraPosition: () => {
+      const cam = Engine.getEngineCamera();
+      if (!cam) return null;
+      const worldPos = new THREE.Vector3();
+      cam.getWorldPosition(worldPos);
+      return { x: worldPos.x, y: worldPos.y, z: worldPos.z };
+    },
+    getCameraRotation: () => {
+      const cam = Engine.getEngineCamera();
+      if (!cam) return null;
+      return { x: cam.rotation.x, y: cam.rotation.y, z: cam.rotation.z };
+    },
+    getPinnedPlayerSpawnPosition: () => options.worldRuntime.getPinnedPlayerSpawnPosition(),
+    rehydrateEditorPlacedColliders: () => {
+      options.worldRuntime.rehydrateEditorPlacedColliders();
+    },
     setRuntimeMetricsSession: (kind, identifier) => {
       options.sessionLifecycleCoordinator.setRuntimeMetricsSession(kind, identifier);
     },
@@ -157,6 +184,7 @@ export function createGameLaunchCoordinator(options: CreateGameLaunchCoordinator
           metadata: {
             colliderHalfExtents: { ...box.halfExtents },
             isStaticCollider: true,
+            cleanupLayer: 'static-world-bounds',
           },
         }));
         
@@ -170,6 +198,24 @@ export function createGameLaunchCoordinator(options: CreateGameLaunchCoordinator
     disablePhysGun: () => {
       Engine.getPhysGunSystem()?.disable();
       Engine.getToolbarSystem()?.clearPhysGunSlot();
+    },
+    resetLifecycle: () => {
+      console.log('[GameLaunch] Resetting lifecycle orchestrator phase to BOOT');
+      options.lifecycleOrchestrator.reset();
+    },
+    suppressNextMenuShow: () => {
+      options.engineController.suppressNextMenuShow();
+    },
+    getEngineMode: () => options.engineController.getRuntimeMode(),
+    buildActiveWorldBuffer: (reason) => options.worldBuildService?.buildActiveWorldBuffer(reason) ?? Promise.resolve({ success: false, reason: 'WorldBuildService unavailable.' }),
+    applyActiveWorldBuffer: () => options.worldBuildService?.applyActiveWorldBuffer() ?? Promise.resolve({ success: false, entitiesCreated: 0, settingsApplied: 0 }),
+    mergeRuntimeWorldIntoActiveBuffer: (reason) => options.worldBuildService?.mergeRuntimeWorldIntoActiveBuffer(reason) ?? {
+      success: false,
+      mergedEntities: 0,
+      newEntityIds: [],
+    },
+    onSceneLoadComplete: (reason) => {
+      options.worldRuntime.onSceneLoadComplete(reason);
     },
   });
 }

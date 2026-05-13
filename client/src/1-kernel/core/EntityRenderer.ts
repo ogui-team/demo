@@ -111,6 +111,12 @@ export class EntityRenderer {
       return; // Entity doesn't have a visual representation
     }
 
+    // If a mesh with the same entity id is already present (e.g. from a restored
+    // scene-root clone), remove it before creating the authoritative mesh.
+    if (this.meshMap.has(entity.id)) {
+      this.removeMeshForEntity(entity);
+    }
+
     const data = renderComponent.data as RenderComponentData;
     const transform = entity.getTransform();
 
@@ -138,10 +144,14 @@ export class EntityRenderer {
           sceneObject = createAssetInstance(assetKey);
         }
         if (!sceneObject) {
-          sceneObject = new THREE.Group();
-          sceneObject.visible = false;
-          sceneObject.userData.assetKey = assetKey ?? null;
-          sceneObject.userData.missingAsset = true;
+          const fallback = new THREE.Mesh(
+            new THREE.BoxGeometry(1, 1, 1),
+            new THREE.MeshBasicMaterial({ color: 0x888888, wireframe: true })
+          );
+          fallback.userData.isFallbackMesh = true;
+          fallback.userData.assetKey = assetKey ?? null;
+          fallback.userData.missingAsset = true;
+          sceneObject = fallback;
           console.warn('[EntityRenderer] Missing custom asset instance; keeping entity invisible', {
             entityId: entity.id,
             entityType: entity.type,
@@ -240,14 +250,14 @@ export class EntityRenderer {
     if (this.stateManager) {
       const isInvisible = EntityAttributes.isInvisible(entity, this.stateManager);
       mesh.userData.forceHidden = isInvisible;
-      mesh.visible = !isInvisible;
+      this.applyInvisibleDebugStyle(mesh, isInvisible);
 
       // Subscribe to attribute changes to update visibility dynamically
       const unsubscribe = EntityAttributes.subscribeToAttributes(entity, this.stateManager, (newAttrs, oldAttrs) => {
         // During initialization, oldAttrs might be undefined
         if (!oldAttrs || newAttrs.isInvisible !== oldAttrs.isInvisible) {
           mesh.userData.forceHidden = newAttrs.isInvisible;
-          mesh.visible = !newAttrs.isInvisible;
+          this.applyInvisibleDebugStyle(mesh, newAttrs.isInvisible);
         }
       });
 
@@ -255,6 +265,60 @@ export class EntityRenderer {
     }
 
     this.cullingSystem?.registerForCulling(mesh, entity.id);
+  }
+
+  private applyInvisibleDebugStyle(root: THREE.Object3D, isInvisible: boolean): void {
+    root.visible = true;
+    root.traverse((child) => {
+      if (!(child instanceof THREE.Mesh)) return;
+      const materials = Array.isArray(child.material) ? child.material : [child.material];
+      for (const material of materials) {
+        if (!material) continue;
+        const typedMaterial = material as THREE.Material & {
+          color?: THREE.Color;
+          emissive?: THREE.Color;
+          transparent?: boolean;
+          opacity?: number;
+          depthWrite?: boolean;
+        };
+        if (!child.userData.invisibleDebugOriginal) {
+          child.userData.invisibleDebugOriginal = {
+            transparent: typedMaterial.transparent ?? false,
+            opacity: typedMaterial.opacity ?? 1,
+            depthWrite: typedMaterial.depthWrite ?? true,
+            color: typedMaterial.color?.getHex?.() ?? null,
+            emissive: typedMaterial.emissive?.getHex?.() ?? null,
+          };
+        }
+
+        const original = child.userData.invisibleDebugOriginal as {
+          transparent: boolean;
+          opacity: number;
+          depthWrite: boolean;
+          color: number | null;
+          emissive: number | null;
+        };
+
+        if (isInvisible) {
+          typedMaterial.transparent = true;
+          typedMaterial.opacity = 0.25;
+          typedMaterial.depthWrite = false;
+          typedMaterial.color?.setHex?.(0xff2f2f);
+          typedMaterial.emissive?.setHex?.(0x330000);
+        } else {
+          typedMaterial.transparent = original.transparent;
+          typedMaterial.opacity = original.opacity;
+          typedMaterial.depthWrite = original.depthWrite;
+          if (typeof original.color === 'number') {
+            typedMaterial.color?.setHex?.(original.color);
+          }
+          if (typeof original.emissive === 'number') {
+            typedMaterial.emissive?.setHex?.(original.emissive);
+          }
+        }
+        typedMaterial.needsUpdate = true;
+      }
+    });
   }
 
   private createDummyPrefabObject(color: number): THREE.Group {
@@ -638,6 +702,21 @@ export class EntityRenderer {
    */
   getAllMeshes(): Map<string | number, THREE.Object3D> {
     return new Map(this.meshMap);
+  }
+
+  rebindSceneMeshes(): void {
+    this.meshMap.clear();
+    this.scene.traverse((object) => {
+      // Only bind top-level entity roots. Descendant meshes of multipart prefabs also
+      // carry entityId for picking, but tracking them here causes updates/removals to
+      // target a single child instead of the prefab root after scene restoration.
+      const entityId = typeof object.name === 'string' && object.name.startsWith('entity_')
+        ? object.name.slice(7)
+        : null;
+      if (!entityId) return;
+      this.meshMap.set(entityId, object);
+      this.cullingSystem?.registerForCulling(object, entityId);
+    });
   }
 
   /**

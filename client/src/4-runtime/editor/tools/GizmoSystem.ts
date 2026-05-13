@@ -32,6 +32,7 @@ import { Entity } from '@engine/1-kernel/core/public-api';
 import { gameBus } from '@engine/1-kernel/core/public-api';
 import { SceneGraph } from '@engine/1-kernel/core/public-api';
 import * as TransformSystem from '@engine/1-kernel/core/public-api';
+import { ViewportRaycastManager } from './ViewportRaycastManager';
 
 export type GizmoMode = 'translate' | 'rotate' | 'scale';
 export type AxisType = 'x' | 'y' | 'z';
@@ -61,6 +62,18 @@ interface GizmoTransformCommit {
   scale: { x: number; y: number; z: number };
 }
 
+interface GizmoTransformSnapshot {
+  id: string;
+  position: { x: number; y: number; z: number };
+  rotation: { x: number; y: number; z: number };
+  scale: { x: number; y: number; z: number };
+}
+
+interface GizmoTransformCommitBatch {
+  primaryId: string;
+  entities: GizmoTransformCommit[];
+}
+
 interface GizmoStateStoreAdapter {
   get(path: string): unknown;
   set(path: string, value: unknown): boolean;
@@ -69,6 +82,7 @@ interface GizmoStateStoreAdapter {
 interface GizmoEntityManagerAdapter {
   getEntity(entityId: string): Entity | null | undefined;
   onEntityDestroyed(callback: (entity: Entity) => void): () => void;
+  onEntityUpdated(callback: (entity: Entity) => void): () => void;
 }
 
 interface ModeManagerAdapter {
@@ -93,7 +107,16 @@ export class GizmoSystem {
   private enabled: boolean = false;
   private selectedEntity: Entity | null = null;
   private selectedEntityId: string | null = null;
+  private selectedEntityIds: string[] = [];
+  private selectedTransformBindingPath: string | null = null;
   private mode: GizmoMode = 'translate';
+  private orientationMode: 'world' | 'local' = 'world';
+  private snapSettings = {
+    enabled: false,
+    translate: 1,
+    rotate: Math.PI / 18,
+    scale: 0.1,
+  };
 
   // Visual representation
   private gizmoGroup: THREE.Group = new THREE.Group();
@@ -102,11 +125,12 @@ export class GizmoSystem {
   // EntityManager for entity lookup
   private entityManager: GizmoEntityManagerAdapter | null = null;
   private entityDestroyedDisposer: (() => void) | null = null;
+  private entityUpdatedDisposer: (() => void) | null = null;
   private lifecycleDisposers: Array<() => void> = [];
 
   // SceneGraph for world-transform lookups (parented entities)
   private sceneGraph: SceneGraph | null = null;
-  private onEntityTransformCommitted: ((data: GizmoTransformCommit) => void) | null = null;
+  private onEntityTransformCommitted: ((data: GizmoTransformCommitBatch) => void) | null = null;
   private toolCoordinator: {
     canUseGizmo(): boolean;
     beginGizmoDrag(reason?: string): boolean;
@@ -115,12 +139,15 @@ export class GizmoSystem {
 
   // Interaction
   private raycaster: THREE.Raycaster = new THREE.Raycaster();
+  private raycastManager: ViewportRaycastManager = new ViewportRaycastManager({ raycastDistance: 10000 });
   private mouse: THREE.Vector2 = new THREE.Vector2();
   private draggedAxis: AxisType | null = null;
   private isDraggingBody: boolean = false;        // free-drag on entity mesh
   private dragPlane: THREE.Plane = new THREE.Plane();
   private dragStartEntityPos: THREE.Vector3 = new THREE.Vector3(); // entity pos at drag start
   private dragStartPlanePoint: THREE.Vector3 = new THREE.Vector3(); // ray-plane hit at drag start
+  private dragSelectionIds: string[] = [];
+  private dragStartSnapshots: Map<string, GizmoTransformSnapshot> = new Map();
   private dragStartScale = { x: 1, y: 1, z: 1 };
   private dragStartRotation = { x: 0, y: 0, z: 0 };
 
@@ -206,7 +233,11 @@ export class GizmoSystem {
       active: this.enabled,
       metrics: {
         mode: this.mode,
+        orientationMode: this.orientationMode,
+        snapEnabled: this.snapSettings.enabled,
         selectedEntityId: this.selectedEntityId,
+        selectedEntityIds: [...this.selectedEntityIds],
+        selectedTransformBindingPath: this.selectedTransformBindingPath,
         isDragging: this.isDragging(),
         hasEntityManager: this.entityManager !== null,
         hasSceneGraph: this.sceneGraph !== null,
@@ -220,11 +251,18 @@ export class GizmoSystem {
    */
   setEntityManager(entityManager: GizmoEntityManagerAdapter): void {
     this.entityDestroyedDisposer?.();
+    this.entityUpdatedDisposer?.();
     this.entityManager = entityManager;
     this.entityDestroyedDisposer = entityManager.onEntityDestroyed((entity) => {
-      if (entity.id !== this.selectedEntityId) return;
+      if (!this.selectedEntityIds.includes(entity.id)) return;
+      const remainingIds = this.selectedEntityIds.filter((selectedId) => selectedId !== entity.id);
       this.cancelInteraction('entity_destroyed');
-      this.detachEntity();
+      this.setSelectedEntityIds(remainingIds);
+    });
+    this.entityUpdatedDisposer = entityManager.onEntityUpdated((entity) => {
+      if (!this.selectedEntityIds.includes(entity.id)) return;
+      if (this.isDragging()) return;
+      this.syncSelectedTransformBinding('entity_update');
     });
   }
 
@@ -242,7 +280,7 @@ export class GizmoSystem {
     });
   }
 
-  setOnEntityTransformCommitted(callback: ((data: GizmoTransformCommit) => void) | null): void {
+  setOnEntityTransformCommitted(callback: ((data: GizmoTransformCommitBatch) => void) | null): void {
     this.onEntityTransformCommitted = callback;
   }
 
@@ -252,6 +290,52 @@ export class GizmoSystem {
     endGizmoDrag(reason?: string): boolean;
   } | null): void {
     this.toolCoordinator = coordinator;
+  }
+
+  setOrientationMode(mode: 'world' | 'local'): void {
+    this.orientationMode = mode;
+    this.updateGizmoVisuals();
+  }
+
+  toggleOrientationMode(): void {
+    this.setOrientationMode(this.orientationMode === 'world' ? 'local' : 'world');
+  }
+
+  setSnapSettings(settings: Partial<{
+    enabled: boolean;
+    translate: number;
+    rotate: number;
+    scale: number;
+  }>): void {
+    this.snapSettings = {
+      ...this.snapSettings,
+      ...settings,
+    };
+  }
+
+  private getAxisDirection(axisName: AxisType): THREE.Vector3 {
+    const direction = new THREE.Vector3(
+      axisName === 'x' ? 1 : 0,
+      axisName === 'y' ? 1 : 0,
+      axisName === 'z' ? 1 : 0,
+    );
+
+    if (this.orientationMode === 'local' && this.selectedEntityId) {
+      const entityObject = this.scene.getObjectByName(`entity_${this.selectedEntityId}`) as THREE.Object3D | null;
+      if (entityObject) {
+        return direction.applyQuaternion(entityObject.getWorldQuaternion(new THREE.Quaternion())).normalize();
+      }
+    }
+
+    return direction;
+  }
+
+  private snapValue(value: number, step: number): number {
+    if (!this.snapSettings.enabled || step <= 0) {
+      return value;
+    }
+
+    return Math.round(value / step) * step;
   }
 
   /**
@@ -312,21 +396,34 @@ export class GizmoSystem {
    * Attach to an entity for manipulation
    */
   attachEntity(entity: Entity | string): void {
-    // Handle string entity ID
-    if (typeof entity === 'string') {
-      this.selectedEntityId = entity;
-      this.selectedEntity = null; // Will be resolved later if needed
-    } else {
+    const entityId = typeof entity === 'string' ? entity : entity.id;
+    this.setSelectedEntityIds([entityId]);
+    if (typeof entity !== 'string') {
       this.selectedEntity = entity;
-      this.selectedEntityId = entity.id;
     }
-
-    // Update gizmo visuals
-    this.updateGizmoVisuals();
 
     if (this.config.enableLogging) {
       console.log(`[GizmoSystem] Attached to entity: ${this.selectedEntityId}`);
     }
+  }
+
+  setSelectedEntityIds(entityIds: string[]): void {
+    const nextIds = Array.from(new Set(entityIds.filter(Boolean)));
+    if (nextIds.length === 0) {
+      this.detachEntity();
+      return;
+    }
+
+    this.cancelInteraction('selection_changed');
+    this.selectedEntityIds = nextIds;
+    this.selectedEntityId = nextIds[0] ?? null;
+    this.selectedEntity = this.selectedEntityId && this.entityManager
+      ? this.entityManager.getEntity(this.selectedEntityId) ?? null
+      : null;
+    this.selectedTransformBindingPath = this.selectedEntityId
+      ? `entities.${this.selectedEntityId}.transform`
+      : null;
+    this.updateGizmoVisuals();
   }
 
   /**
@@ -336,6 +433,10 @@ export class GizmoSystem {
     this.cancelInteraction('detach');
     this.selectedEntity = null;
     this.selectedEntityId = null;
+    this.selectedEntityIds = [];
+    this.selectedTransformBindingPath = null;
+    this.dragSelectionIds = [];
+    this.dragStartSnapshots.clear();
     this.hideGizmo();
 
     if (this.config.enableLogging) {
@@ -372,6 +473,14 @@ export class GizmoSystem {
    */
   getMode(): GizmoMode {
     return this.mode;
+  }
+
+  getOrientationMode(): 'world' | 'local' {
+    return this.orientationMode;
+  }
+
+  getSnapSettings(): Readonly<typeof this.snapSettings> {
+    return { ...this.snapSettings };
   }
 
   update(_dt: number): void {
@@ -468,6 +577,18 @@ export class GizmoSystem {
     this.setGizmoPosition(position);
   }
 
+  private syncSelectedTransformBinding(reason: string): void {
+    if (!this.selectedTransformBindingPath || !this.selectedEntityId) {
+      return;
+    }
+
+    if (this.config.enableLogging) {
+      console.log(`[GizmoSystem] Syncing transform binding via ${reason}: ${this.selectedTransformBindingPath}`);
+    }
+
+    this.updateGizmoVisuals();
+  }
+
   private getSelectedEntityWorldPosition(): { x: number; y: number; z: number } | undefined {
     if (!this.selectedEntityId) return undefined;
 
@@ -508,8 +629,9 @@ export class GizmoSystem {
 
     for (const [axisName, axis] of this.axes) {
       const arrowLength = this.config.axisLength;
+      const axisDirection = this.getAxisDirection(axisName);
       const arrowHelper = new THREE.ArrowHelper(
-        axis.direction,
+        axisDirection,
         origin,
         arrowLength,
         axis.color,
@@ -537,8 +659,9 @@ export class GizmoSystem {
     const rotScale = this.config.axisLength * 0.7;
 
     for (const [axisName, axis] of this.axes) {
+      const axisDirection = this.getAxisDirection(axisName);
       const arrowHelper = new THREE.ArrowHelper(
-        axis.direction,
+        axisDirection,
         origin,
         rotScale,
         axis.color,
@@ -562,8 +685,9 @@ export class GizmoSystem {
     const scaleSize = this.config.axisLength * 0.5;
 
     for (const [axisName, axis] of this.axes) {
+      const axisDirection = this.getAxisDirection(axisName);
       const arrowHelper = new THREE.ArrowHelper(
-        axis.direction,
+        axisDirection,
         origin,
         scaleSize,
         axis.color,
@@ -611,7 +735,6 @@ export class GizmoSystem {
     if (this.toolCoordinator && !this.toolCoordinator.canUseGizmo()) return false;
 
     this.updateMouse(event);
-    this.raycaster.setFromCamera(this.mouse, this.camera!);
 
     // --- 1. Try to hit a gizmo axis arrow ---
     const arrowObjects: THREE.Object3D[] = [];
@@ -619,7 +742,7 @@ export class GizmoSystem {
       if (axis.arrow) arrowObjects.push(axis.arrow);
     }
 
-    const axisHits = this.raycaster.intersectObjects(arrowObjects, true);
+    const axisHits = this.raycastManager.raycastObjects(this.mouse, this.camera!, arrowObjects, true);
     if (axisHits.length > 0) {
       const hitObject = axisHits[0].object;
       for (const [axisName, axis] of this.axes) {
@@ -642,7 +765,7 @@ export class GizmoSystem {
     // --- 2. Try to hit the entity mesh directly (free-body drag) ---
     const entityMesh = this.scene.getObjectByName(`entity_${this.selectedEntityId}`);
     if (entityMesh) {
-      const bodyHits = this.raycaster.intersectObject(entityMesh, true);
+      const bodyHits = this.raycastManager.raycastObjects(this.mouse, this.camera!, [entityMesh], true);
       if (bodyHits.length > 0) {
         if (this.toolCoordinator && !this.toolCoordinator.beginGizmoDrag('body_drag')) {
           return false;
@@ -668,22 +791,17 @@ export class GizmoSystem {
     if (!this.ensureRuntimeBindings('setupDragPlane')) return;
     if (!this.selectedEntityId || !this.camera) return;
 
-    // Use world-position (SceneGraph) as the drag start baseline so that
-    // axis-delta math is always in world space, even for parented entities.
-    let pos: { x: number; y: number; z: number } | undefined;
-    const rot = this.stateManager.get(`entities.${this.selectedEntityId}.rotation`) as
-      | { x: number; y: number; z: number }
-      | undefined;
-
-    if (this.sceneGraph) {
-      const worldT = this.sceneGraph.getWorldTransform(this.selectedEntityId);
-      pos = worldT.position;
-    } else {
-      pos = this.stateManager.get(`entities.${this.selectedEntityId}.position`) as
-        | { x: number; y: number; z: number }
-        | undefined;
+    this.dragSelectionIds = this.getTransformSelectionIds();
+    this.dragStartSnapshots.clear();
+    for (const entityId of this.dragSelectionIds) {
+      const snapshot = this.getTransformSnapshot(entityId);
+      if (snapshot) {
+        this.dragStartSnapshots.set(entityId, snapshot);
+      }
     }
-    if (!pos) return;
+
+    const primarySnapshot = this.selectedEntityId ? this.dragStartSnapshots.get(this.selectedEntityId) : null;
+    if (!primarySnapshot) return;
 
     // Use camera forward as the drag plane normal so the plane always faces the camera.
     const camDir = new THREE.Vector3();
@@ -692,13 +810,10 @@ export class GizmoSystem {
     this.dragPlane.setFromNormalAndCoplanarPoint(camDir, hitPoint);
 
     // Cache entity position + rotation + scale at drag start
-    this.dragStartEntityPos.set(pos.x, pos.y, pos.z);
-    this.rotationBase = rot ? { ...rot } : { x: 0, y: 0, z: 0 };
+    this.dragStartEntityPos.set(primarySnapshot.position.x, primarySnapshot.position.y, primarySnapshot.position.z);
+    this.rotationBase = { ...primarySnapshot.rotation };
     this.dragStartRotation = { ...this.rotationBase };
-    const scaleVal = this.stateManager.get(`entities.${this.selectedEntityId}.scale`) as
-      | { x: number; y: number; z: number }
-      | undefined;
-    this.scaleBase = scaleVal ? { ...scaleVal } : { x: 1, y: 1, z: 1 };
+    this.scaleBase = { ...primarySnapshot.scale };
     this.dragStartScale = { ...this.scaleBase };
 
     // Cache ray-plane intersection at drag start
@@ -714,6 +829,10 @@ export class GizmoSystem {
     const dragging = this.draggedAxis !== null || this.isDraggingBody;
     if (!dragging || !this.selectedEntityId || !this.camera) return false;
 
+    if (!this.validateTransformTarget(this.selectedEntityId, 'handlePointerMove')) {
+      return false;
+    }
+
     this.updateMouse(event);
     this.raycaster.setFromCamera(this.mouse, this.camera);
 
@@ -724,15 +843,21 @@ export class GizmoSystem {
     // World-space delta from drag start
     const worldDelta = new THREE.Vector3().subVectors(currentPoint, this.dragStartPlanePoint);
 
-    if (this.isDraggingBody) {
-      // Free-body drag: move along camera plane (X + Z only, keep Y fixed unless desired)
-      this.applyBodyDrag(worldDelta);
-    } else if (this.mode === 'translate') {
-      this.applyTranslation(worldDelta);
-    } else if (this.mode === 'rotate') {
-      this.applyRotation(worldDelta);
-    } else if (this.mode === 'scale') {
-      this.applyScale(worldDelta);
+    try {
+      if (this.isDraggingBody) {
+        // Free-body drag: move along camera plane (X + Z only, keep Y fixed unless desired)
+        this.applyBodyDrag(worldDelta);
+      } else if (this.mode === 'translate') {
+        this.applyTranslation(worldDelta);
+      } else if (this.mode === 'rotate') {
+        this.applyRotation(worldDelta);
+      } else if (this.mode === 'scale') {
+        this.applyScale(worldDelta);
+      }
+    } catch (error) {
+      console.error('[GizmoSystem] Transform update aborted', error);
+      this.cancelInteraction('transform_update_error');
+      return false;
     }
 
     return true;
@@ -747,13 +872,14 @@ export class GizmoSystem {
     if (!this.ensureRuntimeBindings('applyTranslation')) return;
     if (!this.draggedAxis || !this.selectedEntityId) return;
 
-    const axisDir = this.axes.get(this.draggedAxis)!.direction;
-    const projected = worldDelta.dot(axisDir); // signed distance along axis
+    const axisDir = this.getAxisDirection(this.draggedAxis);
+    const projected = this.snapValue(worldDelta.dot(axisDir), this.snapSettings.translate);
+    const movement = new THREE.Vector3().copy(axisDir).multiplyScalar(projected);
 
     const newPos = {
-      x: this.dragStartEntityPos.x + (this.draggedAxis === 'x' ? projected : 0),
-      y: this.dragStartEntityPos.y + (this.draggedAxis === 'y' ? projected : 0),
-      z: this.dragStartEntityPos.z + (this.draggedAxis === 'z' ? projected : 0),
+      x: this.dragStartEntityPos.x + movement.x,
+      y: this.dragStartEntityPos.y + movement.y,
+      z: this.dragStartEntityPos.z + movement.z,
     };
 
     this.applyPositionUpdate(newPos);
@@ -786,25 +912,47 @@ export class GizmoSystem {
     if (!this.ensureRuntimeBindings('applyPositionUpdate')) return;
     if (!this.selectedEntityId) return;
 
-    if (this.sceneGraph) {
-      // SceneGraph.setWorldPosition writes local pos to StateManager and propagates
-      this.sceneGraph.setWorldPosition(this.selectedEntityId, newPos);
-    } else {
-      this.stateManager.set(`entities.${this.selectedEntityId}.position`, newPos);
+    const primarySnapshot = this.dragStartSnapshots.get(this.selectedEntityId);
+    if (!primarySnapshot) return;
+
+    const delta = {
+      x: newPos.x - primarySnapshot.position.x,
+      y: newPos.y - primarySnapshot.position.y,
+      z: newPos.z - primarySnapshot.position.z,
+    };
+
+    for (const entityId of this.dragSelectionIds) {
+      const snapshot = this.dragStartSnapshots.get(entityId);
+      if (!snapshot) continue;
+
+      this.applyWorldPositionToEntity(entityId, {
+        x: snapshot.position.x + delta.x,
+        y: snapshot.position.y + delta.y,
+        z: snapshot.position.z + delta.z,
+      });
     }
 
-    // Update entity's local transform so EntityRenderer gets the change
+    this.gizmoGroup.position.set(newPos.x, newPos.y, newPos.z);
+  }
+
+  private applyWorldPositionToEntity(entityId: string, newPos: { x: number; y: number; z: number }): void {
+    if (!this.validateTransformTarget(entityId, 'applyWorldPositionToEntity')) {
+      return;
+    }
+
+    if (this.sceneGraph) {
+      this.sceneGraph.setWorldPosition(entityId, newPos);
+    } else {
+      this.stateManager.set(`entities.${entityId}.position`, newPos);
+    }
+
     if (this.entityManager) {
-      const entity = this.entityManager.getEntity(this.selectedEntityId);
+      const entity = this.entityManager.getEntity(entityId);
       if (entity) entity.setPosition(newPos);
     }
 
-    // Immediately update the mesh for smooth, lag-free dragging
-    const mesh = this.scene.getObjectByName(`entity_${this.selectedEntityId}`);
+    const mesh = this.scene.getObjectByName(`entity_${entityId}`);
     if (mesh) mesh.position.set(newPos.x, newPos.y, newPos.z);
-
-    // Keep gizmo in sync
-    this.gizmoGroup.position.set(newPos.x, newPos.y, newPos.z);
   }
 
   /**
@@ -815,16 +963,12 @@ export class GizmoSystem {
     if (!this.ensureRuntimeBindings('applyRotation')) return;
     if (!this.draggedAxis || !this.selectedEntityId) return;
 
-    const rotKey = `entities.${this.selectedEntityId}.rotation`;
-    const baseRot = this.stateManager.get(rotKey) as { x: number; y: number; z: number } | undefined;
-    if (!baseRot) return;
-
     // Use the component of worldDelta perpendicular to the axis as angle magnitude
-    const axisDir = this.axes.get(this.draggedAxis)!.direction;
+    const axisDir = this.getAxisDirection(this.draggedAxis);
     const tangent = new THREE.Vector3().copy(worldDelta);
     const projected = tangent.dot(axisDir);
     tangent.addScaledVector(axisDir, -projected); // remove component along axis
-    const angle = tangent.length() * 2; // radians — scale as desired
+    const angle = this.snapValue(tangent.length() * 2, this.snapSettings.rotate); // radians — scale as desired
 
     // Determine sign from cross product in camera space (which way the drag is going)
     const cross = new THREE.Vector3().crossVectors(axisDir, worldDelta);
@@ -838,14 +982,34 @@ export class GizmoSystem {
       z: this.rotationBase.z + (this.draggedAxis === 'z' ? sign * angle : 0),
     };
 
-    this.stateManager.set(rotKey, newRot);
+    for (const entityId of this.dragSelectionIds) {
+      const snapshot = this.dragStartSnapshots.get(entityId);
+      if (!snapshot) continue;
 
-    if (this.entityManager) {
-      const entity = this.entityManager.getEntity(this.selectedEntityId);
-      if (entity) entity.setRotation(newRot);
+      this.applyRotationToEntity(entityId, {
+        x: snapshot.rotation.x + (this.draggedAxis === 'x' ? sign * angle : 0),
+        y: snapshot.rotation.y + (this.draggedAxis === 'y' ? sign * angle : 0),
+        z: snapshot.rotation.z + (this.draggedAxis === 'z' ? sign * angle : 0),
+      });
     }
 
     const mesh = this.scene.getObjectByName(`entity_${this.selectedEntityId}`);
+    if (mesh) mesh.rotation.set(newRot.x, newRot.y, newRot.z);
+  }
+
+  private applyRotationToEntity(entityId: string, newRot: { x: number; y: number; z: number }): void {
+    if (!this.validateTransformTarget(entityId, 'applyRotationToEntity')) {
+      return;
+    }
+
+    this.stateManager.set(`entities.${entityId}.rotation`, newRot);
+
+    if (this.entityManager) {
+      const entity = this.entityManager.getEntity(entityId);
+      if (entity) entity.setRotation(newRot);
+    }
+
+    const mesh = this.scene.getObjectByName(`entity_${entityId}`);
     if (mesh) mesh.rotation.set(newRot.x, newRot.y, newRot.z);
   }
 
@@ -857,8 +1021,8 @@ export class GizmoSystem {
     if (!this.ensureRuntimeBindings('applyScale')) return;
     if (!this.draggedAxis || !this.selectedEntityId) return;
 
-    const axisDir = this.axes.get(this.draggedAxis)!.direction;
-    const signedDelta = worldDelta.dot(axisDir); // positive = grow, negative = shrink
+    const axisDir = this.getAxisDirection(this.draggedAxis);
+    const signedDelta = this.snapValue(worldDelta.dot(axisDir), this.snapSettings.scale); // positive = grow, negative = shrink
     // Map drag distance: 1 world unit of drag = 1x scale change
     const factor = Math.max(0.01, 1 + signedDelta);
 
@@ -868,14 +1032,34 @@ export class GizmoSystem {
       z: this.draggedAxis === 'z' ? Math.max(0.01, this.scaleBase.z * factor) : this.scaleBase.z,
     };
 
-    this.stateManager.set(`entities.${this.selectedEntityId}.scale`, newScale);
+    for (const entityId of this.dragSelectionIds) {
+      const snapshot = this.dragStartSnapshots.get(entityId);
+      if (!snapshot) continue;
 
-    if (this.entityManager) {
-      const entity = this.entityManager.getEntity(this.selectedEntityId);
-      if (entity) entity.setScale?.(newScale);
+      this.applyScaleToEntity(entityId, {
+        x: this.draggedAxis === 'x' ? Math.max(0.01, snapshot.scale.x * factor) : snapshot.scale.x,
+        y: this.draggedAxis === 'y' ? Math.max(0.01, snapshot.scale.y * factor) : snapshot.scale.y,
+        z: this.draggedAxis === 'z' ? Math.max(0.01, snapshot.scale.z * factor) : snapshot.scale.z,
+      });
     }
 
     const mesh = this.scene.getObjectByName(`entity_${this.selectedEntityId}`);
+    if (mesh) mesh.scale.set(newScale.x, newScale.y, newScale.z);
+  }
+
+  private applyScaleToEntity(entityId: string, newScale: { x: number; y: number; z: number }): void {
+    if (!this.validateTransformTarget(entityId, 'applyScaleToEntity')) {
+      return;
+    }
+
+    this.stateManager.set(`entities.${entityId}.scale`, newScale);
+
+    if (this.entityManager) {
+      const entity = this.entityManager.getEntity(entityId);
+      if (entity) entity.setScale?.(newScale);
+    }
+
+    const mesh = this.scene.getObjectByName(`entity_${entityId}`);
     if (mesh) mesh.scale.set(newScale.x, newScale.y, newScale.z);
   }
 
@@ -935,27 +1119,117 @@ export class GizmoSystem {
     if (!this.ensureRuntimeBindings('emitTransformCommit')) return;
     if (!this.onEntityTransformCommitted || !this.selectedEntityId) return;
 
-    const position = this.stateManager.get(`entities.${this.selectedEntityId}.position`) as
-      | { x: number; y: number; z: number }
-      | undefined;
-    const rotation = this.stateManager.get(`entities.${this.selectedEntityId}.rotation`) as
-      | { x: number; y: number; z: number }
-      | undefined;
-    const scale = this.stateManager.get(`entities.${this.selectedEntityId}.scale`) as
-      | { x: number; y: number; z: number }
-      | undefined;
+    if (!this.validateTransformTarget(this.selectedEntityId, 'emitTransformCommit')) {
+      return;
+    }
 
-    if (!position || !rotation || !scale) return;
+    const entities = this.dragSelectionIds
+      .map((entityId) => {
+        if (!this.validateTransformTarget(entityId, 'emitTransformCommit:entry')) {
+          return null;
+        }
+
+        const previous = this.dragStartSnapshots.get(entityId);
+        const current = this.getTransformSnapshot(entityId);
+        if (!previous || !current) return null;
+
+        return {
+          id: entityId,
+          previousPosition: { ...previous.position },
+          previousRotation: { ...previous.rotation },
+          previousScale: { ...previous.scale },
+          position: { ...current.position },
+          rotation: { ...current.rotation },
+          scale: { ...current.scale },
+        } satisfies GizmoTransformCommit;
+      })
+      .filter((entry): entry is GizmoTransformCommit => entry !== null);
+
+    if (entities.length === 0) return;
 
     this.onEntityTransformCommitted({
-      id: this.selectedEntityId,
-      previousPosition: { x: this.dragStartEntityPos.x, y: this.dragStartEntityPos.y, z: this.dragStartEntityPos.z },
-      previousRotation: { ...this.dragStartRotation },
-      previousScale: { ...this.dragStartScale },
+      primaryId: this.selectedEntityId,
+      entities,
+    });
+  }
+
+  private validateTransformTarget(entityId: string, accessor: string): boolean {
+    try {
+      const entity = this.entityManager?.getEntity(entityId) ?? null;
+      if (!entity) {
+        this.cancelInteraction(`${accessor}:missing_entity`);
+        return false;
+      }
+
+      if (this.sceneGraph) {
+        const worldTransform = this.sceneGraph.getWorldTransform(entityId);
+        const { x, y, z } = worldTransform.position;
+        if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) {
+          this.cancelInteraction(`${accessor}:invalid_world_transform`);
+          return false;
+        }
+      }
+
+      return true;
+    } catch (error) {
+      console.error(`[GizmoSystem] Invalid transform target during ${accessor}`, {
+        entityId,
+        error,
+      });
+      this.cancelInteraction(`${accessor}:exception`);
+      return false;
+    }
+  }
+
+  private getTransformSelectionIds(): string[] {
+    const selectedIds = this.selectedEntityIds.length > 0
+      ? [...this.selectedEntityIds]
+      : (this.selectedEntityId ? [this.selectedEntityId] : []);
+
+    if (!this.sceneGraph || selectedIds.length <= 1) {
+      return selectedIds;
+    }
+
+    const selectedSet = new Set(selectedIds);
+    return selectedIds.filter((entityId) => {
+      let parentId = this.sceneGraph?.getParent(entityId);
+      while (parentId) {
+        if (selectedSet.has(parentId)) {
+          return false;
+        }
+        parentId = this.sceneGraph?.getParent(parentId);
+      }
+      return true;
+    });
+  }
+
+  private getTransformSnapshot(entityId: string): GizmoTransformSnapshot | null {
+    let position: { x: number; y: number; z: number } | undefined;
+    if (this.sceneGraph) {
+      position = this.sceneGraph.getWorldTransform(entityId).position;
+    } else {
+      position = this.stateManager.get(`entities.${entityId}.position`) as
+        | { x: number; y: number; z: number }
+        | undefined;
+    }
+
+    const rotation = this.stateManager.get(`entities.${entityId}.rotation`) as
+      | { x: number; y: number; z: number }
+      | undefined;
+    const scale = this.stateManager.get(`entities.${entityId}.scale`) as
+      | { x: number; y: number; z: number }
+      | undefined;
+
+    if (!position || !rotation || !scale) {
+      return null;
+    }
+
+    return {
+      id: entityId,
       position: { ...position },
       rotation: { ...rotation },
       scale: { ...scale },
-    });
+    };
   }
 
   /**
@@ -964,6 +1238,7 @@ export class GizmoSystem {
   destroy(): void {
     this.disable();
     this.entityDestroyedDisposer?.();
+    this.entityUpdatedDisposer?.();
     while (this.lifecycleDisposers.length > 0) {
       this.lifecycleDisposers.pop()?.();
     }

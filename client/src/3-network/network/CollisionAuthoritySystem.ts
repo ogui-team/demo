@@ -71,6 +71,21 @@ export class CollisionAuthoritySystem {
     });
   }
 
+  clearStaticLayout(sessionId = 'editor'): void {
+    this.hasStaticLayout = false;
+    this.staticLayout = {
+      mapId: 'editor',
+      sessionId,
+      bounds: null,
+      boxes: [],
+    };
+    gameBus.emit('stateMutation', {
+      source: 'CollisionAuthoritySystem',
+      path: 'collisionAuthority.staticLayout',
+      changedCount: 1,
+    });
+  }
+
   getStaticLayout(): MapCollisionLayout {
     return {
       ...this.staticLayout,
@@ -190,6 +205,35 @@ export class CollisionAuthoritySystem {
     });
   }
 
+  /**
+   * Find the highest floor Y below a given position.
+   * Returns the Y level where the player's feet would land, or null if no floor found.
+   * @param position  Player center position
+   * @param radius    Player XZ collision radius
+   * @param halfH     Half-height of the player (used as feet offset below center)
+   */
+  findFloorY(
+    position: CollisionVector3,
+    radius: number,
+    halfH: number,
+    options: { includeNonDeterministic?: boolean } = {},
+  ): number | null {
+    const feetY = position.y - halfH;
+    let highestFloorY: number | null = null;
+
+    for (const box of this.getCombinedCollisionBoxes(options)) {
+      const boxTopY = box.position.y + box.halfExtents.y;
+      if (boxTopY > feetY + 0.05) continue; // Box top is above player's feet — skip
+      const dx = Math.max(Math.abs(position.x - box.position.x) - box.halfExtents.x, 0);
+      const dz = Math.max(Math.abs(position.z - box.position.z) - box.halfExtents.z, 0);
+      if (dx * dx + dz * dz > radius * radius) continue; // Not horizontally under player
+      if (highestFloorY === null || boxTopY > highestFloorY) {
+        highestFloorY = boxTopY;
+      }
+    }
+    return highestFloorY;
+  }
+
   resolveMovement(
     currentPosition: CollisionVector3,
     desiredMovement: CollisionVector3,
@@ -201,8 +245,33 @@ export class CollisionAuthoritySystem {
       y: currentPosition.y,
       z: currentPosition.z + desiredMovement.z,
     };
+
+    // ── Y floor detection ────────────────────────────────────────────────────
+    // When the player is falling, find if they would pass through a box top.
+    // The "height" option is used as a half-height offset to locate the player's feet.
+    let resolvedY = desiredMovement.y;
+    if (desiredMovement.y < 0) {
+      const halfH = (options.height ?? 1.6) * 0.5;
+      const feetY = currentPosition.y - halfH;
+      const newFeetY = feetY + desiredMovement.y;
+
+      for (const box of this.getCombinedCollisionBoxes(options)) {
+        const boxTopY = box.position.y + box.halfExtents.y;
+        if (boxTopY > feetY + 0.02) continue; // Box above player's feet, skip
+        if (boxTopY < newFeetY) continue;      // Player won't reach this box
+        // Check horizontal overlap (feet XZ vs box XZ, expanded by radius)
+        const dx = Math.max(Math.abs(currentPosition.x + desiredMovement.x - box.position.x) - box.halfExtents.x, 0);
+        const dz = Math.max(Math.abs(currentPosition.z + desiredMovement.z - box.position.z) - box.halfExtents.z, 0);
+        if (dx * dx + dz * dz > radius * radius) continue;
+        // Floor hit — clamp Y so feet land exactly on box top
+        const clampedY = boxTopY - feetY; // delta to bring feet to box top
+        if (clampedY > resolvedY) resolvedY = clampedY;
+      }
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
     if (this.isPositionValid(fullPosition, radius, options)) {
-      return { ...desiredMovement };
+      return { ...desiredMovement, y: resolvedY };
     }
 
     const candidates: Array<{ vector: CollisionVector3; delta: CollisionVector3 }> = [
@@ -229,15 +298,15 @@ export class CollisionAuthoritySystem {
       }
     }
 
-    if (bestCandidate) return bestCandidate.delta;
+    if (bestCandidate) return { ...bestCandidate.delta, y: resolvedY };
 
     // All standard slide options failed. The player may be surrounded by dynamic (enemy)
     // colliders. Compute a gentle push-out vector away from the nearest non-deterministic
     // blocker so the player can slide past enemies instead of getting permanently stuck.
     const escapeVec = this._computeEscapeFromDynamicBlockers(currentPosition, radius, options);
-    if (escapeVec) return escapeVec;
+    if (escapeVec) return { ...escapeVec, y: resolvedY };
 
-    return { x: 0, y: 0, z: 0 };
+    return { x: 0, y: resolvedY, z: 0 };
   }
 
   /**

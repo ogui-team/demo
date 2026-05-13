@@ -31,7 +31,7 @@ export async function initializeMode(): Promise<void> {
       const gameLaunchCoordinator = (window as any).__gameLaunchCoordinator;
       if (gameLaunchCoordinator && gameLaunchCoordinator.startLocalFreeplay) {
         console.log('[FreeplayRuntime] Starting local freeplay game...');
-        gameLaunchCoordinator.startLocalFreeplay();
+        await gameLaunchCoordinator.startLocalFreeplay();
       } else {
         console.warn('[FreeplayRuntime] gameLaunchCoordinator not available');
       }

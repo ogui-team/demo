@@ -188,11 +188,16 @@ export function forceLocalState(
   binding.entity.setRotation(rotation);
   const runtime = context.movementState.get(localPlayerId) ?? {
     ...context.createMovementRuntimeState(),
-    groundHeight: position.y,
     lastCorrectionTick: context.tick,
   };
   runtime.velocity = velocity ? cloneVector(velocity) : { x: 0, y: 0, z: 0 };
-  runtime.groundHeight = position.y;
+  // Initialize groundHeight below the spawn position so the player is treated
+  // as airborne immediately.  The collision resolver (Y floor detection) will
+  // discover the actual floor on the first few frames and set groundHeight
+  // correctly.  Using position.y here would make the player hover forever when
+  // spawned above the ground (e.g. from an elevated player-spawn prefab).
+  runtime.groundHeight = position.y - 1000;
+  runtime.isAirborne = true;
   context.movementState.set(localPlayerId, runtime);
 
   if (options.clearPendingInputs !== false) {

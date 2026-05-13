@@ -225,6 +225,17 @@ export class ObjectCreatorSystem {
       this.entityRenderer.syncEntity(entity);
     }
 
+    for (const [componentType, component] of obj.components.entries()) {
+      if (componentType === 'render') continue;
+      if (componentType !== 'collider' && componentType !== 'interactable' && componentType !== 'pickup') {
+        continue;
+      }
+      entity.addComponent({
+        name: componentType,
+        data: component as unknown as Record<string, unknown>,
+      });
+    }
+
     // Build Three.js group for projectile/runtime tracking
     const group = new THREE.Group();
     group.position.set(transform.position.x, transform.position.y, transform.position.z);
@@ -244,11 +255,19 @@ export class ObjectCreatorSystem {
       changedCount: 1,
     });
 
-    // Spawn children
+    // Spawn children and attach their groups to the parent group (local-space parenting)
     for (const childDef of resolved.children ?? []) {
       const childId = this.spawn(childDef, id);
       const childObj = this.objects.get(childId);
-      if (childObj) obj.children.push(childObj);
+      if (!childObj) continue;
+      obj.children.push(childObj);
+      const childGroup = this.groups.get(childId);
+      if (childGroup) {
+        // Move child group from world-root to parent group so it inherits parent transform
+        this.scene.remove(childGroup);
+        group.add(childGroup);
+        // Position is already in local space (child.offset) from toSpawnDef — no reset needed
+      }
     }
 
     // Notify multiplayer

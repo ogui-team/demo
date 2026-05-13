@@ -1,5 +1,3 @@
-import * as THREE from 'three';
-
 /**
  * DebugMenu: F6-toggled debug UI for runtime diagnostics and toggles
  * 
@@ -11,7 +9,6 @@ import * as THREE from 'three';
  */
 
 interface DebugState {
-  collidersVisible: boolean;
   performanceMetricsVisible: boolean;
   physicsDebugVisible: boolean;
 }
@@ -24,7 +21,6 @@ interface GraphicsSettings {
 }
 
 let debugState: DebugState = {
-  collidersVisible: false,
   performanceMetricsVisible: false,
   physicsDebugVisible: false,
 };
@@ -40,6 +36,8 @@ let debugMenuVisible = false;
 let debugMenuElement: HTMLDivElement | null = null;
 
 export function initDebugMenu(): void {
+  removeLegacyColliderDebugMeshes();
+
   // Create debug menu HTML
   debugMenuElement = document.createElement('div');
   debugMenuElement.id = 'debug-menu';
@@ -71,6 +69,33 @@ export function initDebugMenu(): void {
   });
 
   console.log('[DEBUG_MENU] Initialized - Press F6 to toggle');
+}
+
+function removeLegacyColliderDebugMeshes(): void {
+  try {
+    const Engine = (window as any).__Engine;
+    const scene = Engine?.getEngineScene?.();
+    if (!scene) return;
+
+    const staleMeshes: any[] = [];
+    scene.traverse((obj: any) => {
+      if (obj.userData?.debugType === 'staticCollider') {
+        staleMeshes.push(obj);
+      }
+    });
+
+    for (const mesh of staleMeshes) {
+      mesh.parent?.remove(mesh);
+      mesh.geometry?.dispose?.();
+      mesh.material?.dispose?.();
+    }
+
+    if (staleMeshes.length > 0) {
+      console.log(`[DEBUG_MENU] Removed ${staleMeshes.length} legacy static collider debug meshes`);
+    }
+  } catch (err) {
+    console.warn('[DEBUG_MENU] Failed to remove legacy collider debug meshes', err);
+  }
 }
 
 export function toggleDebugMenu(): void {
@@ -123,7 +148,6 @@ function getHordeDebugInfo(): { hp: number; maxHp: number; registeredIds: string
 export function updateDebugMenuContent(): void {
   if (!debugMenuElement) return;
 
-  const colliderCount = getColliderCount();
   const fpsEstimate = Math.round(1000 / (performance.now() % 16.67 || 1));
   const horde = getHordeDebugInfo();
   const hpColor = horde.hp < 0 ? '#888' : horde.hp < 30 ? '#f44' : horde.hp < 60 ? '#fa0' : '#4f4';
@@ -163,12 +187,6 @@ export function updateDebugMenuContent(): void {
     </div>
     
     <div style="margin-bottom: 6px;">
-      <div style="cursor: pointer; padding: 6px; margin-bottom: 4px; background: ${debugState.collidersVisible ? '#4a4a4a' : '#2a2a2a'}; border: 1px solid ${debugState.collidersVisible ? '#777' : '#555'}; border-radius: 3px;" onclick="window.__debugToggleColliders()" onmouseenter="this.style.background='#4a4a4a'" onmouseleave="this.style.background='${debugState.collidersVisible ? '#4a4a4a' : '#2a2a2a'}'">
-        <span style="color: ${debugState.collidersVisible ? '#4f4' : '#888'};">[${debugState.collidersVisible ? '✓' : ' '}]</span> Show Colliders
-      </div>
-    </div>
-
-    <div style="margin-bottom: 6px;">
       <div style="cursor: pointer; padding: 6px; background: #2a2a2a; border: 1px solid #555; border-radius: 3px; font-weight: bold; color: #0f0;" onclick="window.__debugSpawnHealthPacks()" onmouseenter="this.style.background='#4a4a4a'" onmouseleave="this.style.background='#2a2a2a'">
         ▶ SPAWN 500 HEALTH PACKS
       </div>
@@ -206,21 +224,8 @@ export function updateDebugMenuContent(): void {
 
     <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #555; font-size: 11px; color: #999;">
       <div>FPS: <span style="color: #aaa;">${fpsEstimate}</span></div>
-      <div>Colliders: <span style="color: #aaa;">${colliderCount}</span></div>
     </div>
   `;
-}
-
-export function toggleColliders(): void {
-  try {
-    console.log('[DEBUG_MENU] toggleColliders called, current state:', debugState.collidersVisible);
-    debugState.collidersVisible = !debugState.collidersVisible;
-    setColliderVisibility(debugState.collidersVisible);
-    updateDebugMenuContent();
-    console.log(`[DEBUG_MENU] Colliders now ${debugState.collidersVisible ? 'VISIBLE' : 'HIDDEN'}`);
-  } catch (err) {
-    console.error('[DEBUG_MENU] toggleColliders error:', err);
-  }
 }
 
 export function togglePerformanceMetrics(): void {
@@ -359,104 +364,8 @@ export function spawnBiteArmy(): void {
   updateDebugMenuContent();
 }
 
-function setColliderVisibility(visible: boolean): void {
-  try {
-    const Engine = (window as any).__Engine;
-    if (!Engine) {
-      console.warn('[DEBUG_MENU] Engine not available in setColliderVisibility');
-      return;
-    }
-
-    const scene = Engine.getEngineScene?.();
-    if (!scene) {
-      console.warn('[DEBUG_MENU] Scene not available in setColliderVisibility');
-      return;
-    }
-
-    const existingColliders: any[] = [];
-    scene.traverse((obj: any) => {
-      if (obj.userData?.debugType === 'staticCollider') {
-        existingColliders.push(obj);
-      }
-    });
-
-    if (visible && existingColliders.length === 0) {
-      const createdCount = createDebugStaticColliderMeshes(scene, Engine);
-      console.log(`[DEBUG_MENU] Created ${createdCount} static collider debug meshes`);
-    }
-
-    let count = 0;
-    scene.traverse((obj: any) => {
-      if (obj.userData?.debugType === 'staticCollider') {
-        obj.visible = visible;
-        count++;
-      }
-    });
-
-    console.log(`[DEBUG_MENU] Set ${count} colliders to visible=${visible}`);
-  } catch (err) {
-    console.error('[DEBUG_MENU] Error in setColliderVisibility:', err);
-  }
-}
-
-function createDebugStaticColliderMeshes(scene: THREE.Scene, Engine: any): number {
-  try {
-    const systemContext = Engine.getSystemContext?.();
-    const collisionAuthority = systemContext?.systems?.clientCollisionAuthoritySystem ?? systemContext?.resolveSystem?.('clientCollisionAuthoritySystem');
-    const staticLayout = collisionAuthority?.getStaticLayout?.();
-    if (!staticLayout?.boxes?.length) {
-      return 0;
-    }
-
-    for (const box of staticLayout.boxes) {
-      const geometry = new THREE.BoxGeometry(
-        box.halfExtents.x * 2,
-        box.halfExtents.y * 2,
-        box.halfExtents.z * 2,
-      );
-      const material = new THREE.MeshPhongMaterial({
-        color: 0xff0000,
-        transparent: true,
-        opacity: 0.15,
-        wireframe: false,
-        depthTest: true,
-        depthWrite: false,
-        side: THREE.DoubleSide,
-      });
-
-      const mesh = new THREE.Mesh(geometry, material);
-      mesh.position.set(box.position.x, box.position.y, box.position.z);
-      mesh.rotation.set(0, 0, 0);
-      mesh.userData = { debugType: 'staticCollider', source: 'collisionAuthority', authorityId: box.id };
-      mesh.name = `debug_static_collider_${box.id}`;
-      scene.add(mesh);
-    }
-
-    return staticLayout.boxes.length;
-  } catch (err) {
-    console.error('[DEBUG_MENU] Error creating static collider debug meshes:', err);
-    return 0;
-  }
-}
-
-function getColliderCount(): number {
-  const Engine = (window as any).__Engine;
-  if (!Engine) return 0;
-
-  const scene = Engine.getEngineScene?.();
-  if (!scene) return 0;
-
-  let count = 0;
-  scene.traverse((obj: any) => {
-    if (obj.userData?.debugType === 'staticCollider') {
-      count++;
-    }
-  });
-  return count;
-}
 
 // Expose functions to window for onclick handlers
-(window as any).__debugToggleColliders = toggleColliders;
 (window as any).__debugToggleMetrics = togglePerformanceMetrics;
 (window as any).__debugTogglePhysics = togglePhysicsDebug;
 (window as any).__debugSpawnBiteArmy = spawnBiteArmy;

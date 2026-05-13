@@ -38,6 +38,7 @@ import { ParallaxSystem } from '../../2-systems/gameplay/systems/2d/ParallaxSyst
 import { SpriteRenderSystem } from '../../2-systems/gameplay/systems/2d/SpriteRenderSystem';
 import { UI2DSystem } from '../../2-systems/gameplay/systems/2d/UI2DSystem';
 import { SpritePrefabExtension } from '../../2-systems/gameplay/systems/2d/SpritePrefabExtension';
+import type { FoliageSystem } from '../../2-systems/gameplay/systems/2d/FoliageSystem';
 import { UndoRedoSystem } from '../../1-kernel/core/UndoRedoSystem';
 import { SpawnSystem } from '../../2-systems/gameplay/systems/SpawnSystem';
 import { HordeSystem } from '../../2-systems/gameplay/systems/HordeSystem';
@@ -69,6 +70,8 @@ import { ClientWorldRuntimeCoordinator } from './coordinators/ClientWorldRuntime
 import { MultiplayerRuntimeCoordinator } from './coordinators/MultiplayerRuntimeCoordinator';
 import { EditorAuthorityCoordinator } from './EditorAuthorityCoordinator';
 import { SceneSerializationSystem } from '../editor/SceneSerializationSystem';
+import { WorldBuildService } from './WorldBuildService';
+import { RendererRebindService } from './RendererRebindService';
 import { TitanContentPipeline } from '../content/TitanContentPipeline';
 import { RuntimeAuxiliaryAssembly } from './RuntimeAuxiliaryAssembly';
 import { RuntimeOverlayCoordinator } from './coordinators/RuntimeOverlayCoordinator';
@@ -336,6 +339,7 @@ export function bootstrapRuntime(): void {
   spawnSystem = phase3Result.systems.spawn as SpawnSystem;
   const weaponSystem = phase3Result.systems.weapon as WeaponSystem;
   const abilitySystem = phase3Result.systems.ability as AbilitySystem;
+  const foliageSystem = phase3Result.systems.foliage as FoliageSystem;
   
   // Additional setup for extracted systems
   weaponSystem.registerPresets();
@@ -393,12 +397,32 @@ export function bootstrapRuntime(): void {
     readHalfExtents: (entity) => {
       const colliderData = entity.getComponent('collider')?.data as Record<string, unknown> | undefined;
       const halfExtentsData = colliderData?.halfExtents as { x?: unknown; y?: unknown; z?: unknown } | undefined;
+      const colliderSize = colliderData?.size as { width?: unknown; height?: unknown; depth?: unknown; radius?: unknown; capsuleRadius?: unknown; capsuleHeight?: unknown } | undefined;
+      const colliderShape = typeof colliderData?.shape === 'string' ? colliderData.shape : null;
       return halfExtentsData
         ? {
             x: readNumber(halfExtentsData.x, 0.5),
             y: readNumber(halfExtentsData.y, 0.5),
             z: readNumber(halfExtentsData.z, 0.5),
           }
+        : colliderSize
+          ? colliderShape === 'sphere'
+            ? {
+                x: readNumber(colliderSize.radius, 0.5),
+                y: readNumber(colliderSize.radius, 0.5),
+                z: readNumber(colliderSize.radius, 0.5),
+              }
+            : colliderShape === 'capsule'
+              ? {
+                  x: readNumber(colliderSize.capsuleRadius, 0.4),
+                  y: readNumber(colliderSize.capsuleHeight, 1.2) * 0.5,
+                  z: readNumber(colliderSize.capsuleRadius, 0.4),
+                }
+              : {
+                  x: readNumber(colliderSize.width, 1) * 0.5,
+                  y: readNumber(colliderSize.height, 1) * 0.5,
+                  z: readNumber(colliderSize.depth, 1) * 0.5,
+                }
         : getHalfExtentsFromRenderData(entity.getComponent('render')?.data as Record<string, unknown> | undefined);
     },
   });
@@ -579,6 +603,29 @@ export function bootstrapRuntime(): void {
         streamingInterval: 0.2,
       })
     : null;
+  const worldBuildService = new WorldBuildService({
+    sceneSerializationSystem,
+    saveLoadManager,
+    sceneGraph: Engine.getSceneGraph(),
+    entityManager: Engine.getEntityManager(),
+    entityRenderer: Engine.getEntityRenderer(),
+    snapshotSceneRoot: () => Engine.snapshotEngineSceneRoot((object) => {
+      const name = object.name.toLowerCase();
+      if (object.userData?.isGizmo || object.userData?.isSelectionOutline || object.userData?.editorTransient) {
+        return false;
+      }
+      if (name.includes('gizmo') || name.includes('selection')) {
+        return false;
+      }
+      return true;
+    }),
+    setSceneRoot: (root) => Engine.setSceneRoot(root),
+    onWorldApplied: () => worldRuntime.onWorldBufferApplied(),
+  });
+  const rendererRebindService = new RendererRebindService({
+    getScene: () => Engine.getEngineScene(),
+    getRenderer: () => Engine.getEngineRenderer(),
+  });
 
   prefabPlacementSystem?.setRuntimeServices({
     prefabSystem,
@@ -593,6 +640,7 @@ export function bootstrapRuntime(): void {
   Engine.bindExternalSystemContext('editorPainterSystem', editorPainterSystem);
   Engine.bindExternalSystemContext('triggerVolumeTool', triggerVolumeTool);
   Engine.bindExternalSystemContext('sceneSerializationSystem', sceneSerializationSystem);
+  Engine.bindExternalSystemContext('worldBuildService', worldBuildService);
   Engine.bindExternalSystemContext('titanContentPipeline', titanContentPipeline);
   Engine.bindExternalSystemContext('pathfindingSystem', pathfindingSystem);
   Engine.bindExternalSystemContext('vfxSystem', vfxSystem);
@@ -694,6 +742,10 @@ export function bootstrapRuntime(): void {
       engineGameModes,
       menuIdentitySystem,
       debugManager,
+      lifecycleOrchestrator: lifecycleOrchestrator!,
+      worldBuildService,
+      rendererRebindService,
+      undoRedoSystem,
     }),
     auxiliaryAssemblyRef: () => auxiliaryAssembly,
     worldRuntime,
@@ -920,6 +972,8 @@ export function bootstrapRuntime(): void {
     setPendingMatchResetMode: (mode) => {
       pendingMatchResetMode = mode;
     },
+    lifecycleOrchestrator,
+    worldBuildService,
   });
 
   const phase6Result = bootstrapPhase6_CoordinatorWiring(
@@ -991,6 +1045,7 @@ export function bootstrapRuntime(): void {
     tilemapSystem,
     parallax2DSystem,
     spriteRenderSystem,
+    foliageSystem,
     ui2DSystem,
     adaptiveRuntime,
     materialManager,

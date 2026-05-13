@@ -12,7 +12,8 @@ let camera: THREE.PerspectiveCamera | null = null;
 export function initRenderer(
   canvasElement: HTMLCanvasElement,
   sceneRef: THREE.Scene,
-  cameraRef: THREE.PerspectiveCamera
+  cameraRef: THREE.PerspectiveCamera,
+  containerElement?: HTMLElement
 ): THREE.WebGLRenderer {
   scene = sceneRef;
   camera = cameraRef;
@@ -26,7 +27,15 @@ export function initRenderer(
   // PS1-style output gains nothing from high-DPI backbuffers, and the extra fill cost
   // dominates empty-scene frame time in production sampling.
   renderer.setPixelRatio(1);
-  renderer.setSize(window.innerWidth, window.innerHeight);
+  
+  // If a container is provided (editor layout), size to fit it; otherwise fullscreen
+  if (containerElement) {
+    const rect = containerElement.getBoundingClientRect();
+    renderer.setSize(rect.width, rect.height);
+  } else {
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  }
+  
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;

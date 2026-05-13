@@ -79,42 +79,57 @@ function linearToDb(value: number): number {
 export const EXAMPLE_AUDIO_TRACKS: MusicTrackDefinition[] = [
   {
     id: 'menu_theme',
-    label: 'Menu Theme',
-    description: 'Minimal synth ostinato used when Tone.js is available.',
+    label: 'Ambient Drift',
+    description: 'Slow floating ambient pads — relaxing and atmospheric.',
     loop: true,
-    volume: 0.35,
+    volume: 0.28,
     toneSequence: {
-      bpm: 88,
-      loopEnd: '2m',
-      reverb: 1.6,
+      bpm: 48,
+      loopEnd: '8m',
+      reverb: 5.0,
       steps: [
-        { time: '0:0:0', note: 'A2', duration: '8n' },
-        { time: '0:1:0', note: 'E3', duration: '8n' },
-        { time: '0:2:0', note: 'G3', duration: '8n' },
-        { time: '0:3:0', note: 'E3', duration: '8n' },
-        { time: '1:0:0', note: 'A2', duration: '8n' },
-        { time: '1:1:0', note: 'D3', duration: '8n' },
-        { time: '1:2:0', note: 'G3', duration: '8n' },
-        { time: '1:3:0', note: 'B2', duration: '8n' },
+        // Bar 0 — root chord (Fmaj7 spread)
+        { time: '0:0:0', note: 'F2',  duration: '2m',  velocity: 0.35 },
+        { time: '0:0:0', note: 'A3',  duration: '2m',  velocity: 0.28 },
+        { time: '0:0:0', note: 'C4',  duration: '2m',  velocity: 0.22 },
+        { time: '0:0:0', note: 'E4',  duration: '2m',  velocity: 0.18 },
+        // Bar 2 — Am7
+        { time: '2:0:0', note: 'A2',  duration: '2m',  velocity: 0.35 },
+        { time: '2:0:0', note: 'C4',  duration: '2m',  velocity: 0.28 },
+        { time: '2:0:0', note: 'E4',  duration: '2m',  velocity: 0.22 },
+        { time: '2:0:0', note: 'G4',  duration: '2m',  velocity: 0.18 },
+        // Bar 4 — Cmaj7
+        { time: '4:0:0', note: 'C3',  duration: '2m',  velocity: 0.35 },
+        { time: '4:0:0', note: 'E4',  duration: '2m',  velocity: 0.28 },
+        { time: '4:0:0', note: 'G4',  duration: '2m',  velocity: 0.22 },
+        { time: '4:0:0', note: 'B4',  duration: '2m',  velocity: 0.18 },
+        // Bar 6 — G add9
+        { time: '6:0:0', note: 'G2',  duration: '2m',  velocity: 0.35 },
+        { time: '6:0:0', note: 'B3',  duration: '2m',  velocity: 0.28 },
+        { time: '6:0:0', note: 'D4',  duration: '2m',  velocity: 0.22 },
+        { time: '6:0:0', note: 'A4',  duration: '2m',  velocity: 0.18 },
       ],
     },
   },
   {
     id: 'quarry_combat',
-    label: 'Quarry Combat',
-    description: 'Faster combat loop for scripted levels.',
+    label: 'Quarry Pulse',
+    description: 'Slow textural loop for in-game ambience.',
     loop: true,
-    volume: 0.4,
+    volume: 0.25,
     toneSequence: {
-      bpm: 104,
-      loopEnd: '1m',
-      reverb: 0.9,
+      bpm: 56,
+      loopEnd: '4m',
+      reverb: 3.5,
       steps: [
-        { time: '0:0:0', note: 'D2', duration: '16n' },
-        { time: '0:0:2', note: 'A2', duration: '16n' },
-        { time: '0:1:0', note: 'F3', duration: '8n' },
-        { time: '0:2:0', note: 'G3', duration: '8n' },
-        { time: '0:3:0', note: 'A3', duration: '8n' },
+        { time: '0:0:0', note: 'D2',  duration: '1m',  velocity: 0.30 },
+        { time: '0:0:0', note: 'A3',  duration: '1m',  velocity: 0.22 },
+        { time: '1:0:0', note: 'F3',  duration: '1m',  velocity: 0.26 },
+        { time: '1:0:0', note: 'C4',  duration: '1m',  velocity: 0.20 },
+        { time: '2:0:0', note: 'G2',  duration: '1m',  velocity: 0.30 },
+        { time: '2:0:0', note: 'D4',  duration: '1m',  velocity: 0.22 },
+        { time: '3:0:0', note: 'A2',  duration: '1m',  velocity: 0.26 },
+        { time: '3:0:0', note: 'E4',  duration: '1m',  velocity: 0.20 },
       ],
     },
   },
@@ -233,6 +248,10 @@ export class GameAudioManager {
     this.listenerCamera = camera;
   }
 
+  // Synthesized ambient drone handles (used when Tone.js is unavailable)
+  private ambientDroneNodes: { osc: OscillatorNode; gain: GainNode }[] = [];
+  private ambientDroneCtx: AudioContext | null = null;
+
   playMusic(trackId: string): void {
     const track = this.tracks.get(trackId);
     if (!track) return;
@@ -259,7 +278,11 @@ export class GameAudioManager {
       if (handle) {
         this.activeHandles.set(handle.id, handle);
       }
+      return;
     }
+
+    // No Tone.js and no soundKey — synthesize a relaxing ambient drone using raw Web Audio
+    this._startAmbientDrone(track.volume ?? 0.25);
   }
 
   stopMusic(): void {
@@ -284,11 +307,15 @@ export class GameAudioManager {
       node.dispose?.();
     }
     this.activeToneNodes = [];
+    this._stopAmbientDrone();
   }
 
   playTrigger(triggerId: string, position?: { x: number; y: number; z: number }): string | null {
     const trigger = this.triggers.get(triggerId);
-    if (!trigger || !trigger.soundKey) return null;
+    if (!trigger) return null;
+    if (!trigger.soundKey) {
+      return this.playSyntheticTrigger(triggerId, trigger, position);
+    }
     const handle = position
       ? this.audioEngine.playAt(trigger.soundKey, position, {
           category: trigger.category ?? 'ambient',
@@ -302,6 +329,38 @@ export class GameAudioManager {
         });
 
     if (!handle) return null;
+    this.activeHandles.set(handle.id, handle);
+    return handle.id;
+  }
+
+  private playSyntheticTrigger(
+    triggerId: string,
+    trigger: AudioTriggerDefinition,
+    position?: { x: number; y: number; z: number },
+  ): string | null {
+    if ((trigger.category ?? 'ui') !== 'ui') {
+      return null;
+    }
+
+    const listenerPosition = this.listenerCamera
+      ? {
+          x: this.listenerCamera.position.x,
+          y: this.listenerCamera.position.y,
+          z: this.listenerCamera.position.z,
+        }
+      : { x: 0, y: 0, z: 0 };
+    const tonePosition = position ?? listenerPosition;
+    const frequency = triggerId === 'ui_confirm' ? 880 : 1320;
+    const handle = this.audioEngine.playToneAt(frequency, tonePosition, {
+      category: 'ui',
+      durationMs: triggerId === 'ui_confirm' ? 90 : 60,
+      volume: trigger.volume ?? 0.2,
+      waveform: triggerId === 'ui_confirm' ? 'triangle' : 'sine',
+      maxDist: 1000,
+    });
+    if (!handle) {
+      return null;
+    }
     this.activeHandles.set(handle.id, handle);
     return handle.id;
   }
@@ -435,17 +494,27 @@ export class GameAudioManager {
     await this.tone.start?.();
     this.tone.Transport?.cancel?.();
     if (this.tone.Transport?.bpm) {
-      this.tone.Transport.bpm.value = track.toneSequence.bpm ?? 96;
+      this.tone.Transport.bpm.value = track.toneSequence.bpm ?? 48;
     }
     if (this.tone.Transport) {
       this.tone.Transport.loop = track.loop ?? true;
-      this.tone.Transport.loopEnd = track.toneSequence.loopEnd ?? '1m';
+      this.tone.Transport.loopEnd = track.toneSequence.loopEnd ?? '8m';
     }
 
-    const synth = this.tone.PolySynth ? new this.tone.PolySynth().toDestination() : null;
+    // Use a soft sine-wave PolySynth for ambient pads
+    const synthOptions = {
+      oscillator: { type: 'sine' },
+      envelope: {
+        attack: 2.5,
+        decay: 1.0,
+        sustain: 0.85,
+        release: 5.0,
+      },
+    };
+    const synth = this.tone.PolySynth ? new this.tone.PolySynth(undefined, synthOptions).toDestination() : null;
     let reverb: any = null;
     if (this.tone.Reverb && synth) {
-      reverb = new this.tone.Reverb(track.toneSequence.reverb ?? 1.2).toDestination();
+      reverb = new this.tone.Reverb(track.toneSequence.reverb ?? 5.0).toDestination();
       if (typeof reverb.generate === 'function') {
         await reverb.generate();
       }
@@ -456,13 +525,78 @@ export class GameAudioManager {
 
     if (this.tone.Part && synth) {
       this.activeTonePart = new this.tone.Part((time: unknown, event: ToneSequenceStep) => {
-        synth.triggerAttackRelease(event.note, event.duration, time, event.velocity ?? 0.75);
+        synth.triggerAttackRelease(event.note, event.duration, time, event.velocity ?? 0.3);
       }, track.toneSequence.steps.map((step) => [step.time, step])).start(0);
     }
 
     this.activeToneNodes = [synth, reverb].filter(Boolean);
     this._applyMixerState();
     this.tone.Transport?.start?.();
+  }
+
+  /**
+   * Synthesize a soft ambient drone directly with the Web Audio API.
+   * Layered detuned sine oscillators with slow LFO volume modulation — produces
+   * a relaxing, gently evolving pad without any external library.
+   */
+  private _startAmbientDrone(targetVolume: number): void {
+    const ctx = (this.audioEngine as any).ctx as AudioContext | undefined;
+    if (!ctx) return;
+    this.ambientDroneCtx = ctx;
+
+    // F2 major7 chord as drone: F2, A2, C3, E3 with slight detuning per layer
+    const baseFreqs = [87.31, 110.00, 130.81, 164.81]; // F2, A2, C3, E3
+    const masterGain = ctx.createGain();
+    masterGain.gain.value = 0;
+    masterGain.connect(ctx.destination);
+
+    // Slow fade-in over 4 seconds
+    masterGain.gain.setTargetAtTime(targetVolume * (this.mixer.muted ? 0 : this.mixer.master * this.mixer.music), ctx.currentTime, 4.0);
+
+    for (let i = 0; i < baseFreqs.length; i++) {
+      const baseF = baseFreqs[i];
+      // Two detuned sines per note for a lush beating effect
+      for (const detune of [-3, +3]) {
+        const osc = ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.value = baseF * Math.pow(2, detune / 1200);
+
+        const gain = ctx.createGain();
+        // Each partial gets a soft LFO on volume for organic movement
+        const lfo = ctx.createOscillator();
+        const lfoGain = ctx.createGain();
+        lfo.type = 'sine';
+        lfo.frequency.value = 0.05 + i * 0.017; // very slow, different per partial
+        lfoGain.gain.value = 0.08;
+        lfo.connect(lfoGain);
+        lfoGain.connect(gain.gain);
+        lfo.start();
+
+        gain.gain.value = 0.18 - i * 0.03; // higher partials softer
+        osc.connect(gain);
+        gain.connect(masterGain);
+        osc.start();
+
+        this.ambientDroneNodes.push({ osc, gain });
+      }
+    }
+  }
+
+  private _stopAmbientDrone(): void {
+    const ctx = this.ambientDroneCtx;
+    for (const { osc, gain } of this.ambientDroneNodes) {
+      try {
+        // Fade out before stopping to avoid clicks
+        if (ctx) {
+          gain.gain.setTargetAtTime(0, ctx.currentTime, 0.5);
+          osc.stop(ctx.currentTime + 2.0);
+        } else {
+          osc.stop();
+        }
+      } catch (_) {}
+    }
+    this.ambientDroneNodes = [];
+    this.ambientDroneCtx = null;
   }
 
   private _applyMixerState(): void {

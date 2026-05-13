@@ -16,8 +16,9 @@ import type {
   TilemapPrefabData,
   UIPrefabData,
 } from '../../../4-runtime/ui/2d/TwoDTypes';
-import { PickupComponent } from './components/PickupComponent';
+import { PickupComponent, createPickupComponent } from './components/PickupComponent';
 import type { InteractableComponent } from './components/InteractableComponent';
+import { createInteractableComponent } from './components/InteractableComponent';
 import { hasAsset, invalidateAsset, listRegisteredAssets } from './AssetRegistry';
 
 type ColliderShape = 'box' | 'sphere' | 'capsule';
@@ -215,6 +216,7 @@ export interface PrefabDefinition {
   components?: PrefabComponentDefinition[];
   tags?: string[];
   metadata?: PrefabMetadata;
+  offset?: { x: number; y: number; z: number };
   children?: PrefabDefinition[];
   sprite2d?: SpritePrefabData;
   animation2d?: AnimationComponentData;
@@ -933,6 +935,14 @@ export class PrefabSystem {
       }
     }
 
+    if (prefab.interactable) {
+      components.push(createInteractableComponent(prefab.interactable));
+    }
+
+    if (prefab.pickup) {
+      components.push(createPickupComponent(prefab.pickup));
+    }
+
     return {
       name: prefab.name,
       entityType: prefab.entityType,
@@ -943,7 +953,7 @@ export class PrefabSystem {
         scale: overrides.scale ?? { x: 1, y: 1, z: 1 },
       },
       components,
-      children: prefab.children?.map((child) => this.toSpawnDef(child, { x: 0, y: 0, z: 0 })),
+      children: prefab.children?.map((child) => this.toSpawnDef(child, child.offset ?? { x: 0, y: 0, z: 0 })),
     };
   }
 }

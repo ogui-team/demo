@@ -53,6 +53,8 @@ export interface AudioMenuState {
   toneAvailable: boolean;
 }
 
+export type MenuUiSoundKind = 'navigate' | 'confirm';
+
 export interface GameModeMenuEntry {
   id: string;
   label: string;
@@ -201,6 +203,7 @@ export class MainMenu {
   private _audioStateProvider: (() => AudioMenuState) | null = null;
   private _audioAdjust: ((channel: AudioMenuChannel, delta: number) => void) | null = null;
   private _audioToggleMute: (() => void) | null = null;
+  private _playUiSound: ((kind: MenuUiSoundKind) => void) | null = null;
   private _openDebug: (() => void) | null = null;
   private _getCurrentMode: (() => string) | null = null;
   private _gameModeProvider: (() => GameModeMenuEntry[]) | null = null;
@@ -244,6 +247,7 @@ export class MainMenu {
   setAudioStateProvider(fn: () => AudioMenuState): void { this._audioStateProvider = fn; }
   setAudioAdjust(fn: (channel: AudioMenuChannel, delta: number) => void): void { this._audioAdjust = fn; }
   setAudioToggleMute(fn: () => void): void { this._audioToggleMute = fn; }
+  setUiSoundPlayer(fn: (kind: MenuUiSoundKind) => void): void { this._playUiSound = fn; }
   setOpenDebug(fn: () => void): void { this._openDebug = fn; }
   setCurrentModeProvider(fn: () => string): void { this._getCurrentMode = fn; }
   setGameModeProvider(fn: () => GameModeMenuEntry[]): void { this._gameModeProvider = fn; }
@@ -763,12 +767,16 @@ export class MainMenu {
     if (next < 0) next = selectable.length - 1;
     if (next >= selectable.length) next = 0;
     this.selectedIndex = selectable[next];
+    this._playUiSound?.('navigate');
     this.renderCurrent();
   }
 
   private activateSelection(): void {
     const item = this.items[this.selectedIndex];
-    if (item && !item.header) item.action();
+    if (item && !item.header) {
+      this._playUiSound?.('confirm');
+      item.action();
+    }
   }
 
   // ─── Keyboard ────────────────────────────────────────────────────
@@ -810,6 +818,9 @@ export class MainMenu {
 
   hoverIndex(index: number): void {
     if (index >= 0 && index < this.items.length && !this.items[index].header) {
+      if (this.selectedIndex !== index) {
+        this._playUiSound?.('navigate');
+      }
       this.selectedIndex = index;
       // Update visual selection in-place — no DOM rebuild so clicks still work
       this.renderer.updateSelection(index);

@@ -82,7 +82,7 @@ export const V010_LEVELS: LevelDefinition[] = [
       { id: 'dust_ridge', preset: 'ambientDust', position: { x: -9, y: 1.4, z: -10 } },
     ],
     scripts: [
-      { type: 'playMusic', trackId: 'menu_theme' },
+        { type: 'playMusic', trackId: 'quarry_combat' },
       { type: 'setFog', density: 0.04, color: 0x263326 },
     ],
   },

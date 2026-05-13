@@ -1,0 +1,21 @@
+{
+  "name": "player_spawn_point",
+  "entityType": "PlayerSpawnPoint",
+  "assetKey": "model_player_spawn_point",
+  "color": 5635925,
+  "networked": false,
+  "tags": ["spawn", "player", "editor_marker"],
+  "metadata": {
+    "runtimeMetadata": {
+      "gameplay": {
+        "markerType": "player_spawn"
+      }
+    },
+    "editorMetadata": {
+      "category": "Spawns",
+      "displayName": "Player Spawn Point",
+      "description": "Pinned spawn marker used as preferred player spawn in editor/play transitions.",
+      "tags": ["spawn", "player", "marker"]
+    }
+  }
+}

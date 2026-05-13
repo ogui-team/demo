@@ -424,6 +424,7 @@ export function applyInput(params: ApplyInputParams): void {
     z: runtime.velocity.z * dt,
   };
   if (collisionResolver) {
+    const desiredYBeforeResolver = movement.y;
     movement = collisionResolver({
       entity: binding.entity,
       currentPosition,
@@ -436,6 +437,19 @@ export function applyInput(params: ApplyInputParams): void {
     runtime.velocity = dt > 0
       ? { x: movement.x / dt, y: movement.y / dt, z: movement.z / dt }
       : runtime.velocity;
+
+    // Floor detection via collision resolver: if the resolver clamped Y upward
+    // (i.e., returned a less-negative delta than requested), the player's feet
+    // hit a box surface.  Update groundHeight so the movement system knows where
+    // the floor is — critical for elevated spawns and multi-level geometry.
+    if (desiredYBeforeResolver < -0.001 && movement.y > desiredYBeforeResolver + 0.001) {
+      const detectedGroundY = currentPosition.y + movement.y;
+      runtime.groundHeight = detectedGroundY;
+      runtime.velocity.y = 0;
+      movement.y = 0;
+      runtime.isAirborne = false;
+      runtime.coyoteTimeRemaining = MOVEMENT_COYOTE_TIME_SECONDS;
+    }
   }
 
   if (!isFiniteVector(movement) || !isFiniteVector(runtime.velocity)) {

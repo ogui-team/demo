@@ -86,6 +86,63 @@ const DEFAULT_SPLAT_FRAG = /* glsl */`
   }
 `;
 
+// ---------------------------------------------------------------------------
+// Foliage wind shader — vertex sway driven by Engine.time (deterministic shim)
+// Instanced attribute layout mirrors SpriteBatch2D exactly.
+// ---------------------------------------------------------------------------
+
+const FOLIAGE_WIND_VERT = /* glsl */`
+  attribute vec3 iTranslate;
+  attribute vec2 iScale;
+  attribute vec4 iUvRect;
+  attribute vec3 iTint;
+  attribute float iOpacity;
+  attribute float iRotation;
+
+  uniform float uTime;
+  uniform float uWindStrength;
+
+  varying vec2 vUv;
+  varying vec3 vTint;
+  varying float vOpacity;
+
+  void main() {
+    // Wind sway: upper vertices sway more than lower vertices.
+    // position.y runs from -0.5 (bottom) to +0.5 (top) in PlaneGeometry(1,1).
+    float heightFactor = max(0.0, position.y + 0.5);
+    float windOffset = sin(uTime * 1.4 + iTranslate.x * 2.0) * uWindStrength * heightFactor;
+
+    vec2 displaced = vec2(position.x + windOffset, position.y);
+    vec2 scaled = displaced * iScale;
+
+    float c = cos(iRotation);
+    float s = sin(iRotation);
+    vec2 rotated = vec2(
+      scaled.x * c - scaled.y * s,
+      scaled.x * s + scaled.y * c
+    );
+
+    vec3 world = vec3(rotated + iTranslate.xy, iTranslate.z);
+    vUv = iUvRect.xy + uv * iUvRect.zw;
+    vTint = iTint;
+    vOpacity = iOpacity;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(world, 1.0);
+  }
+`;
+
+const FOLIAGE_WIND_FRAG = /* glsl */`
+  uniform sampler2D uAtlas;
+  varying vec2 vUv;
+  varying vec3 vTint;
+  varying float vOpacity;
+
+  void main() {
+    vec4 sampled = texture2D(uAtlas, vUv);
+    if (sampled.a <= 0.01 || vOpacity <= 0.01) discard;
+    gl_FragColor = vec4(sampled.rgb * vTint, sampled.a * vOpacity);
+  }
+`;
+
 export const MATERIAL_SHADER_REFERENCES: ShaderReference[] = [
   {
     id: 'terrain-splat',
@@ -100,6 +157,13 @@ export const MATERIAL_SHADER_REFERENCES: ShaderReference[] = [
     stage: 'vertex',
     description: 'Reference existing PS1ShaderSystem.makeJitterMaterial for low-precision wobble.',
     source: 'See engine/systems/PS1ShaderSystem.ts :: makeJitterMaterial()',
+  },
+  {
+    id: 'foliage-wind',
+    label: 'Foliage Wind Sway',
+    stage: 'vertex',
+    description: 'Instanced X-shape foliage with per-vertex wind sway driven by Engine.time (deterministic shim). Upper vertices sway more than lower.',
+    source: 'FOLIAGE_WIND_VERT / FOLIAGE_WIND_FRAG in MaterialManager.ts',
   },
 ];
 
@@ -141,6 +205,8 @@ function createBlendFallback(): THREE.DataTexture {
 export class MaterialManager {
   private textures = new Map<string, THREE.Texture>();
   private terrainMaterials = new Map<string, THREE.ShaderMaterial>();
+  /** Foliage wind materials — keyed by atlas texture UUID; one per atlas. */
+  private foliageMaterials = new Map<string, THREE.ShaderMaterial>();
   private systemContext: SystemContext | null = null;
 
   init(ctx: SystemContext): void {
@@ -262,6 +328,32 @@ export class MaterialManager {
     });
   }
 
+  /**
+   * Returns a cached ShaderMaterial that drives X-shape foliage wind sway.
+   * One material instance is shared per atlas texture. The FoliageBatch that
+   * owns the geometry must NOT dispose this material — only MaterialManager
+   * does so in its own dispose().
+   */
+  createFoliageWindMaterial(texture: THREE.Texture): THREE.ShaderMaterial {
+    const cached = this.foliageMaterials.get(texture.uuid);
+    if (cached) return cached;
+
+    const material = new THREE.ShaderMaterial({
+      vertexShader: FOLIAGE_WIND_VERT,
+      fragmentShader: FOLIAGE_WIND_FRAG,
+      uniforms: {
+        uAtlas: { value: texture },
+        uTime: { value: 0 },
+        uWindStrength: { value: 0.12 },
+      },
+      transparent: true,
+      depthWrite: false,
+    });
+
+    this.foliageMaterials.set(texture.uuid, material);
+    return material;
+  }
+
   buildExampleUsage(): { terrain: THREE.ShaderMaterial; prop: THREE.MeshStandardMaterial } {
     return {
       terrain: this.createTerrainSplatMaterial({
@@ -282,6 +374,10 @@ export class MaterialManager {
       material.dispose();
     }
     this.terrainMaterials.clear();
+    for (const material of this.foliageMaterials.values()) {
+      material.dispose();
+    }
+    this.foliageMaterials.clear();
     this.textures.clear();
   }
 }

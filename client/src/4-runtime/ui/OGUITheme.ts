@@ -87,7 +87,7 @@ export const OGUI = {
   toggleOff: '#a87070',
 
   // ── Typography ─────────────────────────────────────────────────────────────
-  font: '"Courier New", Courier, monospace',
+  font: '"Consolas", "Monaco", "Courier New", monospace',
 
   // ── Z-index layers ─────────────────────────────────────────────────────────
   zHUD:        1000,

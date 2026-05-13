@@ -61,6 +61,11 @@ export interface GameLaunchCoordinatorConfig {
   ensureGameplayUiActive: () => void;
   activateGameMode: (modeName: string) => void;
   syncLocalPlayerToAuthoritativeSpawn: (position: Vector3Like, rotation: Vector3Like) => void;
+  possessLocalPlayerFromEditorCamera?: () => boolean;
+  releasePossessedPlayerToEditor?: () => boolean;
+  getCameraPosition?: () => Vector3Like | null;
+  getCameraRotation?: () => Vector3Like | null;
+  getPinnedPlayerSpawnPosition?: () => Vector3Like | null;
   setRuntimeMetricsSession: (kind: 'multiplayer' | 'scripted' | 'freeplay', identifier: string) => void;
   setRuntimePlayerIdInState: (playerId: string | null) => void;
   getLocalFreeplayPlayerId: () => string;
@@ -72,10 +77,21 @@ export interface GameLaunchCoordinatorConfig {
   setLocalPlayerDead: (dead: boolean) => void;
   syncFreeplayWorldObjects: (mapId: string) => void;
   disablePhysGun: () => void;
+  resetLifecycle: () => void;
+  suppressNextMenuShow: () => void;
+  getEngineMode: () => 'editor' | 'play';
+  buildActiveWorldBuffer: (reason: string) => Promise<{ success: boolean; reason?: string }>;
+  applyActiveWorldBuffer: () => Promise<{ success: boolean; entitiesCreated: number; settingsApplied: number }>;
+  rehydrateEditorPlacedColliders?: () => void;
+  mergeRuntimeWorldIntoActiveBuffer?: (reason: string) => { success: boolean; mergedEntities: number; newEntityIds: string[] };
+  onSceneLoadComplete?: (reason: string) => void;
 }
 
 export class GameLaunchCoordinator {
   private readonly config: GameLaunchCoordinatorConfig;
+  private isFirstPlay: boolean = true;
+  private pendingEditorSpawnPosition: Vector3Like | null = null;
+  private pendingEditorSpawnRotation: Vector3Like | null = null;
 
   constructor(config: GameLaunchCoordinatorConfig) {
     this.config = config;
@@ -88,6 +104,59 @@ export class GameLaunchCoordinator {
     } catch {
       return fallback;
     }
+  }
+
+  private syncOrPossessLocalPlayer(spawnPosition: Vector3Like): void {
+    // Always sync to the calculated spawn position, not possession offset
+    // This ensures editor→play toggle respects the selected spawn position
+    // Use the editor camera rotation captured before play startup mutates runtime state.
+    const spawnRotation = this.pendingEditorSpawnRotation
+      ?? this.config.getCameraRotation?.()
+      ?? { x: 0, y: 0, z: 0 };
+    this.config.syncLocalPlayerToAuthoritativeSpawn(spawnPosition, spawnRotation);
+    this.pendingEditorSpawnPosition = null;
+    this.pendingEditorSpawnRotation = null;
+  }
+
+  private getForceSpawnPosition(): Vector3Like | null {
+    const pinnedSpawn = this.config.getPinnedPlayerSpawnPosition?.() ?? null;
+    if (pinnedSpawn) {
+      console.log('[GameLaunch] HARD PRIORITY: using pinned player spawn position:', pinnedSpawn);
+      return pinnedSpawn;
+    }
+
+    // Priority 1: Editor Camera World Position (always)
+    const editorCameraPos = this.pendingEditorSpawnPosition ?? this.config.getCameraPosition?.() ?? null;
+    if (editorCameraPos) {
+      // Spawn slightly above the camera so physics can settle the player naturally.
+      const cameraSpawnPos = { x: editorCameraPos.x, y: editorCameraPos.y + 0.2, z: editorCameraPos.z };
+      console.log('[GameLaunch] HARD PRIORITY: using editor camera position (gravity-settled):', cameraSpawnPos);
+      return cameraSpawnPos;
+    }
+
+    // Priority 2: Map spawn point (fallback only if Priority 1 fails)
+    console.log('[GameLaunch] HARD PRIORITY: camera position unavailable, will use map default');
+    return null;
+  }
+
+  private selectSpawnPosition(defaultSpawn: Vector3Like, context: 'scripted' | 'freeplay' | 'horde', isEditorToggle: boolean = false): Vector3Like {
+    // If in EDITOR_TOGGLE mode, use hard spawn priority
+    if (isEditorToggle) {
+      const forceSpawn = this.getForceSpawnPosition();
+      if (forceSpawn) {
+        console.log(`[GameLaunch] ${context}: using forced editor camera position`);
+        return forceSpawn;
+      }
+    }
+
+    // Standard priority (non-EDITOR_TOGGLE or fallback)
+    const pinnedSpawn = this.config.getPinnedPlayerSpawnPosition?.() ?? null;
+    if (pinnedSpawn) {
+      console.log(`[GameLaunch] ${context}: using pinned PlayerSpawnPoint prefab position:`, pinnedSpawn);
+      return pinnedSpawn;
+    }
+
+    return defaultSpawn;
   }
 
   startScriptedLevel(levelId: string): void {
@@ -121,7 +190,7 @@ export class GameLaunchCoordinator {
       this.config.registerStaticLevelGeometryForCulling(levelGroup);
     }
 
-    const spawnPosition = this.config.registerScriptedSpawnPoints(levelId);
+    const spawnPosition = this.selectSpawnPosition(this.config.registerScriptedSpawnPoints(levelId), 'scripted', false);
 
     const playerId = this.config.getLocalFreeplayPlayerId();
     this.config.setRuntimePlayerId(playerId);
@@ -132,11 +201,34 @@ export class GameLaunchCoordinator {
     this.config.showGameplayUi();
     this.config.activateGameMode('freeplay');
     void this.config.initOfflineInventoryGrid(playerId, this.config.getSpawnLoadoutWeapons(playerId));
-    this.config.syncLocalPlayerToAuthoritativeSpawn(spawnPosition, { x: 0, y: 0, z: 0 });
+    this.syncOrPossessLocalPlayer(spawnPosition);
+    this.config.onSceneLoadComplete?.(`scripted:${levelId}`);
   }
 
-  startLocalFreeplay(): void {
-    console.log(`[GameLaunch] Starting LOCAL FREEPLAY`);
+  async startLocalFreeplay(fromEditor = false): Promise<void> {
+    console.log(`[GameLaunch] Starting LOCAL FREEPLAY (isFirstPlay=${this.isFirstPlay})`);
+    const isEditorToggle = fromEditor;
+
+    if (isEditorToggle) {
+      this.pendingEditorSpawnPosition = this.config.getCameraPosition?.() ?? null;
+      this.pendingEditorSpawnRotation = this.config.getCameraRotation?.() ?? null;
+    } else {
+      this.pendingEditorSpawnPosition = null;
+      this.pendingEditorSpawnRotation = null;
+    }
+
+    // Dirty-State-Reset: If first play, create clean snap of editor world
+    if (this.isFirstPlay && isEditorToggle) {
+      console.log('[GameLaunch] First play detected: clearing active world buffer for clean snap');
+      this.isFirstPlay = false;
+    }
+
+    const buildResult = await this.config.buildActiveWorldBuffer('play');
+    if (!buildResult.success) {
+      this.config.showNotification(buildResult.reason ?? 'Build World failed.', 4);
+      return;
+    }
+    
     this.config.setActiveMapCollisionLayout('freeplay_test', 'freeplay_test');
     this.config.setPendingMatchResetMode('full');
     this.config.setRuntimeMetricsSession('freeplay', this.getRuntimeMetricsIdentifier('freeplay_test'));
@@ -144,7 +236,22 @@ export class GameLaunchCoordinator {
     if (this.config.isMultiplayerConnected()) {
       this.config.disconnectMultiplayerSession();
     }
+
+    console.log(`[GameLaunch] Calling hardResetRuntimeState()`);
     this.config.hardResetRuntimeState('freeplay', { allowInGame: true });
+
+    const worldApplyResult = await this.config.applyActiveWorldBuffer();
+    if (worldApplyResult.success) {
+      console.log('[GameLaunch] Applied active world buffer for freeplay');
+      this.config.rehydrateEditorPlacedColliders?.();
+      this.config.setActiveLevelGroup(null);
+    } else {
+      console.log(`[GameLaunch] Building flat test map`);
+      const levelGroup = this.config.buildFlatTestMap('freeplay_test');
+      this.config.setActiveLevelGroup(levelGroup);
+      this.config.registerArenaSpawnPoints('test');
+      this.config.syncFreeplayWorldObjects('freeplay_test');
+    }
 
     this.config.configureFeatures({
       fog: true,
@@ -157,26 +264,27 @@ export class GameLaunchCoordinator {
     this.config.stopMusic();
 
     if (!this.config.isInGame()) {
+      console.log(`[GameLaunch] Transitioning state to 'in_game'`);
       this.config.transitionState('in_game', 'freeplay');
     }
 
-    const levelGroup = this.config.buildFlatTestMap('freeplay_test');
-    this.config.setActiveLevelGroup(levelGroup);
-    this.config.registerArenaSpawnPoints('test');
-    this.config.syncFreeplayWorldObjects('freeplay_test');
-
     const playerId = this.config.getLocalFreeplayPlayerId();
+    console.log(`[GameLaunch] Local freeplay player ID: ${playerId}`);
     this.config.setRuntimePlayerId(playerId);
     this.config.setRuntimePlayerIdInState(playerId);
     
     this.config.ensurePlayerRuntimeState(playerId);
     this.config.bindNetworkSyncLocalPlayer(playerId, 'local');
     this.config.showGameplayUi();
+    console.log(`[GameLaunch] Calling activateGameMode('freeplay')`);
     this.config.activateGameMode('freeplay');
     void this.config.initOfflineInventoryGrid(playerId, this.config.getSpawnLoadoutWeapons(playerId));
 
-    const spawnPosition = this.config.findFreeplaySpawnPosition();
-    this.config.syncLocalPlayerToAuthoritativeSpawn(spawnPosition, { x: 0, y: 0, z: 0 });
+    const spawnPosition = this.selectSpawnPosition(this.config.findFreeplaySpawnPosition(), 'freeplay', isEditorToggle);
+    console.log(`[GameLaunch] Syncing player to spawn position:`, spawnPosition);
+    this.syncOrPossessLocalPlayer(spawnPosition);
+    this.config.onSceneLoadComplete?.('freeplay');
+    console.log(`[GameLaunch] Freeplay startup complete`);
   }
 
   startHorde(): void {
@@ -221,8 +329,9 @@ export class GameLaunchCoordinator {
     this.config.disablePhysGun();
     void this.config.initOfflineInventoryGrid(playerId, this.config.getSpawnLoadoutWeapons(playerId));
 
-    const spawnPosition = this.config.findFreeplaySpawnPosition();
-    this.config.syncLocalPlayerToAuthoritativeSpawn(spawnPosition, { x: 0, y: 0, z: 0 });
+    const spawnPosition = this.selectSpawnPosition(this.config.findFreeplaySpawnPosition(), 'horde');
+    this.syncOrPossessLocalPlayer(spawnPosition);
+    this.config.onSceneLoadComplete?.('horde');
   }
 
   startDriftBomb(): void {
@@ -269,6 +378,7 @@ export class GameLaunchCoordinator {
     this.config.setHudMode('spectator');
     this.config.activateGameMode('drift_bomb');
     this.config.showNotification('Drift Bomb ready. Choose team or auto-join debug flow.', 30);
+    this.config.onSceneLoadComplete?.('drift_bomb');
   }
 
   startEngineShowcase(): void {
@@ -283,7 +393,7 @@ export class GameLaunchCoordinator {
       return;
     }
 
-    this.startLocalFreeplay();
+    void this.startLocalFreeplay();
   }
 
   closeSessionToMainMenu(): void {
@@ -295,6 +405,74 @@ export class GameLaunchCoordinator {
     this.config.setRuntimePlayerId(null);
     this.config.setRuntimePlayerIdInState(null);
     this.config.transitionState('menu', 'close_session');
+  }
+
+  closeSessionForEditorTransition(): void {
+    console.log('[GameLaunch] Closing active session for editor transition');
+    this.onExitPlayMode();
+    if (this.config.isMultiplayerConnected()) {
+      this.config.disconnectMultiplayerSession();
+    }
+
+    this.config.releasePossessedPlayerToEditor?.();
+    this.config.setHudMode('spectator');
+    this.config.setLocalPlayerDead(false);
+    this.config.setRuntimePlayerId(null);
+    this.config.setRuntimePlayerIdInState(null);
+
+    // ─ CRITICAL: Reset lifecycle orchestrator phase back to BOOT so editor mode works ─
+    this.config.resetLifecycle();
+    // ─ CRITICAL: Transition app state back to menu so P-toggle works again ─
+    // Suppress the auto-show of MainMenu that _onEnter('menu') would trigger.
+    this.config.suppressNextMenuShow();
+    console.log('[GameLaunch] Transitioning state back to menu for editor mode');
+    this.config.transitionState('menu', 'close_session_editor');
+  }
+
+  onExitPlayMode(): void {
+    if (this.config.getEngineMode() !== 'play') {
+      return;
+    }
+
+    // Clear all velocities on all entities before merging back to editor
+    // This prevents velocity carryover from play mode affecting editor mode movement
+    console.log('[GameLaunch] Clearing all entity velocities before exit...');
+    this.clearAllVelocitiesForEditorTransition();
+
+    // Merge play-mode edits back into the editor buffer so moved/edited editor
+    // objects persist when returning to the editor.
+    const mergeResult = this.config.mergeRuntimeWorldIntoActiveBuffer?.('onExitPlayMode');
+    console.log('[GameLaunch] Merged runtime world into editor buffer on exit', mergeResult ?? { success: false });
+  }
+
+  private clearAllVelocitiesForEditorTransition(): void {
+    try {
+      const entityManager = (globalThis as any).__entityManager;
+      if (!entityManager || typeof entityManager.getEntities !== 'function') {
+        return;
+      }
+
+      const physicsSystem = (globalThis as any).__physicsSystem;
+      if (!physicsSystem || typeof physicsSystem.setVelocity !== 'function') {
+        return;
+      }
+
+      const ZERO_VEL = { x: 0, y: 0, z: 0 };
+      let clearedCount = 0;
+
+      for (const entity of entityManager.getEntities()) {
+        try {
+          physicsSystem.setVelocity(entity.id, ZERO_VEL);
+          clearedCount++;
+        } catch {
+          // Silently skip entities without physics bodies
+        }
+      }
+
+      console.log(`[GameLaunch] Cleared velocities for ${clearedCount} entities on editor transition`);
+    } catch (error) {
+      console.warn('[GameLaunch] Error clearing velocities:', error);
+    }
   }
 
   startMultiplayerMatch(data: MultiplayerGameStartPayload): void {
@@ -340,6 +518,8 @@ export class GameLaunchCoordinator {
       void this.config.initOfflineInventoryGrid(playerId, this.config.getSpawnLoadoutWeapons(playerId));
       this.config.bindNetworkSyncLocalPlayer(playerId, 'remote');
     }
+
+    this.config.onSceneLoadComplete?.(`multiplayer:${data.map}`);
 
     const cachedLobby = this.config.getCachedLobbyState();
     const cachedRound = this.config.getCachedRoundState();

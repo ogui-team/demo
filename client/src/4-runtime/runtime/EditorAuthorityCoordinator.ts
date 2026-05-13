@@ -3,19 +3,14 @@ import { gameBus } from '../../1-kernel/core/EventBus';
 import type { PrefabSystem } from '../../2-systems/gameplay/systems/PrefabSystem';
 import type { SpawnSystem } from '../../2-systems/gameplay/systems/SpawnSystem';
 import type { MultiplayerClient } from '../../3-network/network/MultiplayerClient';
+import type { SpawnLibraryMetadata } from '../ui/SpawnLibraryMetadata';
 import type { UndoRedoSystem } from '@engine/1-kernel/core/public-api';
 import type { SaveLoadManager } from '@engine/1-kernel/core/public-api';
 import type { WorldObjectAuthorityService } from '../../2-systems/gameplay/game/WorldObjectAuthorityService';
 import type { ClientWorldRuntimeCoordinator } from './coordinators/ClientWorldRuntimeCoordinator';
 
 interface EditorMenuAdapter {
-  setSpawnLibrary(entries: Array<{
-    id: string;
-    label: string;
-    category: string;
-    glyph: string;
-    accentColor: string;
-    description: string;
+  setSpawnLibrary(entries: Array<SpawnLibraryMetadata & {
     spawn: (position: { x: number; y: number; z: number }) => any;
     buildSpawnRequest?: (position: { x: number; y: number; z: number }) => {
       entityType: string;
@@ -55,15 +50,20 @@ interface EditorMenuAdapter {
   }) => void): void;
 }
 
+interface GizmoTransformCommit {
+  id: string;
+  position: { x: number; y: number; z: number };
+  rotation: { x: number; y: number; z: number };
+  scale: { x: number; y: number; z: number };
+  previousPosition: { x: number; y: number; z: number };
+  previousRotation: { x: number; y: number; z: number };
+  previousScale: { x: number; y: number; z: number };
+}
+
 interface GizmoSystemAdapter {
   setOnEntityTransformCommitted(handler: (data: {
-    id: string;
-    position: { x: number; y: number; z: number };
-    rotation: { x: number; y: number; z: number };
-    scale: { x: number; y: number; z: number };
-    previousPosition: { x: number; y: number; z: number };
-    previousRotation: { x: number; y: number; z: number };
-    previousScale: { x: number; y: number; z: number };
+    primaryId: string;
+    entities: GizmoTransformCommit[];
   }) => void): void;
 }
 
@@ -101,11 +101,6 @@ export class EditorAuthorityCoordinator {
     this.worldRuntime = config.worldRuntime;
     this.editorMenu = config.editorMenu;
     this.gizmoSystem = config.gizmoSystem;
-    this.lastEditorSnapshot = this.saveLoadManager?.serializeWorld() ?? null;
-  }
-
-  getLastEditorSnapshot(): unknown {
-    return this.lastEditorSnapshot;
   }
 
   setLastEditorSnapshot(snapshot: unknown): void {
@@ -117,7 +112,7 @@ export class EditorAuthorityCoordinator {
     if (!this.editorMenu) return;
 
     this.editorMenu.setSpawnLibrary(
-      this.prefabSystem.listPrefabs().map((prefabName) => {
+      this.prefabSystem.listPrefabs().filter((prefabName) => !this.shouldHideFromEditorSpawnLibrary(prefabName)).map((prefabName) => {
         const prefab = this.prefabSystem.getPrefab(prefabName);
         const presentation = this.getPrefabSpawnPresentation(prefabName, prefab);
         return {
@@ -153,43 +148,67 @@ export class EditorAuthorityCoordinator {
     );
   }
 
+  private shouldHideFromEditorSpawnLibrary(prefabName: string): boolean {
+    const prefab = this.prefabSystem.getPrefab(prefabName);
+    const tags = new Set((prefab?.tags ?? []).map((tag) => String(tag).toLowerCase()));
+    const type = (prefab?.entityType ?? '').toLowerCase();
+    return tags.has('runtime') && (type === 'player' || tags.has('player'));
+  }
+
   wire(): void {
     if (this.gizmoSystem) {
       this.gizmoSystem.setOnEntityTransformCommitted((data) => {
-        const entity = Engine.getEntityManager()?.getEntity(data.id);
-        if (!entity || !this.worldRuntime.isEditorEditableEntity(entity)) return;
+        const entityManager = Engine.getEntityManager();
+        const editableCommits = data.entities
+          .map((commit) => ({
+            commit,
+            entity: entityManager?.getEntity(commit.id) ?? null,
+          }))
+          .filter((entry) => entry.entity && this.worldRuntime.isEditorEditableEntity(entry.entity));
+
+        if (editableCommits.length === 0) return;
 
         this.undoRedoSystem.pushCompletedAction({
-          label: `Transform ${entity.type}`,
+          label: editableCommits.length === 1
+            ? `Transform ${editableCommits[0].entity!.type}`
+            : `Transform ${editableCommits.length} entities`,
           undo: () => {
-            entity.setPosition({ ...data.previousPosition });
-            entity.setRotation({ ...data.previousRotation });
-            entity.setScale({ ...data.previousScale });
-            Engine.getEntityRenderer()?.syncEntity(entity);
+            for (const { commit, entity } of editableCommits) {
+              entity!.setPosition({ ...commit.previousPosition });
+              entity!.setRotation({ ...commit.previousRotation });
+              entity!.setScale({ ...commit.previousScale });
+              Engine.getEntityRenderer()?.syncEntity(entity!);
+            }
             this.editorMenu?.refreshSelectedEntity();
           },
           redo: () => {
-            entity.setPosition({ ...data.position });
-            entity.setRotation({ ...data.rotation });
-            entity.setScale({ ...data.scale });
-            Engine.getEntityRenderer()?.syncEntity(entity);
+            for (const { commit, entity } of editableCommits) {
+              entity!.setPosition({ ...commit.position });
+              entity!.setRotation({ ...commit.rotation });
+              entity!.setScale({ ...commit.scale });
+              Engine.getEntityRenderer()?.syncEntity(entity!);
+            }
             this.editorMenu?.refreshSelectedEntity();
           },
         });
-
-        const renderData = entity.getComponent('render')?.data;
-        if (!renderData) return;
 
         this.editorMenu?.refreshSelectedEntity();
         if (!this.mpClient.connected) return;
 
-        this.mpClient.sendWorldObjectUpdate({
-          id: data.id,
-          entityType: entity.type,
-          position: data.position,
-          rotation: data.rotation,
-          renderData: renderData as { meshType: string; color: number; geometry: Record<string, unknown> },
-        });
+        for (const { commit, entity } of editableCommits) {
+          const renderData = entity!.getComponent('render')?.data;
+          if (!renderData) {
+            continue;
+          }
+
+          this.mpClient.sendWorldObjectUpdate({
+            id: commit.id,
+            entityType: entity!.type,
+            position: commit.position,
+            rotation: commit.rotation,
+            renderData: renderData as { meshType: string; color: number; geometry: Record<string, unknown> },
+          });
+        }
       });
     }
 
@@ -244,7 +263,7 @@ export class EditorAuthorityCoordinator {
           });
         }
       }
-      const after = this.saveLoadManager?.serializeWorld() ?? null;
+      const after = this.saveLoadManager?.serializeWorld({ includeRuntimeEntities: false }) ?? null;
       if (this.lastEditorSnapshot && after) {
         this.undoRedoSystem.pushCompletedAction(this.createSnapshotAction(`Create ${data.entityType}`, this.lastEditorSnapshot, after));
         this.lastEditorSnapshot = after;
@@ -253,7 +272,7 @@ export class EditorAuthorityCoordinator {
 
     this.editorMenu.setOnEntityRemoved((id) => {
       this.worldObjectAuthorityService.sendRemovedAuthority(id);
-      const after = this.saveLoadManager?.serializeWorld() ?? null;
+      const after = this.saveLoadManager?.serializeWorld({ includeRuntimeEntities: false }) ?? null;
       if (this.lastEditorSnapshot && after) {
         this.undoRedoSystem.pushCompletedAction(this.createSnapshotAction(`Delete ${id}`, this.lastEditorSnapshot, after));
         this.lastEditorSnapshot = after;
@@ -277,7 +296,7 @@ export class EditorAuthorityCoordinator {
           this.editorMenu?.refreshSelectedEntity();
         },
       });
-      this.lastEditorSnapshot = this.saveLoadManager?.serializeWorld() ?? this.lastEditorSnapshot;
+      this.lastEditorSnapshot = this.saveLoadManager?.serializeWorld({ includeRuntimeEntities: false }) ?? this.lastEditorSnapshot;
     });
   }
 

@@ -334,6 +334,30 @@ export class PlayerModelSystem implements CharacterDashboardSource {
     this.characterDashboardPanel?.sync();
   }
 
+  syncVisualTransformsNow(): void {
+    for (const [playerId, record] of this.players.entries()) {
+      const group = this.playerGroups.get(playerId);
+      if (!group) {
+        continue;
+      }
+
+      const position = record.entity.getPosition();
+      const rotation = record.entity.getRotation();
+      record.prevPos = { ...position };
+      record.targetPos = { ...position };
+      record.prevRot = { ...rotation };
+      record.targetRot = { ...rotation };
+      record.alpha = 1;
+      record.lastVisualX = position.x;
+      record.lastVisualZ = position.z;
+
+      group.position.set(position.x, this.toVisualGroundY(position.y), position.z);
+      group.rotation.set(0, rotation.y, 0);
+    }
+
+    this.syncLocalAvatarTransform();
+  }
+
   setLocalPresentationMovementState(state: { isCrouching: boolean; isAirborne: boolean } | null): void {
     this.localPresentationMovementState = state
       ? {

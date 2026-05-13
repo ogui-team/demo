@@ -31,6 +31,10 @@ interface SaveLoadStateStoreAdapter {
   update(updates: Record<string, unknown>): Record<string, boolean>;
 }
 
+export interface SerializeWorldOptions {
+  includeRuntimeEntities?: boolean;
+}
+
 export interface SavedEntity {
   id: string;
   type: string;
@@ -140,11 +144,14 @@ export class SaveLoadManager {
   /**
    * Serialize current world state to JSON
    */
-  serializeWorld(): SavedWorldState {
-    const entitiesData = this.entityManager.serialize();
+  serializeWorld(options: SerializeWorldOptions = {}): SavedWorldState {
+    const includeRuntimeEntities = options.includeRuntimeEntities ?? true;
+    const entitiesData = this.entityManager
+      .serialize()
+      .filter((entityData) => includeRuntimeEntities || this.shouldPersistEntity(entityData));
     const state = this.stateManager.getState();
     const hierarchy = this.sceneGraph
-      ? Object.fromEntries([...this.sceneGraph.getAllNodes().entries()].map(([id, node]) => [id, { parentId: node.parentId ?? null, children: [...node.children] }]))
+      ? this.serializeHierarchy(new Set(entitiesData.map((entityData) => entityData.id)))
       : undefined;
     const systemData: Record<string, unknown> = {};
     for (const [key, provider] of this.systemDataProviders) {
@@ -200,6 +207,65 @@ export class SaveLoadManager {
     });
 
     return saved;
+  }
+
+  private shouldPersistEntity(entityData: EntityData): boolean {
+    const typeLower = entityData.type.toLowerCase();
+    if (typeLower === 'remoteplayer' || typeLower === 'localplayer') {
+      return false;
+    }
+
+    if (typeLower === 'editorplayermarker') {
+      return false;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(entityData.components, 'localPlayer')) {
+      return false;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(entityData.components, 'editorPlayerMarker')) {
+      return false;
+    }
+
+    const editorPlacement = entityData.components.editorPlacement as Component | undefined;
+    const editorPlacementData = (editorPlacement?.data ?? {}) as { serialize?: unknown };
+    if (editorPlacementData.serialize === false) {
+      return false;
+    }
+
+    const prefabComponent = entityData.components.prefab as Component | undefined;
+    const prefabData = (prefabComponent?.data ?? {}) as { tags?: unknown };
+    const prefabTags = Array.isArray(prefabData.tags)
+      ? prefabData.tags.filter((tag): tag is string => typeof tag === 'string').map((tag) => tag.toLowerCase())
+      : [];
+
+    if (prefabTags.includes('runtime')) {
+      return false;
+    }
+
+    return true;
+  }
+
+  private serializeHierarchy(allowedIds: Set<string>): Record<string, { parentId: string | null; children: string[] }> {
+    const hierarchy = Object.fromEntries(
+      [...this.sceneGraph!.getAllNodes().entries()].map(([id, node]) => [
+        id,
+        { parentId: node.parentId ?? null, children: [...node.children] },
+      ]),
+    );
+
+    const filtered: Record<string, { parentId: string | null; children: string[] }> = {};
+    for (const [entityId, node] of Object.entries(hierarchy)) {
+      if (!allowedIds.has(entityId)) {
+        continue;
+      }
+      filtered[entityId] = {
+        parentId: node.parentId && allowedIds.has(node.parentId) ? node.parentId : null,
+        children: node.children.filter((childId) => allowedIds.has(childId)),
+      };
+    }
+
+    return filtered;
   }
 
   /**

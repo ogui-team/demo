@@ -13,6 +13,7 @@ interface EditorControllerConfig {
   moveSpeed?: number;       // units per second (default 8)
   rotationSpeed?: number;
   boostMultiplier?: number;
+  forceSessionReset?: (reason: string) => void;
 }
 
 export class EditorController {
@@ -27,12 +28,31 @@ export class EditorController {
   private mouseDown: boolean = false;
   private lastMouseX: number = 0;
   private lastMouseY: number = 0;
+  private readonly onWindowBlur: () => void;
+  private readonly onVisibilityChange: () => void;
+  private readonly forceSessionResetCallback: ((reason: string) => void) | null;
 
   constructor(config: EditorControllerConfig = {}) {
     this.camera = getCamera();
     this.moveSpeed = config.moveSpeed ?? 8;          // 8 units/second
     this.rotationSpeed = config.rotationSpeed ?? 0.005;
     this.boostMultiplier = config.boostMultiplier ?? 2.5;
+    this.forceSessionResetCallback = config.forceSessionReset ?? null;
+
+    this.onWindowBlur = () => this.clearInputState('window_blur');
+    this.onVisibilityChange = () => {
+      if (typeof document === 'undefined') return;
+      if (document.hidden) {
+        this.clearInputState('visibility_hidden');
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('blur', this.onWindowBlur, true);
+    }
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', this.onVisibilityChange, true);
+    }
   }
 
   private getWriteSource(): 'editor' | 'menu' | null {
@@ -64,15 +84,23 @@ export class EditorController {
     if (!this.enabled) return;
 
     this.enabled = false;
-
-    this.keys.clear();
-    this.mouseDown = false;
+    this.clearInputState('disable');
     gameBus.emit('stateMutation', {
       source: 'EditorController',
       path: 'editorController.enabled',
       changedCount: 1,
     });
     console.log('[Editor] Camera disabled');
+  }
+
+  forceSessionReset(reason = 'exit_play_mode'): void {
+    this.clearInputState(`force_session_reset:${reason}`);
+    this.forceSessionResetCallback?.(reason);
+    gameBus.emit('stateMutation', {
+      source: 'EditorController',
+      path: 'editorController.forceSessionReset',
+      changedCount: 1,
+    });
   }
 
   /**
@@ -89,7 +117,7 @@ export class EditorController {
     const dt = Math.min(deltaTime, 0.1); // cap at 100ms to avoid huge jumps
 
     // Calculate actual move speed with boost
-    const isBoost = this.keys.has('Shift');
+    const isBoost = this.keys.has('shift');
     const actualSpeed = this.moveSpeed * (isBoost ? this.boostMultiplier : 1) * dt;
 
     // Get camera direction vectors
@@ -105,24 +133,24 @@ export class EditorController {
     const nextPosition = this.camera.position.clone();
 
     // Handle movement input
-    if (this.keys.has('w') || this.keys.has('W')) {
+    if (this.keys.has('w')) {
       nextPosition.addScaledVector(forward, actualSpeed);
     }
-    if (this.keys.has('s') || this.keys.has('S')) {
+    if (this.keys.has('s')) {
       nextPosition.addScaledVector(forward, -actualSpeed);
     }
-    if (this.keys.has('d') || this.keys.has('D')) {
+    if (this.keys.has('d')) {
       nextPosition.addScaledVector(right, actualSpeed);
     }
-    if (this.keys.has('a') || this.keys.has('A')) {
+    if (this.keys.has('a')) {
       nextPosition.addScaledVector(right, -actualSpeed);
     }
 
     // Vertical movement
-    if (this.keys.has(' ') || this.keys.has('Space')) {
+    if (this.keys.has('space')) {
       nextPosition.y += actualSpeed;
     }
-    if (this.keys.has('Control')) {
+    if (this.keys.has('control')) {
       nextPosition.y -= actualSpeed;
     }
 
@@ -143,14 +171,48 @@ export class EditorController {
     if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) {
       e.preventDefault();
     }
-    this.keys.add(e.key);
+    this.keys.add(this.normalizeKey(e.key, e.code));
     return true;
   }
 
   handleKeyUp(e: KeyboardEvent): boolean {
     if (!this.enabled) return false;
-    this.keys.delete(e.key);
+    this.keys.delete(this.normalizeKey(e.key, e.code));
     return true;
+  }
+
+  private clearInputState(reason: string): void {
+    if (this.keys.size > 0 || this.mouseDown) {
+      this.keys.clear();
+      this.mouseDown = false;
+      void reason;
+    }
+  }
+
+  private normalizeKey(key: string, code: string): string {
+    const lowerKey = key.toLowerCase();
+
+    if (code === 'Space' || key === ' ') {
+      return 'space';
+    }
+
+    if (lowerKey.startsWith('control')) {
+      return 'control';
+    }
+
+    if (lowerKey.startsWith('shift')) {
+      return 'shift';
+    }
+
+    if (lowerKey.startsWith('alt')) {
+      return 'alt';
+    }
+
+    if (key.length === 1) {
+      return lowerKey;
+    }
+
+    return lowerKey;
   }
 
   handlePointerDown(e: MouseEvent): boolean {
@@ -244,12 +306,20 @@ export class EditorController {
 
     e.preventDefault();
 
-    const zoomSpeed = 0.05;
-    const fovDelta = e.deltaY > 0 ? -zoomSpeed : zoomSpeed;
+    const moveSpeed = 0.5;
+    const forward = new THREE.Vector3();
+    this.camera.getWorldDirection(forward);
+    forward.normalize();
 
-    adapter.applySnapshot({
-      fov: Math.max(15, Math.min(120, this.camera.fov + fovDelta)),
-    }, writeSource);
+    const scrollDirection = e.deltaY < 0 ? 1 : -1;
+    const currentPos = this.camera.position;
+    const targetPos = {
+      x: currentPos.x + forward.x * moveSpeed * scrollDirection,
+      y: currentPos.y + forward.y * moveSpeed * scrollDirection,
+      z: currentPos.z + forward.z * moveSpeed * scrollDirection,
+    };
+
+    adapter.applySnapshot({ position: targetPos }, writeSource);
     return true;
   }
 

@@ -24,6 +24,7 @@ import pickupTomeStormLoop from './pickup_tome_storm_loop.json';
 import pickupRingDash from './pickup_ring_dash.json';
 import pickupRingSummoner from './pickup_ring_summoner.json';
 import pickupPrismGuardian from './pickup_prism_guardian.json';
+import playerSpawnPoint from './player_spawn_point.json';
 import playerV1 from './player_v1.json';
 import rockLarge from './rock_large.json';
 import treeDead from './tree_dead.json';
@@ -75,6 +76,7 @@ export const BUILTIN_PREFABS = {
   pickup_ring_dash: pickupRingDash,
   pickup_ring_summoner: pickupRingSummoner,
   pickup_prism_guardian: pickupPrismGuardian,
+  player_spawn_point: playerSpawnPoint,
   player_v1: playerV1,
   rock_large: rockLarge,
   tree_dead: treeDead,

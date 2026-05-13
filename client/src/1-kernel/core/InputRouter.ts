@@ -1,5 +1,5 @@
 import type { InputContext } from './InputContext';
-import { getContext, onContextChange } from './InputContext';
+import { getContext, onContextChange, setContext } from './InputContext';
 import { getContextRaycastLayers, type RaycastLayer } from './RaycastLayers';
 
 type InputResult = boolean | void;
@@ -55,6 +55,12 @@ export class InputRouter {
   private activeRaycastLayers: RaycastLayer[];
   private overlayEl: HTMLDivElement | null = null;
   private contextUnsub: (() => void) | null = null;
+  private inputEnabled = true;
+  private inputGateUntil = 0;
+  private inputGateTimer: number | null = null;
+  private readonly transitionGuardHandler: (event: Event) => void;
+  private readonly hardResetHandler: () => void;
+  private readonly globalPToggleHandler: (event: KeyboardEvent) => void;
 
   constructor(config: InputRouterConfig) {
     this.canvas = config.canvas;
@@ -75,9 +81,38 @@ export class InputRouter {
       this.mountDebugOverlay();
     }
 
+    this.transitionGuardHandler = (event: Event) => {
+      const durationMs = (event as CustomEvent<{ durationMs?: number }>).detail?.durationMs ?? 500;
+      this.armInputGate(durationMs);
+      this.drainPendingPointerState();
+    };
+    this.hardResetHandler = () => {
+      this.forceMode('editor');
+    };
+    this.globalPToggleHandler = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.repeat || event.altKey || event.ctrlKey || event.metaKey) {
+        return;
+      }
+      if (event.key !== 'p' && event.key !== 'P') {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      window.dispatchEvent(new CustomEvent('ui:toggle-editor-play'));
+    };
+
+    window.addEventListener('ui:transition-guard', this.transitionGuardHandler, true);
+    window.addEventListener('ui:hard-reset-input-stack', this.hardResetHandler, true);
+    document.addEventListener('keydown', this.globalPToggleHandler, true);
+
     this.contextUnsub = onContextChange((next) => {
+      const previous = this.currentContext;
       this.currentContext = next;
       this.activeRaycastLayers = getContextRaycastLayers(next);
+      if (previous !== next && this.isGameplayContext(previous) && this.isGameplayContext(next)) {
+        this.armInputGate();
+      }
       this.syncPointerLockForContext();
       this.renderDebugOverlay();
     });
@@ -110,6 +145,21 @@ export class InputRouter {
     return this.currentContext;
   }
 
+  public forceMode(mode: 'editor' | 'play'): void {
+    const nextContext: InputContext = mode === 'play' ? 'game' : 'editor';
+    this.currentContext = nextContext;
+    setContext(nextContext);
+    this.inputEnabled = true;
+    this.inputGateUntil = 0;
+    if (this.inputGateTimer !== null) {
+      window.clearTimeout(this.inputGateTimer);
+      this.inputGateTimer = null;
+    }
+    this.drainPendingPointerState();
+    this.syncPointerLockForContext();
+    this.renderDebugOverlay();
+  }
+
   isPointerLocked(): boolean {
     return document.pointerLockElement === this.canvas;
   }
@@ -120,6 +170,10 @@ export class InputRouter {
   }
 
   handleKeyDown(event: KeyboardEvent): boolean {
+    if (this.isInputBlocked(event)) {
+      return true;
+    }
+
     if (this.isTypingTarget()) {
       this.renderDebugOverlay();
       return false;
@@ -145,6 +199,10 @@ export class InputRouter {
   }
 
   handleKeyUp(event: KeyboardEvent): boolean {
+    if (this.isInputBlocked(event)) {
+      return true;
+    }
+
     let handled = false;
 
     if (this.currentContext === 'editor') {
@@ -161,12 +219,16 @@ export class InputRouter {
   }
 
   handlePointerDown(event: MouseEvent): boolean {
+    if (this.isInputBlocked(event)) {
+      return true;
+    }
+
     let handled = false;
 
-    if (this.currentContext === 'ui' || this.isUiTarget(event.target)) {
+    if (this.currentContext === 'ui' || this.isUiTarget(event.target) || this.isPointerBarrierHit(event)) {
       handled = this.invoke(this.uiManager?.handlePointerDown, this.uiManager, event);
       this.renderDebugOverlay();
-      return handled;
+      return handled || true;
     }
 
     if (this.currentContext === 'editor') {
@@ -195,7 +257,15 @@ export class InputRouter {
   }
 
   handlePointerMove(event: MouseEvent): boolean {
+    if (this.isInputBlocked(event)) {
+      return true;
+    }
+
     let handled = false;
+
+    if (this.currentContext === 'ui' || this.isUiTarget(event.target) || this.isPointerBarrierHit(event)) {
+      return this.invoke(this.uiManager?.handlePointerMove, this.uiManager, event) || true;
+    }
 
     if (this.currentContext === 'editor') {
       handled = this.invoke(this.editorTool?.handlePointerMove, this.editorTool, event)
@@ -212,7 +282,15 @@ export class InputRouter {
   }
 
   handlePointerUp(event: MouseEvent): boolean {
+    if (this.isInputBlocked(event)) {
+      return true;
+    }
+
     let handled = false;
+
+    if (this.currentContext === 'ui' || this.isUiTarget(event.target) || this.isPointerBarrierHit(event)) {
+      return this.invoke(this.uiManager?.handlePointerUp, this.uiManager, event) || true;
+    }
 
     if (this.currentContext === 'editor') {
       handled = this.invoke(this.editorTool?.handlePointerUp, this.editorTool, event)
@@ -229,13 +307,19 @@ export class InputRouter {
   }
 
   handleDoubleClick(event: MouseEvent): boolean {
+    if (this.isInputBlocked(event)) {
+      return true;
+    }
+
     let handled = false;
 
-    if (this.currentContext === 'editor' && !this.isUiTarget(event.target)) {
+    if (this.currentContext === 'editor' && !this.isUiTarget(event.target) && !this.isPointerBarrierHit(event)) {
       handled = this.invoke(this.editorTool?.handleDoubleClick, this.editorTool, event)
         || this.invoke(this.editorGizmo?.handleDoubleClick, this.editorGizmo, event);
     } else if (this.currentContext === 'ui') {
       handled = this.invoke(this.uiManager?.handleDoubleClick, this.uiManager, event);
+    } else if (this.isPointerBarrierHit(event)) {
+      handled = this.invoke(this.uiManager?.handleDoubleClick, this.uiManager, event) || true;
     }
 
     this.renderDebugOverlay();
@@ -243,9 +327,17 @@ export class InputRouter {
   }
 
   handleWheel(event: WheelEvent): boolean {
+    if (this.isInputBlocked(event)) {
+      return true;
+    }
+
     let handled = false;
 
-    if (this.currentContext === 'editor' && !this.isUiTarget(event.target)) {
+    if (this.currentContext === 'ui' || this.isUiTarget(event.target) || this.isPointerBarrierHit(event)) {
+      return this.invoke(this.uiManager?.handleWheel, this.uiManager, event) || true;
+    }
+
+    if (this.currentContext === 'editor') {
       handled = this.invoke(this.editorTool?.handleWheel, this.editorTool, event)
         || this.invoke(this.editorController?.handleWheel, this.editorController, event);
     } else if (this.currentContext === 'game') {
@@ -261,8 +353,44 @@ export class InputRouter {
   destroy(): void {
     this.contextUnsub?.();
     this.contextUnsub = null;
+    window.removeEventListener('ui:transition-guard', this.transitionGuardHandler, true);
+    window.removeEventListener('ui:hard-reset-input-stack', this.hardResetHandler, true);
+    document.removeEventListener('keydown', this.globalPToggleHandler, true);
+    if (this.inputGateTimer !== null) {
+      window.clearTimeout(this.inputGateTimer);
+      this.inputGateTimer = null;
+    }
     this.overlayEl?.remove();
     this.overlayEl = null;
+  }
+
+  private isGameplayContext(context: InputContext): boolean {
+    return context === 'editor' || context === 'game';
+  }
+
+  private armInputGate(durationMs = 300): void {
+    this.inputEnabled = false;
+    this.inputGateUntil = Date.now() + durationMs;
+    if (this.inputGateTimer !== null) {
+      window.clearTimeout(this.inputGateTimer);
+    }
+    this.inputGateTimer = window.setTimeout(() => {
+      this.inputEnabled = true;
+      this.inputGateTimer = null;
+      this.renderDebugOverlay();
+    }, durationMs);
+  }
+
+  private isInputBlocked(event: Event): boolean {
+    if (this.inputEnabled || Date.now() >= this.inputGateUntil) {
+      this.inputEnabled = true;
+      return false;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    this.renderDebugOverlay();
+    return true;
   }
 
   private syncPointerLockForContext(): void {
@@ -273,14 +401,55 @@ export class InputRouter {
     this.playController?.syncPointerLockState?.();
   }
 
+  private drainPendingPointerState(): void {
+    this.playController?.releasePointerLock?.();
+    this.playController?.syncPointerLockState?.();
+    if (typeof document !== 'undefined' && typeof document.exitPointerLock === 'function' && document.pointerLockElement) {
+      document.exitPointerLock();
+    }
+  }
+
   private isUiTarget(target: EventTarget | null): boolean {
     if (!(target instanceof HTMLElement)) return false;
     if (target === this.canvas || this.canvas.contains(target)) return false;
     if (target.closest('[data-ui-interactive="true"]')) return true;
+    if (target.closest('.editor-dock-layout__panel, .editor-dock-layout__slot--topbar, #editor-menu, #gizmo-mode-indicator')) return true;
     if (target.isContentEditable) return true;
 
     const interactive = target.closest('button, input, select, textarea, a[href], summary, label, [role="button"], [role="dialog"], [role="menu"], [tabindex]');
     return interactive instanceof HTMLElement;
+  }
+
+  private isPointerBarrierHit(event: MouseEvent | WheelEvent): boolean {
+    if (typeof document === 'undefined') return false;
+
+    const target = event.target;
+    if (target instanceof HTMLElement && target.closest('[data-pointer-barrier="true"]')) {
+      return true;
+    }
+
+    const barrierElements = document.querySelectorAll<HTMLElement>('[data-pointer-barrier="true"]');
+    for (const barrier of barrierElements) {
+      if (barrier.offsetParent === null && barrier !== document.body) {
+        continue;
+      }
+
+      const rect = barrier.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) {
+        continue;
+      }
+
+      if (
+        event.clientX >= rect.left
+        && event.clientX <= rect.right
+        && event.clientY >= rect.top
+        && event.clientY <= rect.bottom
+      ) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   private isTypingTarget(): boolean {
@@ -330,6 +499,7 @@ export class InputRouter {
       `context: ${this.currentContext}`,
       `layers: ${this.activeRaycastLayers.length > 0 ? this.activeRaycastLayers.join(', ') : 'none'}`,
       `pointer lock: ${this.isPointerLocked() ? 'locked' : 'unlocked'}`,
+      `input gate: ${this.inputEnabled ? 'open' : `${Math.max(0, this.inputGateUntil - Date.now())}ms`}`,
     ].join('<br>');
   }
 }

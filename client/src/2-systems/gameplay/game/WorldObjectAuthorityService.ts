@@ -2,7 +2,6 @@ import { gameBus } from '@engine/1-kernel/core/public-api';
 import type { Entity, Transform, Vector3 } from '@engine/1-kernel/core/public-api';
 import type { SystemCapabilities, SystemContext } from '@engine/1-kernel/core/public-api';
 import * as Engine from '../../../0-foundation/foundation/Engine';
-import * as THREE from 'three';
 
 type PhysicsSystemAdapter = {
   addBody(entityId: string, config: { shape: 'aabb' | 'sphere'; radius?: number; halfExtents?: Vector3; layer?: string; isStatic?: boolean; isTrigger?: boolean; isSensor?: boolean }): void;
@@ -22,6 +21,7 @@ interface WorldObjectData {
   metadata?: {
     colliderHalfExtents?: { x: number; y: number; z: number };
     isStaticCollider?: boolean;
+    cleanupLayer?: 'static-world-bounds' | 'generated-collision-hull';
   };
 }
 
@@ -83,6 +83,7 @@ export class WorldObjectAuthorityService {
   private readonly stateStore: StateStoreAdapter | null;
   private readonly readHalfExtents: (entity: Entity) => Vector3;
   private readonly authorityToLocalEntity = new Map<string, string>();
+  private readonly cleanupLayerByAuthorityId = new Map<string, 'static-world-bounds' | 'generated-collision-hull'>();
   private transport: WorldObjectTransportAdapter | null = null;
   private systemContext: SystemContext | null = null;
   private physicsSystem: PhysicsSystemAdapter | null = null;
@@ -151,11 +152,13 @@ export class WorldObjectAuthorityService {
   clear(): void {
     for (const [authorityId, localEntityId] of [...this.authorityToLocalEntity.entries()]) {
       this.collisionAuthority.removeDynamicCollider(authorityId);
+      this.physicsSystem?.removeBody(authorityId);
       if (authorityId !== localEntityId) {
         this.getEntityManager().destroyEntity(localEntityId);
       }
     }
     this.authorityToLocalEntity.clear();
+    this.cleanupLayerByAuthorityId.clear();
     this.recordOperation('cleared');
     gameBus.emit('worldObjectAuthority', {
       action: 'cleared',
@@ -199,6 +202,7 @@ export class WorldObjectAuthorityService {
     const localEntityId = this.authorityToLocalEntity.get(authorityId) ?? null;
     if (localEntityId) {
       this.authorityToLocalEntity.delete(authorityId);
+      this.cleanupLayerByAuthorityId.delete(authorityId);
       this.collisionAuthority.removeDynamicCollider(authorityId);
       this.recordOperation('untracked');
       gameBus.emit('worldObjectAuthority', {
@@ -232,30 +236,30 @@ export class WorldObjectAuthorityService {
       return { localEntityId: existingLocalEntityId, spawned: false };
     }
 
-    // ─ STATIC COLLIDER VISUALIZATION: Red transparent boxes
+    // Static colliders are authoritative physics-only objects and should not be rendered.
     if (obj.entityType === 'static_collider') {
-      const scene = Engine.getEngineScene();
-      if (!scene) return null;
-
       const halfExtents = obj.metadata?.colliderHalfExtents;
       if (!halfExtents) return null;
 
-      const geometry = new THREE.BoxGeometry(
-        halfExtents.x * 2,
-        halfExtents.y * 2,
-        halfExtents.z * 2
-      );
-      const material = new THREE.MeshStandardMaterial({
-        color: 0xff0000,
-        transparent: true,
-        opacity: 0.15,
-        wireframe: false,
+      const debugEntity = this.getEntityManager().createEntity('StaticColliderDebug', {
+        position: { ...obj.position },
+        rotation: { x: 0, y: 0, z: 0 },
       });
-      const mesh = new THREE.Mesh(geometry, material);
-      mesh.position.set(obj.position.x, obj.position.y, obj.position.z);
-      mesh.rotation.set(obj.rotation.x, obj.rotation.y, obj.rotation.z);
-      mesh.userData = { debugType: 'staticCollider', authorityId: obj.id };
-      scene.add(mesh);
+      debugEntity.addComponent({
+        name: 'render',
+        data: {
+          meshType: 'box',
+          color: 0xff2f2f,
+          transparent: true,
+          opacity: 0.22,
+          geometry: {
+            width: halfExtents.x * 2,
+            height: halfExtents.y * 2,
+            depth: halfExtents.z * 2,
+          },
+        },
+      });
+      this.entityRenderer.syncEntity(debugEntity);
 
       if (this.physicsSystem) {
         this.physicsSystem.addBody(obj.id, {
@@ -266,13 +270,16 @@ export class WorldObjectAuthorityService {
         });
       }
 
-      this.authorityToLocalEntity.set(obj.id, obj.id);
+      this.authorityToLocalEntity.set(obj.id, debugEntity.id);
+      if (obj.metadata?.cleanupLayer) {
+        this.cleanupLayerByAuthorityId.set(obj.id, obj.metadata.cleanupLayer);
+      }
       this.recordOperation('spawned_static_collider');
       gameBus.emit('worldObjectAuthority', {
         action: 'spawned_static_collider',
         authorityId: obj.id,
       });
-      return { localEntityId: obj.id, spawned: true };
+      return { localEntityId: debugEntity.id, spawned: true };
     }
 
     const prefabEntity = this.getPrefabSystem().createByEntityType(obj.entityType, obj.position, {
@@ -282,6 +289,9 @@ export class WorldObjectAuthorityService {
     });
     if (prefabEntity) {
       this.authorityToLocalEntity.set(obj.id, prefabEntity.id);
+      if (obj.metadata?.cleanupLayer) {
+        this.cleanupLayerByAuthorityId.set(obj.id, obj.metadata.cleanupLayer);
+      }
       this.syncDynamicCollider(obj.id, prefabEntity.id);
       this.recordOperation('spawned_remote_prefab');
       gameBus.emit('worldObjectAuthority', {
@@ -337,18 +347,6 @@ export class WorldObjectAuthorityService {
   removeRemoteObject(authorityId: string): string | null {
     const localEntityId = this.untrack(authorityId);
     if (!localEntityId) return null;
-    
-    // Handle static collider mesh cleanup
-    const scene = Engine.getEngineScene();
-    if (scene) {
-      const meshesToRemove: THREE.Mesh[] = [];
-      scene.traverse((obj: any) => {
-        if (obj.userData?.debugType === 'staticCollider' && obj.userData?.authorityId === authorityId) {
-          meshesToRemove.push(obj);
-        }
-      });
-      meshesToRemove.forEach(mesh => scene.remove(mesh));
-    }
 
     if (this.physicsSystem) {
       this.physicsSystem.removeBody(authorityId);
@@ -448,11 +446,36 @@ export class WorldObjectAuthorityService {
 
     return {
       mappedWorldObjects: this.authorityToLocalEntity.size,
+      cleanupTaggedWorldObjects: this.cleanupLayerByAuthorityId.size,
       locallyOwnedCount,
       serverReplicatedCount,
       lastOperation: this.lastOperation,
       lastUpdatedAt: this.lastUpdatedAt,
     };
+  }
+
+  removeByCleanupLayer(layers: Array<'static-world-bounds' | 'generated-collision-hull'>): string[] {
+    const requestedLayers = new Set(layers);
+    const authorityIds = [...this.cleanupLayerByAuthorityId.entries()]
+      .filter(([, layer]) => requestedLayers.has(layer))
+      .map(([authorityId]) => authorityId);
+
+    for (const authorityId of authorityIds) {
+      this.removeRemoteObject(authorityId);
+    }
+
+    return authorityIds;
+  }
+
+  countByCleanupLayer(layers: Array<'static-world-bounds' | 'generated-collision-hull'>): number {
+    const requestedLayers = new Set(layers);
+    let count = 0;
+    for (const layer of this.cleanupLayerByAuthorityId.values()) {
+      if (requestedLayers.has(layer)) {
+        count += 1;
+      }
+    }
+    return count;
   }
 
   private recordOperation(operation: string): void {
