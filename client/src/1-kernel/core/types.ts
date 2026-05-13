@@ -1055,6 +1055,12 @@ export interface GameEvents {
 
   /** ─ PERMANENT-BINDING-GUARD: Runtime reset unlocks all binding locks ─ */
   RUNTIME_RESET: Record<string, never>;
+
+  /** UI2DSystem initialization complete - plugins may now safely access UI systems */
+  UI_READY: {
+    source: string;
+    systemId: string;
+  };
 }
 
 export type {

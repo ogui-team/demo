@@ -271,8 +271,12 @@ export class PlayerPossessionService {
     }
 
     const prefabData = entity.getComponent('prefab')?.data as { tags?: unknown } | undefined;
-    const prefabTags = Array.isArray(prefabData?.tags)
-      ? prefabData.tags.filter((tag): tag is string => typeof tag === 'string').map((tag) => tag.toLowerCase())
+    if (!prefabData) {
+      return false;
+    }
+
+    const prefabTags = Array.isArray(prefabData.tags)
+      ? (prefabData.tags as unknown[]).filter((tag): tag is string => typeof tag === 'string').map((tag) => tag.toLowerCase())
       : [];
 
     return prefabTags.includes('runtime') && prefabTags.includes('player');
