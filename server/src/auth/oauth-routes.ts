@@ -24,7 +24,7 @@ function isValidEmail(email: string): boolean {
 }
 
 function serverHttpBase(): string {
-  return (process.env.SERVER_HTTP_URL ?? 'http://localhost:10001').replace(/\/$/, '');
+  return (process.env.RENDER_EXTERNAL_URL ?? process.env.SERVER_HTTP_URL ?? 'http://localhost:10001').replace(/\/$/, '');
 }
 
 function gameClientBase(): string {
