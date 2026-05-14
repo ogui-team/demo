@@ -19,6 +19,14 @@ interface PlayControllerConfig {
   enableMouseLock?: boolean;
 }
 
+interface VirtualStickDom {
+  root: HTMLDivElement;
+  movePad: HTMLDivElement;
+  moveThumb: HTMLDivElement;
+  lookPad: HTMLDivElement;
+  lookThumb: HTMLDivElement;
+}
+
 export class PlayController {
   private camera: THREE.PerspectiveCamera | null;
   private keys: Set<string> = new Set();
@@ -55,6 +63,22 @@ export class PlayController {
 
   private pointerlockChangeHandler: (() => void) | null = null;
   private lifecycleDisposers: Array<() => void> = [];
+
+  private virtualStickDom: VirtualStickDom | null = null;
+  private virtualStickDisposers: Array<() => void> = [];
+  private moveStickPointerId: number | null = null;
+  private lookStickPointerId: number | null = null;
+  private moveStickAxis = { x: 0, y: 0 };
+  private lookStickAxis = { x: 0, y: 0 };
+  private moveStickCenter: { x: number; y: number } | null = null;
+  private lookStickCenter: { x: number; y: number } | null = null;
+  private moveStickRadius = 56;
+  private lookStickRadius = 56;
+  private readonly virtualStickDeadzone = 0.2;
+  private readonly virtualLookPixelsPerSecond = 260;
+  private readonly virtualStickThumbTravelRatio = 0.52;
+  private readonly mobileTouchCapable = typeof window !== 'undefined'
+    && (('ontouchstart' in window) || ((navigator as Navigator).maxTouchPoints ?? 0) > 0);
 
   private getCursorTarget(): HTMLElement | null {
     if (this.canvas instanceof HTMLElement && this.canvas.isConnected) {
@@ -172,6 +196,7 @@ export class PlayController {
     if (this.enabled) return;
 
     this.enabled = true;
+    this.setupVirtualTouchControls();
     this.setGameplayCursorHidden(false);
     this.pointerlockChangeHandler = () => this.onPointerLockChange();
     document.addEventListener('pointerlockchange', this.pointerlockChangeHandler);
@@ -191,6 +216,8 @@ export class PlayController {
     if (!this.enabled) return;
 
     this.enabled = false;
+    this.resetVirtualTouchState();
+    this.teardownVirtualTouchControls();
     this.setGameplayCursorHidden(false);
 
     // Exit pointer lock if active
@@ -220,6 +247,7 @@ export class PlayController {
   reset(): void {
     this.keys.clear();
     this.keyCodes.clear();
+    this.resetVirtualTouchState();
     gameBus.emit('stateMutation', {
       source: 'PlayController',
       path: 'playController.reset',
@@ -235,7 +263,13 @@ export class PlayController {
     if (!this.enabled || !this.camera) return;
     if (!this.camera) this.camera = getCamera();
     if (!this.camera) return;
-    void deltaTime;
+    if (this.mobileTouchCapable) {
+      const lookDeltaX = this.lookStickAxis.x * this.virtualLookPixelsPerSecond * deltaTime;
+      const lookDeltaY = this.lookStickAxis.y * this.virtualLookPixelsPerSecond * deltaTime;
+      if (lookDeltaX !== 0 || lookDeltaY !== 0) {
+        this.applyLookDelta(lookDeltaX, lookDeltaY);
+      }
+    }
 
     // BRIDGE: Emit movement input to gameBus so NetworkSyncSystem (in network domain) can receive it
     // This fixes the "Movement Silo" by making input available across domains via the global event bus
@@ -535,11 +569,15 @@ export class PlayController {
   } {
     const jump = this.isActionPressed([' '], ['Space']);
     const crouch = this.isActionPressed(['Control'], ['ControlLeft', 'ControlRight']);
+    const touchForward = this.moveStickAxis.y < -this.virtualStickDeadzone;
+    const touchBackward = this.moveStickAxis.y > this.virtualStickDeadzone;
+    const touchLeft = this.moveStickAxis.x < -this.virtualStickDeadzone;
+    const touchRight = this.moveStickAxis.x > this.virtualStickDeadzone;
     return {
-      forward: this.isActionPressed(['w', 'W'], ['KeyW']),
-      backward: this.isActionPressed(['s', 'S'], ['KeyS']),
-      left: this.isActionPressed(['a', 'A'], ['KeyA']),
-      right: this.isActionPressed(['d', 'D'], ['KeyD']),
+      forward: this.isActionPressed(['w', 'W'], ['KeyW']) || touchForward,
+      backward: this.isActionPressed(['s', 'S'], ['KeyS']) || touchBackward,
+      left: this.isActionPressed(['a', 'A'], ['KeyA']) || touchLeft,
+      right: this.isActionPressed(['d', 'D'], ['KeyD']) || touchRight,
       jump,
       sprint: this.isActionPressed(['Shift'], ['ShiftLeft', 'ShiftRight']),
       crouch,
@@ -615,6 +653,219 @@ export class PlayController {
     this.lookRotation.y -= movementX * this.rotationSpeed;
   }
 
+  private setupVirtualTouchControls(): void {
+    if (!this.mobileTouchCapable || this.virtualStickDom) {
+      return;
+    }
+
+    const root = document.createElement('div');
+    const movePad = document.createElement('div');
+    const moveThumb = document.createElement('div');
+    const lookPad = document.createElement('div');
+    const lookThumb = document.createElement('div');
+
+    const viewportMin = Math.min(window.innerWidth || 360, window.innerHeight || 640);
+    const padSize = Math.round(Math.max(96, Math.min(140, viewportMin * 0.26)));
+    const thumbSize = Math.round(Math.max(34, Math.min(58, padSize * 0.44)));
+    const bottomInset = Math.round(Math.max(14, Math.min(28, viewportMin * 0.04)));
+    const sideInset = Math.round(Math.max(12, Math.min(24, viewportMin * 0.035)));
+
+    root.style.cssText = [
+      'position:fixed',
+      `left:${sideInset}px`,
+      `right:${sideInset}px`,
+      `bottom:${bottomInset}px`,
+      'display:flex',
+      'justify-content:space-between',
+      'align-items:flex-end',
+      'pointer-events:none',
+      'z-index:1200',
+      'user-select:none',
+      '-webkit-user-select:none',
+      '-webkit-touch-callout:none',
+    ].join(';');
+
+    const basePadStyle = [
+      `width:${padSize}px`,
+      `height:${padSize}px`,
+      'border-radius:50%',
+      'border:2px solid rgba(255,255,255,0.34)',
+      'background:radial-gradient(circle at 32% 30%, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.08) 32%, rgba(0,0,0,0.22) 100%)',
+      'box-shadow:0 10px 24px rgba(0,0,0,0.35), inset 0 0 16px rgba(0,0,0,0.32)',
+      'position:relative',
+      'pointer-events:auto',
+      'touch-action:none',
+    ].join(';');
+
+    const baseThumbStyle = [
+      `width:${thumbSize}px`,
+      `height:${thumbSize}px`,
+      'border-radius:50%',
+      'background:linear-gradient(180deg, rgba(255,255,255,0.78) 0%, rgba(220,225,230,0.36) 100%)',
+      'box-shadow:0 6px 18px rgba(0,0,0,0.32)',
+      'position:absolute',
+      'left:50%',
+      'top:50%',
+      'transform:translate(-50%, -50%)',
+    ].join(';');
+
+    movePad.style.cssText = `${basePadStyle};border-color:rgba(157,234,193,0.55);`;
+    lookPad.style.cssText = `${basePadStyle};border-color:rgba(168,202,255,0.55);`;
+    moveThumb.style.cssText = baseThumbStyle;
+    lookThumb.style.cssText = baseThumbStyle;
+
+    movePad.appendChild(moveThumb);
+    lookPad.appendChild(lookThumb);
+    root.appendChild(movePad);
+    root.appendChild(lookPad);
+    document.body.appendChild(root);
+
+    this.virtualStickDom = { root, movePad, moveThumb, lookPad, lookThumb };
+    this.moveStickRadius = padSize / 2;
+    this.lookStickRadius = padSize / 2;
+
+    const onResize = () => {
+      this.resetVirtualTouchState();
+      this.teardownVirtualTouchControls();
+      this.setupVirtualTouchControls();
+    };
+
+    const bindStick = (
+      pad: HTMLDivElement,
+      thumb: HTMLDivElement,
+      isMoveStick: boolean,
+    ) => {
+      const onPointerDown = (event: PointerEvent) => {
+        if (event.pointerType !== 'touch') {
+          return;
+        }
+        event.preventDefault();
+        pad.setPointerCapture(event.pointerId);
+        const center = this.readPadCenter(pad);
+        if (!center) {
+          return;
+        }
+        if (isMoveStick) {
+          this.moveStickPointerId = event.pointerId;
+          this.moveStickCenter = center;
+        } else {
+          this.lookStickPointerId = event.pointerId;
+          this.lookStickCenter = center;
+        }
+        this.updateStickFromPointer(event, thumb, isMoveStick);
+      };
+
+      const onPointerMove = (event: PointerEvent) => {
+        const activePointerId = isMoveStick ? this.moveStickPointerId : this.lookStickPointerId;
+        if (activePointerId !== event.pointerId) {
+          return;
+        }
+        event.preventDefault();
+        this.updateStickFromPointer(event, thumb, isMoveStick);
+      };
+
+      const onPointerUp = (event: PointerEvent) => {
+        const activePointerId = isMoveStick ? this.moveStickPointerId : this.lookStickPointerId;
+        if (activePointerId !== event.pointerId) {
+          return;
+        }
+        event.preventDefault();
+        this.resetStick(thumb, isMoveStick);
+      };
+
+      pad.addEventListener('pointerdown', onPointerDown, { passive: false });
+      pad.addEventListener('pointermove', onPointerMove, { passive: false });
+      pad.addEventListener('pointerup', onPointerUp, { passive: false });
+      pad.addEventListener('pointercancel', onPointerUp, { passive: false });
+      this.virtualStickDisposers.push(() => {
+        pad.removeEventListener('pointerdown', onPointerDown);
+        pad.removeEventListener('pointermove', onPointerMove);
+        pad.removeEventListener('pointerup', onPointerUp);
+        pad.removeEventListener('pointercancel', onPointerUp);
+      });
+    };
+
+    bindStick(movePad, moveThumb, true);
+    bindStick(lookPad, lookThumb, false);
+
+    window.addEventListener('resize', onResize);
+    this.virtualStickDisposers.push(() => window.removeEventListener('resize', onResize));
+  }
+
+  private teardownVirtualTouchControls(): void {
+    while (this.virtualStickDisposers.length > 0) {
+      this.virtualStickDisposers.pop()?.();
+    }
+    if (this.virtualStickDom?.root.parentElement) {
+      this.virtualStickDom.root.parentElement.removeChild(this.virtualStickDom.root);
+    }
+    this.virtualStickDom = null;
+  }
+
+  private resetVirtualTouchState(): void {
+    this.moveStickAxis = { x: 0, y: 0 };
+    this.lookStickAxis = { x: 0, y: 0 };
+    this.moveStickPointerId = null;
+    this.lookStickPointerId = null;
+    this.moveStickCenter = null;
+    this.lookStickCenter = null;
+    if (this.virtualStickDom) {
+      this.virtualStickDom.moveThumb.style.transform = 'translate(-50%, -50%)';
+      this.virtualStickDom.lookThumb.style.transform = 'translate(-50%, -50%)';
+    }
+  }
+
+  private readPadCenter(pad: HTMLDivElement): { x: number; y: number } | null {
+    const rect = pad.getBoundingClientRect();
+    if (!Number.isFinite(rect.left) || !Number.isFinite(rect.top)) {
+      return null;
+    }
+    return {
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2,
+    };
+  }
+
+  private updateStickFromPointer(event: PointerEvent, thumb: HTMLDivElement, isMoveStick: boolean): void {
+    const center = isMoveStick ? this.moveStickCenter : this.lookStickCenter;
+    if (!center) {
+      return;
+    }
+    const radius = isMoveStick ? this.moveStickRadius : this.lookStickRadius;
+    const dx = event.clientX - center.x;
+    const dy = event.clientY - center.y;
+    const length = Math.hypot(dx, dy);
+    const clampedLength = Math.min(length, radius);
+    const nx = length > 0 ? dx / length : 0;
+    const ny = length > 0 ? dy / length : 0;
+    const axisX = (nx * clampedLength) / radius;
+    const axisY = (ny * clampedLength) / radius;
+
+    const thumbTravel = radius * this.virtualStickThumbTravelRatio;
+    const thumbX = axisX * thumbTravel;
+    const thumbY = axisY * thumbTravel;
+    thumb.style.transform = `translate(calc(-50% + ${thumbX}px), calc(-50% + ${thumbY}px))`;
+
+    if (isMoveStick) {
+      this.moveStickAxis = { x: axisX, y: axisY };
+    } else {
+      this.lookStickAxis = { x: axisX, y: axisY };
+    }
+  }
+
+  private resetStick(thumb: HTMLDivElement, isMoveStick: boolean): void {
+    thumb.style.transform = 'translate(-50%, -50%)';
+    if (isMoveStick) {
+      this.moveStickPointerId = null;
+      this.moveStickCenter = null;
+      this.moveStickAxis = { x: 0, y: 0 };
+      return;
+    }
+    this.lookStickPointerId = null;
+    this.lookStickCenter = null;
+    this.lookStickAxis = { x: 0, y: 0 };
+  }
+
   releasePointerLock(): void {
     // ─ INPUT-LOCKOUT-MANAGER: Use context manager for safe release
     this.inputContextManager.releasePointerLock();
@@ -639,6 +890,7 @@ export class PlayController {
 
   destroy(): void {
     this.disable();
+    this.teardownVirtualTouchControls();
     while (this.lifecycleDisposers.length > 0) {
       this.lifecycleDisposers.pop()?.();
     }
