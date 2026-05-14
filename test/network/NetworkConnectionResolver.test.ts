@@ -75,6 +75,33 @@ describe('NetworkConnectionResolver', () => {
     process.env.SERVER_URL = saved
   })
 
+  it('uses browser same-origin URLs on hosted https origins when explicit env URLs are not set', () => {
+    ;(import.meta as any).env = {}
+    const savedHttp = process.env.SERVER_HTTP_URL
+    const savedWs = process.env.SERVER_WS_URL
+    const savedGeneric = process.env.SERVER_URL
+    delete process.env.SERVER_HTTP_URL
+    delete process.env.SERVER_WS_URL
+    delete process.env.SERVER_URL
+
+    Object.defineProperty(window, 'location', {
+      value: {
+        protocol: 'https:',
+        hostname: 'demo-lzj1.onrender.com',
+        port: '',
+      },
+      writable: true,
+    })
+
+    const resolver = new NetworkConnectionResolver()
+    expect(resolver.resolveHttpUrl()).toBe('https://demo-lzj1.onrender.com')
+    expect(resolver.resolveWebSocketUrl()).toBe('wss://demo-lzj1.onrender.com')
+
+    process.env.SERVER_HTTP_URL = savedHttp
+    process.env.SERVER_WS_URL = savedWs
+    process.env.SERVER_URL = savedGeneric
+  })
+
   it('validates snapshot schema constants and delta mode', () => {
     expect(SNAPSHOT_SCHEMA_VERSION).toBe(2)
     expect(SNAPSHOT_DELTA_MODE).toBe('sparse-entity-delta-v1')

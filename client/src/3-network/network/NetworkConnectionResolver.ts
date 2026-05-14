@@ -60,6 +60,11 @@ export class NetworkConnectionResolver {
       return parsed.toString().replace(/\/$/, '');
     }
 
+    const browserSameOriginWsUrl = this.getBrowserSameOriginUrl('ws');
+    if (browserSameOriginWsUrl) {
+      return browserSameOriginWsUrl;
+    }
+
     const host = this.resolveHost();
     const port = this.config.wsPort;
     const shouldUseSecure = this.config.useSecure || this.isSecurePageContext();
@@ -79,6 +84,11 @@ export class NetworkConnectionResolver {
       const parsed = new URL(explicitWsUrl);
       parsed.protocol = parsed.protocol === 'wss:' ? 'https:' : 'http:';
       return parsed.toString().replace(/\/$/, '');
+    }
+
+    const browserSameOriginHttpUrl = this.getBrowserSameOriginUrl('http');
+    if (browserSameOriginHttpUrl) {
+      return browserSameOriginHttpUrl;
     }
 
     const host = this.resolveHost();
@@ -182,6 +192,23 @@ export class NetworkConnectionResolver {
 
   private isSecurePageContext(): boolean {
     return typeof window !== 'undefined' && window.location.protocol === 'https:';
+  }
+
+  private getBrowserSameOriginUrl(kind: 'http' | 'ws'): string | null {
+    if (typeof window === 'undefined' || typeof window.location === 'undefined') {
+      return null;
+    }
+
+    const { hostname, port, protocol } = window.location;
+    if (!hostname || hostname === 'localhost' || hostname === '127.0.0.1') {
+      return null;
+    }
+
+    const nextProtocol = kind === 'ws'
+      ? (protocol === 'https:' ? 'wss:' : 'ws:')
+      : protocol;
+    const portSuffix = port ? `:${port}` : '';
+    return `${nextProtocol}//${hostname}${portSuffix}`.replace(/\/$/, '');
   }
 }
 
