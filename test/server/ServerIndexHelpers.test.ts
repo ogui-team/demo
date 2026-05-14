@@ -1,5 +1,12 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 
+vi.hoisted(() => {
+  process.env.SERVER_HTTP_URL = 'https://demo-lzj1.onrender.com/'
+  process.env.RENDER_EXTERNAL_URL = ''
+  process.env.ALLOWED_ORIGINS = ''
+  return null
+})
+
 vi.mock('express', () => {
   const app = {
     use: vi.fn(),
@@ -10,7 +17,15 @@ vi.mock('express', () => {
   const express = vi.fn(() => app)
   express.json = vi.fn(() => vi.fn())
   express.static = app.static
-  return { default: express }
+  const router = {
+    use: vi.fn(),
+    get: vi.fn(),
+    post: vi.fn(),
+    delete: vi.fn(),
+    put: vi.fn(),
+  }
+  express.Router = vi.fn(() => router)
+  return { default: express, Router: express.Router }
 })
 
 vi.mock('ws', () => {
@@ -68,7 +83,7 @@ vi.mock('../../server/src/system/RuntimeMetricsStore', () => ({
   saveRuntimeMetrics: vi.fn(() => []),
 }))
 
-import { isLoopbackOrigin, isAllowedOrigin, classifyRateLimitKey, consumeRateLimit, validateClientProtocol } from '../../server/src/index'
+import { buildAllowedOrigins, isLoopbackOrigin, isAllowedOrigin, classifyRateLimitKey, consumeRateLimit, validateClientProtocol } from '../../server/src/index'
 
 describe('server index helpers', () => {
   it('detects loopback origins and allows origin values', () => {
@@ -78,6 +93,8 @@ describe('server index helpers', () => {
     expect(isLoopbackOrigin('not-a-url')).toBe(false)
     expect(isAllowedOrigin(undefined)).toBe(true)
     expect(isAllowedOrigin('http://localhost:8080')).toBe(true)
+    expect(isAllowedOrigin('https://demo-lzj1.onrender.com')).toBe(true)
+    expect(buildAllowedOrigins().has('https://demo-lzj1.onrender.com')).toBe(true)
   })
 
   it('classifies rate limit keys correctly', () => {

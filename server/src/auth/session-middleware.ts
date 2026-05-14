@@ -16,11 +16,12 @@ export function attachAuthContext(req: Request, res: Response, snapshot: Identit
 
 export function setSessionCookie(res: Response, sessionId: string): void {
   const secure = process.env.NODE_ENV === 'production';
+  const sameSite = secure ? 'None' : 'Lax';
   const parts = [
     `${SESSION_COOKIE_NAME}=${encodeURIComponent(sessionId)}`,
     'Path=/',
     'HttpOnly',
-    'SameSite=Lax',
+    `SameSite=${sameSite}`,
     `Max-Age=${Math.floor(SESSION_TTL_MS / 1000)}`,
   ];
   if (secure) {
@@ -31,11 +32,12 @@ export function setSessionCookie(res: Response, sessionId: string): void {
 
 export function clearSessionCookie(res: Response): void {
   const secure = process.env.NODE_ENV === 'production';
+  const sameSite = secure ? 'None' : 'Lax';
   const parts = [
     `${SESSION_COOKIE_NAME}=`,
     'Path=/',
     'HttpOnly',
-    'SameSite=Lax',
+    `SameSite=${sameSite}`,
     'Max-Age=0',
   ];
   if (secure) {

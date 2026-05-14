@@ -82,6 +82,47 @@ const DEFAULT_ALLOWED_ORIGINS = [
   'http://127.0.0.1:5173',
 ];
 
+function normalizeOriginCandidate(origin: string | undefined): string | null {
+  if (!origin) {
+    return null;
+  }
+
+  const trimmed = origin.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  try {
+    return new URL(trimmed).origin;
+  } catch {
+    return trimmed.replace(/\/$/, '');
+  }
+}
+
+export function buildAllowedOrigins(extraOrigins: Array<string | undefined> = []): Set<string> {
+  const origins = new Set<string>(DEFAULT_ALLOWED_ORIGINS);
+  const renderOrigins = [process.env.SERVER_HTTP_URL, process.env.RENDER_EXTERNAL_URL, ...extraOrigins];
+
+  for (const origin of renderOrigins) {
+    const normalized = normalizeOriginCandidate(origin);
+    if (normalized) {
+      origins.add(normalized);
+    }
+  }
+
+  const configuredOrigins = process.env.ALLOWED_ORIGINS ?? '';
+  if (configuredOrigins.trim()) {
+    for (const origin of configuredOrigins.split(',')) {
+      const normalized = normalizeOriginCandidate(origin);
+      if (normalized) {
+        origins.add(normalized);
+      }
+    }
+  }
+
+  return origins;
+}
+
 export function isLoopbackOrigin(origin: string | undefined): boolean {
   if (!origin) return false;
   try {
@@ -93,12 +134,7 @@ export function isLoopbackOrigin(origin: string | undefined): boolean {
   }
 }
 
-const ALLOWED_ORIGINS = new Set(
-  (process.env.ALLOWED_ORIGINS ?? DEFAULT_ALLOWED_ORIGINS.join(','))
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean),
-);
+const ALLOWED_ORIGINS = buildAllowedOrigins();
 const RATE_LIMIT_RULES: Readonly<Record<RateLimitKey, RateLimitRule>> = {
   PLAYER_INPUT: { limit: 90, windowMs: 1000 },
   GAMEPLAY_COMMAND: { limit: 30, windowMs: 1000 },
@@ -116,15 +152,17 @@ app.use((_req, res, next) => {
 });
 
 // Allow cross-origin requests (client may be on different port during dev)
-app.use((_req, res, next) => {
-  const requestOrigin = typeof _req.headers.origin === 'string' ? _req.headers.origin : undefined;
-  const allowOrigin = requestOrigin && isAllowedOrigin(requestOrigin)
-    ? requestOrigin
-    : DEFAULT_ALLOWED_ORIGINS[0];
-  res.setHeader('Access-Control-Allow-Origin', allowOrigin);
+app.use((req, res, next) => {
+  const requestOrigin = typeof req.headers.origin === 'string' ? req.headers.origin : undefined;
+  const allowOrigin = resolveCorsOrigin(requestOrigin);
+  if (allowOrigin) {
+    res.setHeader('Vary', 'Origin');
+    res.setHeader('Access-Control-Allow-Origin', allowOrigin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  }
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  if (_req.method === 'OPTIONS') {
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  if (req.method === 'OPTIONS') {
     res.sendStatus(204);
     return;
   }
@@ -173,8 +211,18 @@ function rejectSocket(ws: WebSocket, code: string, message: string): void {
 }
 
 export function isAllowedOrigin(origin: string | undefined): boolean {
-  if (!origin) return true;
-  return ALLOWED_ORIGINS.has(origin) || isLoopbackOrigin(origin);
+  const normalizedOrigin = normalizeOriginCandidate(origin);
+  if (!normalizedOrigin) return true;
+  return ALLOWED_ORIGINS.has(normalizedOrigin) || isLoopbackOrigin(normalizedOrigin);
+}
+
+function resolveCorsOrigin(origin: string | undefined): string | null {
+  const normalizedOrigin = normalizeOriginCandidate(origin);
+  if (!normalizedOrigin || !isAllowedOrigin(normalizedOrigin)) {
+    return null;
+  }
+
+  return normalizedOrigin;
 }
 
 export function classifyRateLimitKey(type: string): RateLimitKey {
