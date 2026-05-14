@@ -220,13 +220,11 @@ export class ServerBrowser {
     const resolver = new NetworkConnectionResolver();
     const httpUrl = resolver.resolveHttpUrl();
     let servers = await this.client.fetchServers(httpUrl);
-    
-    // Filter out the fallback "Default Server" (id='auto') if player is already connected to a room
-    // This prevents confusion when the player joins a multiplayer session and opens the browser
-    if (this.lobbyState || this.isHost) {
-      servers = servers.filter((server) => server.id !== 'auto');
-    }
-    
+
+    // Always strip the synthetic 'auto' fallback entry — it represents no real room
+    // and causes joining players to land in a new orphan room instead of the host's room.
+    servers = servers.filter((server) => server.id !== 'auto');
+
     this.servers = servers;
     this.selectedServerIndex = Math.min(this.selectedServerIndex, Math.max(0, this.servers.length - 1));
     this._renderServerList();
@@ -489,11 +487,11 @@ export class ServerBrowser {
     if (this.config.joinGame) {
       this.config.joinGame({
         playerName,
-        roomId: server.id === 'auto' ? null : server.id,
+        roomId: server.id,
       });
       return;
     }
-    this.client.joinRoom(this.config.wsUrl, playerName, server.id === 'auto' ? undefined : server.id);
+    this.client.joinRoom(this.config.wsUrl, playerName, server.id);
   }
 
   private _showHostDialog(): void {

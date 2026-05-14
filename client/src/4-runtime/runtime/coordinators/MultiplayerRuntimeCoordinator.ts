@@ -428,7 +428,7 @@ export class MultiplayerRuntimeCoordinator {
       const resolver = new NetworkConnectionResolver();
       const httpUrl = resolver.resolveHttpUrl();
       void this.mpClient.fetchServers(httpUrl).then((servers) => {
-        const target = servers[0];
+        const target = servers.find((server) => server.id !== 'auto');
         if (!target) return;
         this.mpClient.joinRoom(this.serverWsUrl, config.playerName, target.id);
       });

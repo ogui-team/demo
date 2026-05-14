@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
-import { ServerBrowser } from '../../../../client/src/engine/ui/ServerBrowser'
-import type { ServerInfo, LobbyState } from '../../../../client/src/engine/network/MultiplayerClient'
+import { ServerBrowser } from '../../../../client/src/4-runtime/ui/ServerBrowser'
+import type { ServerInfo, LobbyState } from '../../../../client/src/3-network/network/MultiplayerClient'
 
 describe('ServerBrowser', () => {
   beforeEach(() => {
@@ -127,6 +127,50 @@ describe('ServerBrowser', () => {
     } as LobbyState)
 
     expect(document.body.textContent).toContain('READY')
+    browser.destroy()
+  })
+
+  it('filters synthetic auto entries before join selection', async () => {
+    const fakeClient = new FakeServerBrowserClient()
+    fakeClient.fetchServers = vi.fn(async () => ([
+      {
+        id: 'auto',
+        name: 'Default Server',
+        map: 'map_default',
+        mode: 'ffa',
+        players: 0,
+        maxPlayers: 8,
+        status: 'waiting',
+        killLimit: 10,
+        roundDurationSec: 180,
+        ping: 0,
+      },
+      {
+        id: 'server2',
+        name: 'Hosted Match',
+        map: 'forest_arena',
+        mode: 'ffa',
+        players: 1,
+        maxPlayers: 8,
+        status: 'waiting',
+        killLimit: 10,
+        roundDurationSec: 180,
+        ping: 42,
+      },
+    ]))
+
+    const browser = new ServerBrowser(
+      {
+        httpUrl: 'http://localhost:8080',
+        wsUrl: 'ws://localhost:8080',
+      },
+      fakeClient as any,
+    )
+
+    await browser.refreshServers()
+    ;(browser as any)._handleAction('join')
+
+    expect(fakeClient.lastJoin?.roomId).toBe('server2')
     browser.destroy()
   })
 })

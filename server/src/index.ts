@@ -853,22 +853,6 @@ app.get('/servers', (_req, res) => {
     ping:         0, // client measures their own ping
   }));
 
-  // Always include a "default" entry so there's at least one server to join
-  if (serverList.length === 0) {
-    serverList.push({
-      id:         'auto',
-      name:       'Default Server',
-      map:        'map_default',
-      mode:       'ffa',
-      players:    0,
-      maxPlayers: 8,
-      status:     'waiting' as const,
-      killLimit:  10,
-      roundDurationSec: 180,
-      ping:       0,
-    });
-  }
-
   res.json({ servers: serverList });
 });
 

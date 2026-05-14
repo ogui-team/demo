@@ -8,6 +8,7 @@ import {
 } from '../sessionContracts';
 import {
   DEFAULT_TROPICAL_HORROR_ARCHETYPE_ID,
+  cloneTropicalHorrorArchetypeAppearance,
   resolveTropicalHorrorArchetypeId,
   type TropicalHorrorArchetypeId,
 } from '@shared/contracts';
@@ -78,6 +79,7 @@ export class LobbyManager {
     if (!room || room.status === 'in_game' || room.players.size >= room.maxPlayers) return false;
 
     const isHost = room.players.size === 0;
+    const resolvedArchetypeId = resolveTropicalHorrorArchetypeId(archetypeId) ?? DEFAULT_TROPICAL_HORROR_ARCHETYPE_ID;
     room.players.set(playerId, {
       id: playerId,
       name: playerName,
@@ -85,8 +87,10 @@ export class LobbyManager {
       ready: false,
       isHost,
       ws,
-      appearance: appearance ? { ...appearance } : null,
-      archetypeId: resolveTropicalHorrorArchetypeId(archetypeId) ?? DEFAULT_TROPICAL_HORROR_ARCHETYPE_ID,
+      // Fall back to the archetype's canonical appearance so syncJoinedPlayerState
+      // always has non-null data to broadcast — preventing the 'blue pill' fallback.
+      appearance: appearance ? { ...appearance } : { ...cloneTropicalHorrorArchetypeAppearance(resolvedArchetypeId) },
+      archetypeId: resolvedArchetypeId,
     });
     if (isHost) room.hostId = playerId;
 
@@ -175,6 +179,9 @@ export class LobbyManager {
         const nextArchetypeId = resolveTropicalHorrorArchetypeId(data.archetypeId);
         if (actor && nextArchetypeId) {
           actor.archetypeId = nextArchetypeId;
+          // Keep appearance in sync so syncJoinedPlayerState broadcasts the right
+          // visual to any player who joins after the archetype switch.
+          actor.appearance = { ...cloneTropicalHorrorArchetypeAppearance(nextArchetypeId) };
         }
         break;
       }

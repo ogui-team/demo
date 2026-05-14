@@ -375,18 +375,7 @@ export class MultiplayerClient {
       return (json.servers ?? []) as ServerInfo[];
     } catch (error) {
       console.error('[MultiplayerClient] Failed to fetch servers', error);
-      return [{
-        id: 'auto',
-        name: 'Default Server',
-        map: 'map_default',
-        mode: 'ffa',
-        players: 0,
-        maxPlayers: 8,
-        status: 'waiting',
-        killLimit: 10,
-        roundDurationSec: 180,
-        ping: 0,
-      }];
+      return [];
     }
   }
 

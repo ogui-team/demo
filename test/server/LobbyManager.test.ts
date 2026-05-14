@@ -1,5 +1,6 @@
 import { LobbyManager } from '../../server/src/system/LobbyManager'
 import { WebSocket } from 'ws'
+import { cloneTropicalHorrorArchetypeAppearance } from '@shared/contracts'
 
 describe('LobbyManager', () => {
   let lobby: LobbyManager
@@ -184,5 +185,22 @@ describe('LobbyManager', () => {
 
     expect(lobby.getRoomForWs(ws1)?.id).toBe(room.id)
     expect(lobby.listRooms().map((roomItem) => roomItem.id)).toContain(room.id)
+  })
+
+  it('falls back to archetype appearance when join payload has no appearance', () => {
+    const room = lobby.createRoom()
+    lobby.joinRoom(ws1, room.id, 'p1', 'Alice', null, 'jungle-stalker')
+
+    expect(room.players.get('p1')?.appearance).toEqual(cloneTropicalHorrorArchetypeAppearance('jungle-stalker'))
+  })
+
+  it('updates actor appearance when archetype changes in lobby', () => {
+    const room = lobby.createRoom()
+    lobby.joinRoom(ws1, room.id, 'p1', 'Alice', { bodyColor: 0x123456 }, 'obsidian-ravager')
+
+    lobby.handleLobbyAction(ws1, 'LOBBY_ARCHETYPE', { archetypeId: 'tattered-shaman' })
+
+    expect(room.players.get('p1')?.archetypeId).toBe('tattered-shaman')
+    expect(room.players.get('p1')?.appearance).toEqual(cloneTropicalHorrorArchetypeAppearance('tattered-shaman'))
   })
 })
