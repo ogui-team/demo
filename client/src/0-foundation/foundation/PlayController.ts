@@ -25,6 +25,9 @@ interface VirtualStickDom {
   moveThumb: HTMLDivElement;
   lookPad: HTMLDivElement;
   lookThumb: HTMLDivElement;
+  actionStack: HTMLDivElement;
+  jumpButton: HTMLButtonElement;
+  shootButton: HTMLButtonElement;
 }
 
 export class PlayController {
@@ -79,6 +82,14 @@ export class PlayController {
   private readonly virtualStickThumbTravelRatio = 0.52;
   private readonly mobileTouchCapable = typeof window !== 'undefined'
     && (('ontouchstart' in window) || ((navigator as Navigator).maxTouchPoints ?? 0) > 0);
+  private readonly useVirtualTouchControls = this.mobileTouchCapable
+    && (typeof window !== 'undefined'
+      ? ((window.matchMedia?.('(pointer: coarse)').matches ?? true) || Math.min(window.innerWidth, window.innerHeight) <= 900)
+      : false);
+  private virtualJumpPressed = false;
+  private virtualShootPressed = false;
+  private lastVirtualShootAt = 0;
+  private readonly virtualShootRepeatMs = 120;
 
   private getCursorTarget(): HTMLElement | null {
     if (this.canvas instanceof HTMLElement && this.canvas.isConnected) {
@@ -137,6 +148,10 @@ export class PlayController {
     this.moveSpeed = config.moveSpeed ?? 6;          // 6 units/second
     this.rotationSpeed = config.rotationSpeed ?? 0.003;
     this.enableMouseLock = config.enableMouseLock !== false;
+    if (this.useVirtualTouchControls) {
+      // Coarse touch uses on-screen look controls instead of pointer lock.
+      this.enableMouseLock = false;
+    }
     this.lifecycleDisposers.push(
       gameBus.on('ENGINE_RESET', () => {
         this.bind(null);
@@ -263,11 +278,19 @@ export class PlayController {
     if (!this.enabled || !this.camera) return;
     if (!this.camera) this.camera = getCamera();
     if (!this.camera) return;
-    if (this.mobileTouchCapable) {
+    if (this.useVirtualTouchControls) {
       const lookDeltaX = this.lookStickAxis.x * this.virtualLookPixelsPerSecond * deltaTime;
       const lookDeltaY = this.lookStickAxis.y * this.virtualLookPixelsPerSecond * deltaTime;
       if (lookDeltaX !== 0 || lookDeltaY !== 0) {
         this.applyLookDelta(lookDeltaX, lookDeltaY);
+      }
+
+      if (this.virtualShootPressed) {
+        const now = Engine.time.now();
+        if (now - this.lastVirtualShootAt >= this.virtualShootRepeatMs) {
+          this.lastVirtualShootAt = now;
+          this.triggerVirtualShoot();
+        }
       }
     }
 
@@ -567,7 +590,7 @@ export class PlayController {
     yaw: number;
     pitch: number;
   } {
-    const jump = this.isActionPressed([' '], ['Space']);
+    const jump = this.isActionPressed([' '], ['Space']) || this.virtualJumpPressed;
     const crouch = this.isActionPressed(['Control'], ['ControlLeft', 'ControlRight']);
     const touchForward = this.moveStickAxis.y < -this.virtualStickDeadzone;
     const touchBackward = this.moveStickAxis.y > this.virtualStickDeadzone;
@@ -654,7 +677,7 @@ export class PlayController {
   }
 
   private setupVirtualTouchControls(): void {
-    if (!this.mobileTouchCapable || this.virtualStickDom) {
+    if (!this.useVirtualTouchControls || this.virtualStickDom) {
       return;
     }
 
@@ -663,10 +686,14 @@ export class PlayController {
     const moveThumb = document.createElement('div');
     const lookPad = document.createElement('div');
     const lookThumb = document.createElement('div');
+    const actionStack = document.createElement('div');
+    const jumpButton = document.createElement('button');
+    const shootButton = document.createElement('button');
 
     const viewportMin = Math.min(window.innerWidth || 360, window.innerHeight || 640);
     const padSize = Math.round(Math.max(96, Math.min(140, viewportMin * 0.26)));
     const thumbSize = Math.round(Math.max(34, Math.min(58, padSize * 0.44)));
+    const actionSize = Math.round(Math.max(56, Math.min(84, padSize * 0.62)));
     const bottomInset = Math.round(Math.max(14, Math.min(28, viewportMin * 0.04)));
     const sideInset = Math.round(Math.max(12, Math.min(24, viewportMin * 0.035)));
 
@@ -716,11 +743,60 @@ export class PlayController {
 
     movePad.appendChild(moveThumb);
     lookPad.appendChild(lookThumb);
+
+    actionStack.style.cssText = [
+      'position:absolute',
+      'right:0',
+      `bottom:${padSize + 10}px`,
+      'display:flex',
+      'flex-direction:column',
+      'gap:10px',
+      'align-items:flex-end',
+      'pointer-events:none',
+    ].join(';');
+
+    const baseActionButtonStyle = [
+      `width:${actionSize}px`,
+      `height:${actionSize}px`,
+      'border-radius:999px',
+      'border:2px solid rgba(255,255,255,0.48)',
+      'font:700 12px/1 system-ui, sans-serif',
+      'letter-spacing:0.8px',
+      'color:rgba(255,255,255,0.96)',
+      'backdrop-filter:blur(2px)',
+      'box-shadow:0 10px 22px rgba(0,0,0,0.34)',
+      'touch-action:none',
+      'pointer-events:auto',
+      'user-select:none',
+      '-webkit-user-select:none',
+    ].join(';');
+
+    jumpButton.type = 'button';
+    jumpButton.textContent = 'JUMP';
+    jumpButton.style.cssText = `${baseActionButtonStyle};background:linear-gradient(180deg, rgba(37,104,190,0.82) 0%, rgba(20,59,112,0.84) 100%);`;
+
+    shootButton.type = 'button';
+    shootButton.textContent = 'SHOOT';
+    shootButton.style.cssText = `${baseActionButtonStyle};background:linear-gradient(180deg, rgba(199,66,50,0.88) 0%, rgba(124,32,24,0.9) 100%);`;
+
+    actionStack.appendChild(jumpButton);
+    actionStack.appendChild(shootButton);
+
     root.appendChild(movePad);
     root.appendChild(lookPad);
+    root.appendChild(actionStack);
     document.body.appendChild(root);
 
-    this.virtualStickDom = { root, movePad, moveThumb, lookPad, lookThumb };
+    this.virtualStickDom = {
+      root,
+      movePad,
+      moveThumb,
+      lookPad,
+      lookThumb,
+      actionStack,
+      jumpButton,
+      shootButton,
+    };
     this.moveStickRadius = padSize / 2;
     this.lookStickRadius = padSize / 2;
 
@@ -788,6 +864,59 @@ export class PlayController {
     bindStick(movePad, moveThumb, true);
     bindStick(lookPad, lookThumb, false);
 
+    const bindActionButton = (
+      button: HTMLButtonElement,
+      onPress: () => void,
+      onRelease: () => void,
+    ) => {
+      const onPointerDown = (event: PointerEvent) => {
+        if (event.pointerType !== 'touch') {
+          return;
+        }
+        event.preventDefault();
+        button.setPointerCapture(event.pointerId);
+        onPress();
+      };
+
+      const onPointerUp = (event: PointerEvent) => {
+        event.preventDefault();
+        onRelease();
+      };
+
+      button.addEventListener('pointerdown', onPointerDown, { passive: false });
+      button.addEventListener('pointerup', onPointerUp, { passive: false });
+      button.addEventListener('pointercancel', onPointerUp, { passive: false });
+      button.addEventListener('pointerleave', onPointerUp, { passive: false });
+      this.virtualStickDisposers.push(() => {
+        button.removeEventListener('pointerdown', onPointerDown);
+        button.removeEventListener('pointerup', onPointerUp);
+        button.removeEventListener('pointercancel', onPointerUp);
+        button.removeEventListener('pointerleave', onPointerUp);
+      });
+    };
+
+    bindActionButton(
+      jumpButton,
+      () => {
+        this.virtualJumpPressed = true;
+      },
+      () => {
+        this.virtualJumpPressed = false;
+      },
+    );
+
+    bindActionButton(
+      shootButton,
+      () => {
+        this.virtualShootPressed = true;
+        this.lastVirtualShootAt = 0;
+        this.triggerVirtualShoot();
+      },
+      () => {
+        this.virtualShootPressed = false;
+      },
+    );
+
     window.addEventListener('resize', onResize);
     this.virtualStickDisposers.push(() => window.removeEventListener('resize', onResize));
   }
@@ -805,6 +934,9 @@ export class PlayController {
   private resetVirtualTouchState(): void {
     this.moveStickAxis = { x: 0, y: 0 };
     this.lookStickAxis = { x: 0, y: 0 };
+    this.virtualJumpPressed = false;
+    this.virtualShootPressed = false;
+    this.lastVirtualShootAt = 0;
     this.moveStickPointerId = null;
     this.lookStickPointerId = null;
     this.moveStickCenter = null;
@@ -864,6 +996,18 @@ export class PlayController {
     this.lookStickPointerId = null;
     this.lookStickCenter = null;
     this.lookStickAxis = { x: 0, y: 0 };
+  }
+
+  private triggerVirtualShoot(): void {
+    const shootEvent = new MouseEvent('mousedown', {
+      button: 0,
+      bubbles: true,
+      cancelable: true,
+      clientX: window.innerWidth / 2,
+      clientY: window.innerHeight / 2,
+      view: window,
+    });
+    window.dispatchEvent(shootEvent);
   }
 
   releasePointerLock(): void {
