@@ -2,6 +2,7 @@ import { createIdleInputState } from '../movement/MovementRuntime';
 import { getDefaultSpawnPointsForMap, type Vec3 } from '../sessionContracts';
 import type { PlayerState } from '../core/GameSession';
 import {
+  cloneTropicalHorrorArchetypeAppearance,
   DEFAULT_TROPICAL_HORROR_ARCHETYPE_ID,
   getTropicalHorrorArchetype,
   resolveTropicalHorrorArchetypeId,
@@ -99,7 +100,9 @@ export function createPlayerState(options: CreatePlayerStateOptions): PlayerStat
   return {
     id: options.id,
     name: options.name,
-    appearance: options.appearance ? { ...options.appearance } : null,
+    appearance: options.appearance
+      ? { ...options.appearance }
+      : { ...cloneTropicalHorrorArchetypeAppearance(archetype.archetypeId) },
     archetypeId: archetype.archetypeId,
     archetypeName: archetype.archetypeName,
     position: { ...options.spawn },

@@ -221,9 +221,10 @@ export class ServerBrowser {
     const httpUrl = resolver.resolveHttpUrl();
     let servers = await this.client.fetchServers(httpUrl);
 
-    // Always strip the synthetic 'auto' fallback entry — it represents no real room
-    // and causes joining players to land in a new orphan room instead of the host's room.
-    servers = servers.filter((server) => server.id !== 'auto');
+    // Strip synthetic fallback rows and in-progress matches from generic join.
+    // Joining an in_game room triggers server late-join GAME_START immediately,
+    // which skips lobby visibility and confuses host/join flow.
+    servers = servers.filter((server) => server.id !== 'auto' && server.status !== 'in_game');
 
     this.servers = servers;
     this.selectedServerIndex = Math.min(this.selectedServerIndex, Math.max(0, this.servers.length - 1));
@@ -482,6 +483,10 @@ export class ServerBrowser {
   private _joinSelected(): void {
     const server = this.servers[this.selectedServerIndex];
     if (!server) return;
+    if (server.status === 'in_game') {
+      this.statusEl.textContent = 'Selected room is already in progress';
+      return;
+    }
     const playerName = `Player_${Engine.random.next().toString(36).slice(2, 6)}`;
     this.statusEl.textContent = `Joining ${server.name}…`;
     if (this.config.joinGame) {

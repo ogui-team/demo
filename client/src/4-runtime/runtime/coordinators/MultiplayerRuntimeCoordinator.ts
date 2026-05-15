@@ -411,7 +411,8 @@ export class MultiplayerRuntimeCoordinator {
 
       const httpUrl = this.resolveRuntimeHttpUrl();
       void this.mpClient.fetchServers(httpUrl).then((servers) => {
-        const target = servers.find((server) => server.id !== 'auto');
+        const joinableServers = servers.filter((server) => server.id !== 'auto' && server.status !== 'in_game');
+        const target = joinableServers.find((server) => server.status === 'waiting') ?? joinableServers[0];
         if (!target) return;
         this.mpClient.joinRoom(this.resolveRuntimeWsUrl(), config.playerName, target.id);
       });

@@ -133,6 +133,8 @@ interface PlayerRecord {
   pendingSnapshots: BufferedRemoteSnapshot[];
   /** Timestamp of the latest delayed snapshot applied to interpolation. */
   lastQueuedSnapshotTimestamp: number;
+  /** Latest authoritative snapshot timestamp where this remote player was observed. */
+  lastSeenSnapshotTimestamp: number;
 }
 
 // Material palette — one material per player colour slot; reused across model parts.
@@ -158,6 +160,7 @@ const LEGACY_LOCAL_APPEARANCE_PATH = 'player.local.appearance';
 const REMOTE_POSITION_DEADBAND = 0.035;
 const REMOTE_ROTATION_DEADBAND = 0.02;
 const REMOTE_IDLE_VELOCITY_EPSILON = 0.05;
+const REMOTE_STALE_PRUNE_MS = 2000;
 
 // ─── PlayerModelSystem ───────────────────────────────────────────────────────
 
@@ -513,6 +516,7 @@ export class PlayerModelSystem implements CharacterDashboardSource {
       isAirborne: false,
       pendingSnapshots: [],
       lastQueuedSnapshotTimestamp: 0,
+      lastSeenSnapshotTimestamp: Engine.time.now(),
     };
     this.players.set(playerId, record);
     console.log('[SpawnDiagnostics] ENTITY CREATED', {
@@ -558,6 +562,7 @@ export class PlayerModelSystem implements CharacterDashboardSource {
    * Spawns players that don't exist yet, queues transform updates for those that do.
    */
   syncFromPayload(entities: NetworkPlayerPayload[], snapshotTimestamp = Engine.time.now()): void {
+    const seenRemotePlayerIds = new Set<string>();
     for (const we of entities) {
       try {
         if (!we.id) continue;
@@ -580,6 +585,7 @@ export class PlayerModelSystem implements CharacterDashboardSource {
           const rot: Vector3 = we.rotation;
           this.spawnPlayer(we.id, pos, rot);
           const created = this.players.get(we.id);
+          seenRemotePlayerIds.add(we.id);
           if (created && Object.prototype.hasOwnProperty.call(we, 'statusMovementModifier')) {
             created.statusMovementModifier = we.statusMovementModifier ?? null;
           }
@@ -589,7 +595,12 @@ export class PlayerModelSystem implements CharacterDashboardSource {
           if (created && Object.prototype.hasOwnProperty.call(we, 'isAirborne')) {
             created.isAirborne = we.isAirborne === true;
           }
+          if (created) {
+            created.lastSeenSnapshotTimestamp = snapshotTimestamp;
+          }
         } else {
+          seenRemotePlayerIds.add(we.id);
+          existing.lastSeenSnapshotTimestamp = snapshotTimestamp;
           if (Object.prototype.hasOwnProperty.call(we, 'statusMovementModifier')) {
             existing.statusMovementModifier = we.statusMovementModifier ?? null;
           }
@@ -637,6 +648,19 @@ export class PlayerModelSystem implements CharacterDashboardSource {
         }
       } catch (error) {
         console.error(`[PlayerModelSystem] Skipping snapshot sync for "${we.id ?? 'unknown'}"`, error);
+      }
+    }
+
+    if (seenRemotePlayerIds.size > 0) {
+      const now = Math.max(snapshotTimestamp, Engine.time.now());
+      for (const [playerId, record] of this.players.entries()) {
+        if (seenRemotePlayerIds.has(playerId)) {
+          continue;
+        }
+        if (now - record.lastSeenSnapshotTimestamp < REMOTE_STALE_PRUNE_MS) {
+          continue;
+        }
+        this.removePlayer(playerId);
       }
     }
   }

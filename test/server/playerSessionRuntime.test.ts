@@ -1,4 +1,5 @@
 import { createPlayerState, resetPlayerRuntimeState, getPlayerSpawnPoint } from '../../server/src/session/playerSessionRuntime'
+import { cloneTropicalHorrorArchetypeAppearance } from '@shared/contracts'
 
 describe('playerSessionRuntime', () => {
   it('creates a player state with defaults and clones appearance', () => {
@@ -14,7 +15,8 @@ describe('playerSessionRuntime', () => {
     expect(player.id).toBe('player-1')
     expect(player.name).toBe('Hero')
     expect(player.position).toEqual({ x: 1, y: 2, z: 3 })
-    expect(player.health).toBe(100)
+    expect(player.health).toBe(player.maxHealth)
+    expect(player.health).toBeGreaterThan(0)
     expect(player.dead).toBe(false)
     expect(player.currentInput.forward).toBe(false)
     expect(player.appearance).toEqual({ color: 'red' })
@@ -42,7 +44,8 @@ describe('playerSessionRuntime', () => {
     expect(player.position).toEqual({ x: 2, y: 1, z: 2 })
     expect(player.velocity).toEqual({ x: 0, y: 0, z: 0 })
     expect(player.dead).toBe(false)
-    expect(player.health).toBe(100)
+    expect(player.health).toBe(player.maxHealth)
+    expect(player.health).toBeGreaterThan(0)
     expect(player.activeMovementStatuses).toEqual([])
     expect(player.statusMovementModifier).toBeNull()
     expect(player.pendingMovementIntent).toBeNull()
@@ -116,5 +119,18 @@ describe('playerSessionRuntime', () => {
     })
 
     expect(chosen).toEqual(spawnPoints[0])
+  })
+
+  it('uses archetype appearance fallback when no appearance payload is provided', () => {
+    const player = createPlayerState({
+      id: 'player-archetype',
+      name: 'ArchetypeOnly',
+      archetypeId: 'obsidian-ravager',
+      spawn: { x: 0, y: 0, z: 0 },
+      now: 3000,
+      appearance: null,
+    })
+
+    expect(player.appearance).toEqual(cloneTropicalHorrorArchetypeAppearance('obsidian-ravager'))
   })
 })

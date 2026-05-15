@@ -174,4 +174,49 @@ describe('ServerBrowser', () => {
     expect(fakeClient.lastJoin?.roomId).toBe('server2')
     browser.destroy()
   })
+
+  it('filters in-progress rooms to avoid accidental late-join start', async () => {
+    const fakeClient = new FakeServerBrowserClient()
+    fakeClient.fetchServers = vi.fn(async () => ([
+      {
+        id: 'live-room',
+        name: 'Live Match',
+        map: 'forest_arena',
+        mode: 'ffa',
+        players: 2,
+        maxPlayers: 8,
+        status: 'in_game',
+        killLimit: 10,
+        roundDurationSec: 180,
+        ping: 31,
+      },
+      {
+        id: 'waiting-room',
+        name: 'Waiting Match',
+        map: 'forest_arena',
+        mode: 'ffa',
+        players: 1,
+        maxPlayers: 8,
+        status: 'waiting',
+        killLimit: 10,
+        roundDurationSec: 180,
+        ping: 22,
+      },
+    ]))
+
+    const browser = new ServerBrowser(
+      {
+        httpUrl: 'http://localhost:8080',
+        wsUrl: 'ws://localhost:8080',
+      },
+      fakeClient as any,
+    )
+
+    await browser.refreshServers()
+    expect((browser as any).servers.map((server: ServerInfo) => server.id)).toEqual(['waiting-room'])
+
+    ;(browser as any)._handleAction('join')
+    expect(fakeClient.lastJoin?.roomId).toBe('waiting-room')
+    browser.destroy()
+  })
 })
