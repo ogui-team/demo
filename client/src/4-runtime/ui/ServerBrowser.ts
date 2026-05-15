@@ -153,11 +153,7 @@ export class ServerBrowser {
     document.body.appendChild(this.root);
     this.hide();
 
-    if (window.localStorage.getItem(ServerBrowser.STORAGE_KEY) === '1') {
-      window.setTimeout(() => {
-        void this.reopenToServerList('Restored server browser');
-      }, 0);
-    }
+    // Do not auto-restore visibility on construction; explicit UI actions only.
   }
 
   onClose(callback: () => void): void {

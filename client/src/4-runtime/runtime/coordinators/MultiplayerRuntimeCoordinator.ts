@@ -342,6 +342,9 @@ export class MultiplayerRuntimeCoordinator {
     if (this.mpClient.connected) {
       this.mpClient.disconnect();
     }
+    // Clear remote avatar entities before a new host/join attempt so stale
+    // session ghosts cannot survive into the next lobby/game handshake.
+    this.playerModelSystem.clearAll();
     this.worldRuntime.hardResetRuntimeState(`multiplayer_lobby:${reason}`, { allowInGame: true });
     this.resetSessionTimestamps();
   }

@@ -606,6 +606,15 @@ export class UICompositionCoordinator {
   private openMultiplayer(): void {
     // Hide MainMenu FIRST to ensure clean transition
     this.mainMenu?.hide();
+
+    // Force a fresh multiplayer entry state so stale reconnect attempts or
+    // persisted browser visibility cannot auto-attach to an old session.
+    try {
+      this.config.serverBrowser.client.disconnect();
+    } catch (error) {
+      console.warn('[UICompositionCoordinator] Failed to disconnect stale multiplayer session', error);
+    }
+    window.localStorage.setItem('ps1-engine.serverBrowser.visible', '0');
     
     // Initialize game world for multiplayer lobby display
     this.config.mainMenu.enableMultiplayerFeature();
