@@ -88,14 +88,14 @@ interface UICompositionCoordinatorConfig {
     getMaps: () => string[];
     onClose: () => void;
     onGameStart: (data: MultiplayerGameStartPayload) => void;
-    onHostGame: (payload: {
+    onHostLobby: (payload: {
       playerName: string;
       config: import('../../3-network/network/MultiplayerClient').HostedRoomConfig;
       wsUrl: string;
       httpUrl: string;
       backendFingerprint: string;
     }) => void;
-    onJoinGame: (payload: {
+    onJoinLobby: (payload: {
       playerName: string;
       roomId: string | null;
       wsUrl: string;
@@ -648,8 +648,8 @@ export class UICompositionCoordinator {
           {
             httpUrl: this.config.serverBrowser.httpUrl,
             wsUrl: this.config.serverBrowser.wsUrl,
-            hostGame: this.config.serverBrowser.onHostGame,
-            joinGame: this.config.serverBrowser.onJoinGame,
+            hostLobby: this.config.serverBrowser.onHostLobby,
+            joinLobby: this.config.serverBrowser.onJoinLobby,
           },
           this.config.serverBrowser.client,
         );

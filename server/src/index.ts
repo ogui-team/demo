@@ -490,8 +490,9 @@ wss.on('connection', (ws: WebSocket, req) => {
         const archetypeId = resolveTropicalHorrorArchetypeId(msg.archetypeId) ?? DEFAULT_TROPICAL_HORROR_ARCHETYPE_ID;
         const candidate = requestedRoomId ? lobbyManager.getRoom(requestedRoomId) : undefined;
 
-        // Late join: the requested room is already in_game — join the active session directly
-        if (allowLateJoin && candidate && candidate.status === 'in_game') {
+        // Late join: emit GAME_START only when the target room is genuinely in-game.
+        const lateJoinEligible = allowLateJoin && candidate?.status === 'in_game';
+        if (lateJoinEligible && candidate) {
           const activeSession = sessions.get(candidate.id);
           if (activeSession) {
             if (!validateClientProtocol(ws, msg.protocol as Record<string, unknown> | undefined, activeSession.getProtocolHandshake())) {

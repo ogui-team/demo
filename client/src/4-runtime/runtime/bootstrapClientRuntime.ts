@@ -728,8 +728,8 @@ export function bootstrapRuntime(): void {
       startLocalFreeplay: () => gameLaunchCoordinator.startLocalFreeplay(),
       startEngineShowcase: () => gameLaunchCoordinator.startEngineShowcase(),
       startScriptedLevel: (levelId) => gameLaunchCoordinator.startScriptedLevel(levelId),
-      hostMultiplayer: (config) => multiplayerRuntime.hostAutostartMultiplayer(config),
-      joinMultiplayer: (config) => multiplayerRuntime.joinAutostartMultiplayer(config),
+      hostMultiplayer: (config) => multiplayerRuntime.hostLobby(config),
+      joinMultiplayer: (config) => multiplayerRuntime.joinLobby(config),
     },
     createUiCompositionCoordinator: () => createRuntimeUiCompositionCoordinator({
       modeManager,

@@ -363,7 +363,7 @@ export class MultiplayerRuntimeCoordinator {
     this.resetSessionTimestamps();
   }
 
-  hostAutostartMultiplayer(config: {
+  hostLobby(config: {
     playerName: string;
     roomName: string;
     map: string;
@@ -371,7 +371,6 @@ export class MultiplayerRuntimeCoordinator {
     killLimit: number;
     roundDurationSec: number;
     maxPlayers: number;
-    forceStart: boolean;
     wsUrl?: string;
     httpUrl?: string;
     backendFingerprint?: string;
@@ -379,19 +378,8 @@ export class MultiplayerRuntimeCoordinator {
     void this.runAfterAuthLock('host', () => {
       this.mpClient.setPendingJoinAppearance(this.getLobbyJoinAppearance());
       this.mpClient.setPendingJoinArchetypeId(this.getLobbyJoinArchetypeId());
-      this.prepareMultiplayerLobby('host');
-      this.transitionEngineState('lobby', 'autostart_host');
-      const handleLobbyUpdate = (lobby: { roomId?: string; status?: string }) => {
-        if (!this.mpClient.roomId || lobby.roomId !== this.mpClient.roomId) return;
-        if (lobby.status !== 'waiting') return;
-        this.mpClient.setReady(true);
-        if (config.forceStart) {
-          this.mpClient.sendLobbyAction('LOBBY_FORCE_START', {});
-          this.mpClient.off('lobby_update', handleLobbyUpdate);
-        }
-      };
-
-      this.onMpClient('lobby_update', handleLobbyUpdate);
+      this.prepareMultiplayerLobby('host_lobby');
+      this.transitionEngineState('lobby', 'host_lobby');
       this.mpClient.hostRoom(config.wsUrl ?? this.resolveRuntimeWsUrl(), config.playerName, {
         name: config.roomName,
         map: config.map,
@@ -403,10 +391,9 @@ export class MultiplayerRuntimeCoordinator {
     });
   }
 
-  joinAutostartMultiplayer(config: {
+  joinLobby(config: {
     playerName: string;
     roomId: string | null;
-    autoReady: boolean;
     wsUrl?: string;
     httpUrl?: string;
     backendFingerprint?: string;
@@ -415,19 +402,8 @@ export class MultiplayerRuntimeCoordinator {
     void this.runAfterAuthLock('join', () => {
       this.mpClient.setPendingJoinAppearance(this.getLobbyJoinAppearance());
       this.mpClient.setPendingJoinArchetypeId(this.getLobbyJoinArchetypeId());
-      this.prepareMultiplayerLobby('join');
-      this.transitionEngineState('lobby', 'autostart_join');
-      const handleLobbyUpdate = (lobby: { roomId?: string; players?: Array<{ id: string; ready: boolean }> }) => {
-        if (!config.autoReady) return;
-        if (!this.mpClient.playerId || lobby.roomId !== this.mpClient.roomId) return;
-        const localPlayer = Array.isArray(lobby.players)
-          ? lobby.players.find((player) => player.id === this.mpClient.playerId)
-          : null;
-        if (!localPlayer || localPlayer.ready) return;
-        this.mpClient.setReady(true);
-      };
-
-      this.onMpClient('lobby_update', handleLobbyUpdate);
+      this.prepareMultiplayerLobby('join_lobby');
+      this.transitionEngineState('lobby', 'join_lobby');
       if (config.roomId) {
         this.mpClient.joinRoom(config.wsUrl ?? this.resolveRuntimeWsUrl(), config.playerName, config.roomId, !!config.allowLateJoin);
         return;
@@ -601,9 +577,9 @@ export class MultiplayerRuntimeCoordinator {
       this.mpClient.sendAppearance(currentAppearance);
       this.syncGateState = 'locked';
       this.pendingSyncStart = null;
+      this.transitionEngineState('lobby', 'join_ack');
       this.sessionLifecycleCoordinator?.handleConnected(data);
     });
-
     // ── Server tick synchronization: calibrate interpolation timing for smooth remote player movement
     this.onMpClient('tick_sync', (data) => {
       this.playerModelSystem?.onServerTickSync(data.tickRate);

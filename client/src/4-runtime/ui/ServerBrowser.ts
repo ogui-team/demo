@@ -18,8 +18,8 @@ export interface ServerBrowserConfig {
   httpUrl: string;
   wsUrl: string;
   availableMaps?: string[];
-  hostGame?: (payload: { playerName: string; config: HostedRoomConfig; wsUrl: string; httpUrl: string; backendFingerprint: string }) => void;
-  joinGame?: (payload: { playerName: string; roomId: string | null; wsUrl: string; httpUrl: string; backendFingerprint: string; allowLateJoin: boolean }) => void;
+  hostLobby?: (payload: { playerName: string; config: HostedRoomConfig; wsUrl: string; httpUrl: string; backendFingerprint: string }) => void;
+  joinLobby?: (payload: { playerName: string; roomId: string | null; wsUrl: string; httpUrl: string; backendFingerprint: string; allowLateJoin: boolean }) => void;
 }
 
 type BrowserScreen = 'list' | 'lobby';
@@ -501,8 +501,11 @@ export class ServerBrowser {
     this.statusEl.textContent = `Joining ${server.name}…`;
     const targets = this.resolveConnectionTargets();
     const backendFingerprint = server.backendFingerprint ?? this.buildBackendFingerprint(targets.httpUrl, targets.wsUrl);
-    if (this.config.joinGame) {
-      this.config.joinGame({
+    this.screen = 'lobby';
+    this.lobbyState = null;
+    this._renderLobby();
+    if (this.config.joinLobby) {
+      this.config.joinLobby({
         playerName,
         roomId: server.id,
         wsUrl: targets.wsUrl,
@@ -754,8 +757,8 @@ export class ServerBrowser {
       this.resolvedWsUrl = targets.wsUrl;
       this.resolvedBackendFingerprint = this.buildBackendFingerprint(targets.httpUrl, targets.wsUrl);
       
-      if (this.config.hostGame) {
-        this.config.hostGame({
+      if (this.config.hostLobby) {
+        this.config.hostLobby({
           playerName,
           config: hostConfig,
           wsUrl: targets.wsUrl,

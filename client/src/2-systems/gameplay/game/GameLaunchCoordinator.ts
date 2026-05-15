@@ -476,6 +476,15 @@ export class GameLaunchCoordinator {
   }
 
   startMultiplayerMatch(data: MultiplayerGameStartPayload): void {
+    if (!this.config.isMultiplayerConnected()) {
+      console.warn('[GameLaunch] Ignoring multiplayer launch without active multiplayer connection', {
+        map: data.map,
+        mode: data.mode,
+        sessionId: data.sessionId,
+      });
+      return;
+    }
+
     console.log(`[GameLaunch] Starting MULTIPLAYER: map=${data.map}, mode=${data.mode}, sessionId=${data.sessionId}`);
     // Gate 1A: MODE-SCOPED COLLISION - Load collision for multiplayer mode immediately
     this.config.setActiveMapCollisionLayout(data.map, data.sessionId);
