@@ -919,9 +919,23 @@ export class MultiplayerClient {
         break;
       case 'JOIN_ACK':
         if (!this._validateServerProtocol(msg.protocol as Record<string, unknown> | undefined)) break;
+        if (this._pendingJoinRoomId && msg.roomId !== this._pendingJoinRoomId) {
+          console.warn('[MultiplayerClient] JOIN_ACK room mismatch; rejecting stale/foreign lobby ack', {
+            expectedRoomId: this._pendingJoinRoomId,
+            receivedRoomId: msg.roomId,
+            playerId: msg.playerId,
+          });
+          this.emit('error', {
+            message: 'Join acknowledgement did not match the requested room',
+            code: 'JOIN_ROOM_MISMATCH',
+          });
+          this.disconnect();
+          break;
+        }
         this._applyIdentitySnapshot(msg.identitySnapshot);
         this._playerId = msg.playerId;
         this._roomId = msg.roomId;
+        this._pendingJoinRoomId = msg.roomId;
         if (!this._connected) {
           this._connected = true;
         }
@@ -937,6 +951,31 @@ export class MultiplayerClient {
         break;
       case 'GAME_START':
         if (!this._validateServerProtocol(msg.protocol as Record<string, unknown> | undefined)) break;
+        if (!msg.late) {
+          const gameSessionId = typeof msg.sessionId === 'string' ? msg.sessionId : '';
+          const expectedSessionId = this._roomId || this._pendingJoinRoomId || '';
+          if (!expectedSessionId || gameSessionId !== expectedSessionId) {
+            console.warn('[MultiplayerClient] Ignoring GAME_START due to session mismatch', {
+              expectedSessionId,
+              receivedSessionId: gameSessionId,
+              late: !!msg.late,
+              playerId: this._playerId,
+            });
+            this.emit('error', {
+              message: 'Ignored GAME_START for mismatched or unknown room session',
+              code: 'GAME_START_SESSION_MISMATCH',
+            });
+            break;
+          }
+          if (!this._playerId) {
+            console.warn('[MultiplayerClient] Ignoring GAME_START because local player identity is not bound yet');
+            this.emit('error', {
+              message: 'Ignored GAME_START before JOIN_ACK identity binding completed',
+              code: 'GAME_START_BEFORE_JOIN_ACK',
+            });
+            break;
+          }
+        }
         this._applyIdentitySnapshot(msg.identitySnapshot);
         this._inGame = true;
         this._entitySyncCache.clear();
@@ -954,6 +993,7 @@ export class MultiplayerClient {
         if (msg.late) {
           this._playerId = msg.playerId ?? this._playerId;
           this._roomId   = msg.sessionId;
+          this._pendingJoinRoomId = msg.sessionId;
           this._connected = true;
           this.emit('connected', { playerId: this._playerId, roomId: this._roomId, hosted: false });
         }
@@ -1250,6 +1290,13 @@ export class MultiplayerClient {
         if (msg.code === 'PROTOCOL_MISMATCH') {
           this._handleProtocolMismatch(msg.message ?? 'Protocol mismatch', 'PROTOCOL_MISMATCH');
           break;
+        }
+        if (msg.code === 'ROOM_UNAVAILABLE' || msg.code === 'NO_ROOMS_AVAILABLE') {
+          // Ensure failed lobby joins do not linger on a half-open socket.
+          this._reconnectSuspended = true;
+          if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.ws.close();
+          }
         }
         this.emit('error', { message: msg.message ?? 'Unknown server error', code: typeof msg.code === 'string' ? msg.code : undefined });
         break;

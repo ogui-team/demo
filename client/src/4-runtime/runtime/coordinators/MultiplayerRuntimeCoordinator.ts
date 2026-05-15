@@ -802,6 +802,17 @@ export class MultiplayerRuntimeCoordinator {
   }
 
   handleGameStart(data: { map: string; mode: string; sessionId: string; late?: boolean }): void {
+    if (!data.late) {
+      const activeRoomId = this.mpClient.roomId;
+      if (!activeRoomId || activeRoomId !== data.sessionId) {
+        console.warn('[MultiplayerRuntimeCoordinator] Ignoring GAME_START with mismatched room context', {
+          activeRoomId,
+          sessionId: data.sessionId,
+          playerId: this.mpClient.playerId,
+        });
+        return;
+      }
+    }
     if (this.lastGameStartSessionId === data.sessionId) {
       return;
     }
