@@ -392,7 +392,6 @@ export class MultiplayerClient {
       detail: wsUrl,
       playerId: this._playerId,
       roomId: roomId ?? null,
-      allowLateJoin,
     });
     this._connect(wsUrl, playerName, allowLateJoin);
   }
