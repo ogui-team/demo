@@ -88,8 +88,21 @@ interface UICompositionCoordinatorConfig {
     getMaps: () => string[];
     onClose: () => void;
     onGameStart: (data: MultiplayerGameStartPayload) => void;
-    onHostGame: (payload: { playerName: string; config: import('../../3-network/network/MultiplayerClient').HostedRoomConfig }) => void;
-    onJoinGame: (payload: { playerName: string; roomId: string | null }) => void;
+    onHostGame: (payload: {
+      playerName: string;
+      config: import('../../3-network/network/MultiplayerClient').HostedRoomConfig;
+      wsUrl: string;
+      httpUrl: string;
+      backendFingerprint: string;
+    }) => void;
+    onJoinGame: (payload: {
+      playerName: string;
+      roomId: string | null;
+      wsUrl: string;
+      httpUrl: string;
+      backendFingerprint: string;
+      allowLateJoin: boolean;
+    }) => void;
   };
   dockLayout?: {
     setEditorMode: (active: boolean) => void;

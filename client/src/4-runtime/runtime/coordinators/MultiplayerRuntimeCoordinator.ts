@@ -358,6 +358,9 @@ export class MultiplayerRuntimeCoordinator {
     roundDurationSec: number;
     maxPlayers: number;
     forceStart: boolean;
+    wsUrl?: string;
+    httpUrl?: string;
+    backendFingerprint?: string;
   }): void {
     void this.runAfterAuthLock('host', () => {
       this.mpClient.setPendingJoinAppearance(this.getLobbyJoinAppearance());
@@ -375,7 +378,7 @@ export class MultiplayerRuntimeCoordinator {
       };
 
       this.onMpClient('lobby_update', handleLobbyUpdate);
-      this.mpClient.hostRoom(this.resolveRuntimeWsUrl(), config.playerName, {
+      this.mpClient.hostRoom(config.wsUrl ?? this.resolveRuntimeWsUrl(), config.playerName, {
         name: config.roomName,
         map: config.map,
         mode: config.mode ?? 'ffa',
@@ -390,6 +393,10 @@ export class MultiplayerRuntimeCoordinator {
     playerName: string;
     roomId: string | null;
     autoReady: boolean;
+    wsUrl?: string;
+    httpUrl?: string;
+    backendFingerprint?: string;
+    allowLateJoin?: boolean;
   }): void {
     void this.runAfterAuthLock('join', () => {
       this.mpClient.setPendingJoinAppearance(this.getLobbyJoinAppearance());
@@ -408,16 +415,16 @@ export class MultiplayerRuntimeCoordinator {
 
       this.onMpClient('lobby_update', handleLobbyUpdate);
       if (config.roomId) {
-        this.mpClient.joinRoom(this.resolveRuntimeWsUrl(), config.playerName, config.roomId);
+        this.mpClient.joinRoom(config.wsUrl ?? this.resolveRuntimeWsUrl(), config.playerName, config.roomId, !!config.allowLateJoin);
         return;
       }
 
-      const httpUrl = this.resolveRuntimeHttpUrl();
+      const httpUrl = config.httpUrl ?? this.resolveRuntimeHttpUrl();
       void this.mpClient.fetchServers(httpUrl).then((servers) => {
-        const joinableServers = servers.filter((server) => server.id !== 'auto' && server.status !== 'in_game');
+        const joinableServers = servers.filter((server) => server.id !== 'auto' && (config.allowLateJoin || server.status !== 'in_game'));
         const target = joinableServers.find((server) => server.status === 'waiting') ?? joinableServers[0];
         if (!target) return;
-        this.mpClient.joinRoom(this.resolveRuntimeWsUrl(), config.playerName, target.id);
+        this.mpClient.joinRoom(config.wsUrl ?? this.resolveRuntimeWsUrl(), config.playerName, target.id, !!config.allowLateJoin);
       });
     });
   }

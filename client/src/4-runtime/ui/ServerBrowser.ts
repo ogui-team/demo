@@ -18,8 +18,8 @@ export interface ServerBrowserConfig {
   httpUrl: string;
   wsUrl: string;
   availableMaps?: string[];
-  hostGame?: (payload: { playerName: string; config: HostedRoomConfig }) => void;
-  joinGame?: (payload: { playerName: string; roomId: string | null }) => void;
+  hostGame?: (payload: { playerName: string; config: HostedRoomConfig; wsUrl: string; httpUrl: string; backendFingerprint: string }) => void;
+  joinGame?: (payload: { playerName: string; roomId: string | null; wsUrl: string; httpUrl: string; backendFingerprint: string; allowLateJoin: boolean }) => void;
 }
 
 type BrowserScreen = 'list' | 'lobby';
@@ -50,10 +50,16 @@ export class ServerBrowser {
   private onCloseCallback: (() => void) | null = null;
   private onGameStartCallback: ((data: { map: string; mode: string; sessionId: string }) => void) | null = null;
   private mapsProvider: (() => string[]) | null = null;
+  private resolvedWsUrl: string;
+  private resolvedHttpUrl: string;
+  private resolvedBackendFingerprint: string;
 
   constructor(config: ServerBrowserConfig, client?: MultiplayerClient) {
     this.config = config;
     this.client = client ?? new MultiplayerClient();
+    this.resolvedWsUrl = config.wsUrl;
+    this.resolvedHttpUrl = config.httpUrl;
+    this.resolvedBackendFingerprint = this.buildBackendFingerprint(this.resolvedHttpUrl, this.resolvedWsUrl);
 
     this.root = document.createElement('div');
     this.headerEl = document.createElement('div');
@@ -211,16 +217,16 @@ export class ServerBrowser {
   async refreshServers(): Promise<void> {
     this.statusEl.textContent = 'Refreshing…';
     setContext('ui');
-    
-    // Use NetworkConnectionResolver to get the HTTP URL (honors manual IP overrides)
-    const resolver = new NetworkConnectionResolver();
-    const httpUrl = resolver.resolveHttpUrl();
-    let servers = await this.client.fetchServers(httpUrl);
 
-    // Strip synthetic fallback rows and in-progress matches from generic join.
-    // Joining an in_game room triggers server late-join GAME_START immediately,
-    // which skips lobby visibility and confuses host/join flow.
-    servers = servers.filter((server) => server.id !== 'auto' && server.status !== 'in_game');
+    // Keep refresh/join/host on the same resolved target so the list and join
+    // action always point at the identical backend instance.
+    const { httpUrl, wsUrl } = this.resolveConnectionTargets();
+    this.resolvedHttpUrl = httpUrl;
+    this.resolvedWsUrl = wsUrl;
+    this.resolvedBackendFingerprint = this.buildBackendFingerprint(httpUrl, wsUrl);
+
+    let servers = await this.client.fetchServers(httpUrl);
+    servers = servers.filter((server) => server.id !== 'auto');
 
     this.servers = servers;
     this.selectedServerIndex = Math.min(this.selectedServerIndex, Math.max(0, this.servers.length - 1));
@@ -274,6 +280,7 @@ export class ServerBrowser {
 
     this.footerEl.innerHTML = '';
     this._addButton('join', 'JOIN');
+    this._addButton('join_in_progress', 'JOIN IN PROGRESS');
     this._addButton('host', 'HOST GAME');
     this._addButton('refresh', 'REFRESH [R]');
     this._addButton('close', 'BACK [ESC]');
@@ -283,7 +290,11 @@ export class ServerBrowser {
     const lobbyState = this.lobbyState ?? this.client.getLastLobbyState();
     const selectedArchetypeId = this._getSelectedLobbyArchetypeId(lobbyState);
     const selectedArchetype = getTropicalHorrorArchetype(selectedArchetypeId);
-    this.headerEl.textContent = this.lobbyState?.roomName ? `LOBBY / ${this.lobbyState.roomName.toUpperCase()}` : 'LOBBY';
+    const activeRoomId = lobbyState?.roomId ?? this.client.roomId ?? 'unknown';
+    const activeBackendFingerprint = this.getActiveBackendFingerprint(lobbyState);
+    this.headerEl.textContent = this.lobbyState?.roomName
+      ? `LOBBY / ${this.lobbyState.roomName.toUpperCase()} / ROOM ${activeRoomId} / BACKEND ${activeBackendFingerprint}`
+      : `LOBBY / ROOM ${activeRoomId} / BACKEND ${activeBackendFingerprint}`;
     this.contentEl.innerHTML = '';
 
     const info = document.createElement('div');
@@ -447,6 +458,9 @@ export class ServerBrowser {
       case 'join':
         this._joinSelected();
         break;
+      case 'join_in_progress':
+        this._joinSelected(true);
+        break;
       case 'host':
         this._showHostDialog();
         break;
@@ -476,24 +490,29 @@ export class ServerBrowser {
     }
   }
 
-  private _joinSelected(): void {
+  private _joinSelected(allowLateJoin = false): void {
     const server = this.servers[this.selectedServerIndex];
     if (!server) return;
-    if (server.status === 'in_game') {
+    if (server.status === 'in_game' && !allowLateJoin) {
       this.statusEl.textContent = 'Selected room is already in progress';
       return;
     }
     const playerName = `Player_${Engine.random.next().toString(36).slice(2, 6)}`;
     this.statusEl.textContent = `Joining ${server.name}…`;
+    const targets = this.resolveConnectionTargets();
+    const backendFingerprint = server.backendFingerprint ?? this.buildBackendFingerprint(targets.httpUrl, targets.wsUrl);
     if (this.config.joinGame) {
       this.config.joinGame({
         playerName,
         roomId: server.id,
+        wsUrl: targets.wsUrl,
+        httpUrl: targets.httpUrl,
+        backendFingerprint,
+        allowLateJoin,
       });
       return;
     }
-    const resolver = new NetworkConnectionResolver();
-    this.client.joinRoom(resolver.resolveWebSocketUrl(), playerName, server.id);
+    this.client.joinRoom(targets.wsUrl, playerName, server.id, allowLateJoin);
   }
 
   private _showHostDialog(): void {
@@ -730,19 +749,53 @@ export class ServerBrowser {
       
       // Resolve server URL with optional manual override
       const serverIp = read('serverIp').trim();
-      const resolver = new NetworkConnectionResolver();
-      if (serverIp) {
-        resolver.setManualServerIP(serverIp);
-      }
-      const wsUrl = resolver.resolveWebSocketUrl();
+      const targets = this.resolveConnectionTargets(serverIp || null);
+      this.resolvedHttpUrl = targets.httpUrl;
+      this.resolvedWsUrl = targets.wsUrl;
+      this.resolvedBackendFingerprint = this.buildBackendFingerprint(targets.httpUrl, targets.wsUrl);
       
       if (this.config.hostGame) {
-        this.config.hostGame({ playerName, config: hostConfig });
+        this.config.hostGame({
+          playerName,
+          config: hostConfig,
+          wsUrl: targets.wsUrl,
+          httpUrl: targets.httpUrl,
+          backendFingerprint: this.resolvedBackendFingerprint,
+        });
       } else {
-        this.client.hostRoom(wsUrl, playerName, hostConfig);
+        this.client.hostRoom(targets.wsUrl, playerName, hostConfig);
       }
       this._hideHostDialog();
     });
+  }
+
+  private resolveConnectionTargets(manualIp: string | null = null): { httpUrl: string; wsUrl: string } {
+    const resolver = new NetworkConnectionResolver();
+    const normalizedManualIp = typeof manualIp === 'string' && manualIp.trim().length > 0 ? manualIp.trim() : null;
+    if (normalizedManualIp) {
+      resolver.setManualServerIP(normalizedManualIp);
+    }
+    return {
+      httpUrl: resolver.resolveHttpUrl(),
+      wsUrl: resolver.resolveWebSocketUrl(),
+    };
+  }
+
+  private buildBackendFingerprint(httpUrl: string, wsUrl: string): string {
+    return `${httpUrl}|${wsUrl}`;
+  }
+
+  private getActiveBackendFingerprint(lobbyState: LobbyState | null): string {
+    if (typeof lobbyState?.backendFingerprint === 'string' && lobbyState.backendFingerprint.trim().length > 0) {
+      return lobbyState.backendFingerprint;
+    }
+    const fromClient = typeof (this.client as any).getServerHttpBaseUrl === 'function'
+      ? (this.client as any).getServerHttpBaseUrl()
+      : null;
+    if (fromClient) {
+      return fromClient;
+    }
+    return this.resolvedBackendFingerprint;
   }
 
   private _hideHostDialog(): void {

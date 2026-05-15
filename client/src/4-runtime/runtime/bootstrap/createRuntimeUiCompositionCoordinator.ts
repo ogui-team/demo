@@ -1086,7 +1086,7 @@ export async function createRuntimeUiCompositionCoordinator(
       onGameStart: (data) => {
         options.multiplayerRuntime.handleGameStart(data);
       },
-      onHostGame: ({ playerName, config }) => {
+      onHostGame: ({ playerName, config, wsUrl, httpUrl, backendFingerprint }) => {
         options.multiplayerRuntime.hostAutostartMultiplayer({
           playerName,
           roomName: config.name,
@@ -1096,13 +1096,20 @@ export async function createRuntimeUiCompositionCoordinator(
           roundDurationSec: config.roundDurationSec,
           maxPlayers: config.maxPlayers,
           forceStart: false,
+          wsUrl,
+          httpUrl,
+          backendFingerprint,
         });
       },
-      onJoinGame: ({ playerName, roomId }) => {
+      onJoinGame: ({ playerName, roomId, wsUrl, httpUrl, backendFingerprint, allowLateJoin }) => {
         options.multiplayerRuntime.joinAutostartMultiplayer({
           playerName,
           roomId,
           autoReady: false,
+          wsUrl,
+          httpUrl,
+          backendFingerprint,
+          allowLateJoin,
         });
       },
     },

@@ -33,6 +33,7 @@ export interface PlayerJoinCommand {
   playerId?: string;
   name?: string;
   roomId?: string;
+  allowLateJoin?: boolean;
   appearance?: unknown;
   archetypeId?: string | null;
   protocol?: Record<string, unknown>;

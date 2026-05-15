@@ -145,6 +145,13 @@ const RATE_LIMIT_RULES: Readonly<Record<RateLimitKey, RateLimitRule>> = {
   DEFAULT: { limit: 40, windowMs: 1000 },
 };
 
+const BACKEND_FINGERPRINT = (
+  process.env.BACKEND_FINGERPRINT
+  ?? process.env.RENDER_INSTANCE_ID
+  ?? process.env.RENDER_SERVICE_ID
+  ?? `pid-${process.pid}`
+).trim();
+
 app.use((_req, res, next) => {
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
   res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
@@ -184,7 +191,7 @@ function broadcast(data: string, exclude?: WebSocket): void {
 
 // ─── Lobby + Session management ───────────────────────────────────────────────
 
-const lobbyManager = new LobbyManager();
+const lobbyManager = new LobbyManager(BACKEND_FINGERPRINT);
 
 function createRoomProtocol(roomId: string, mapId: string): { collisionAuthority: { version: number; checksum: string }; snapshotSchemaVersion: number } {
   const collisionAuthority = new CollisionAuthoritySystem(mapId, roomId);
@@ -478,12 +485,13 @@ wss.on('connection', (ws: WebSocket, req) => {
         );
         const name = (msg.name as string) || playerId;
         const requestedRoomId = msg.roomId as string | undefined;
+        const allowLateJoin = msg.allowLateJoin === true;
         const appearance = sanitizePlayerAppearancePayload(msg.appearance);
         const archetypeId = resolveTropicalHorrorArchetypeId(msg.archetypeId) ?? DEFAULT_TROPICAL_HORROR_ARCHETYPE_ID;
         const candidate = requestedRoomId ? lobbyManager.getRoom(requestedRoomId) : undefined;
 
         // Late join: the requested room is already in_game — join the active session directly
-        if (candidate && candidate.status === 'in_game') {
+        if (allowLateJoin && candidate && candidate.status === 'in_game') {
           const activeSession = sessions.get(candidate.id);
           if (activeSession) {
             if (!validateClientProtocol(ws, msg.protocol as Record<string, unknown> | undefined, activeSession.getProtocolHandshake())) {
@@ -877,6 +885,7 @@ app.get('/servers', (_req, res) => {
     killLimit:    room.killLimit,
     roundDurationSec: room.roundDurationSec,
     ping:         0, // client measures their own ping
+    backendFingerprint: BACKEND_FINGERPRINT,
   }));
 
   res.json({ servers: serverList });

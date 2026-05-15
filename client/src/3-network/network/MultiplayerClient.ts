@@ -24,6 +24,7 @@ export interface ServerInfo {
   killLimit: number;
   roundDurationSec: number;
   ping: number;
+  backendFingerprint?: string;
 }
 
 export interface LobbyPlayer {
@@ -38,6 +39,7 @@ export interface LobbyPlayer {
 export interface LobbyState {
   roomId?: string;
   roomName?: string;
+  backendFingerprint?: string;
   players: LobbyPlayer[];
   selectedMap: string;
   selectedMode: string;
@@ -322,6 +324,7 @@ export class MultiplayerClient {
   private _serverUrl = '';
   private _playerName = '';
   private _pendingJoinRoomId: string | undefined;
+  private _pendingAllowLateJoin = false;
   private _pendingHostConfig: HostedRoomConfig | null = null;
   private _reconnectAttempts = 0;
   private readonly _maxReconnectAttempts = 5;
@@ -379,17 +382,19 @@ export class MultiplayerClient {
     }
   }
 
-  joinRoom(wsUrl: string, playerName: string, roomId?: string): void {
+  joinRoom(wsUrl: string, playerName: string, roomId?: string, allowLateJoin = false): void {
     this._pendingHostConfig = null;
     this._pendingJoinRoomId = roomId;
+    this._pendingAllowLateJoin = allowLateJoin;
     gameBus.emit('networkLifecycle', {
       source: 'MultiplayerClient',
       state: 'join_requested',
       detail: wsUrl,
       playerId: this._playerId,
       roomId: roomId ?? null,
+      allowLateJoin,
     });
-    this._connect(wsUrl, playerName);
+    this._connect(wsUrl, playerName, allowLateJoin);
   }
 
   setPendingJoinAppearance(appearance: Record<string, unknown> | null): void {
@@ -445,6 +450,7 @@ export class MultiplayerClient {
 
   hostRoom(wsUrl: string, playerName: string, config: HostedRoomConfig): void {
     this._pendingJoinRoomId = undefined;
+    this._pendingAllowLateJoin = false;
     this._pendingHostConfig = config;
     gameBus.emit('networkLifecycle', {
       source: 'MultiplayerClient',
@@ -705,7 +711,7 @@ export class MultiplayerClient {
     };
   }
 
-  private _connect(wsUrl: string, playerName: string): void {
+  private _connect(wsUrl: string, playerName: string, allowLateJoin = false): void {
     if (this.ws) this.disconnect();
 
     this._serverUrl = wsUrl;
@@ -713,7 +719,7 @@ export class MultiplayerClient {
     this._playerId = `player_${Engine.time.now()}_${Engine.random.next().toString(36).slice(2, 6)}`;
     this._reconnectAttempts = 0;
     this._reconnectSuspended = false;
-    this._doConnect();
+    this._doConnect(allowLateJoin);
   }
 
   private _getProtocolHandshake(): Record<string, unknown> {
@@ -796,7 +802,7 @@ export class MultiplayerClient {
     }
   }
 
-  private _doConnect(): void {
+  private _doConnect(allowLateJoin = this._pendingAllowLateJoin): void {
     try {
       this.ws = new WebSocket(this._buildWebSocketUrl());
     } catch (error) {
@@ -830,6 +836,7 @@ export class MultiplayerClient {
           playerId: this._playerId,
           name: this._playerName,
           roomId: this._pendingJoinRoomId,
+          allowLateJoin,
           appearance: this._pendingJoinAppearance,
           archetypeId: this._pendingJoinArchetypeId,
           protocol: this._getProtocolHandshake(),

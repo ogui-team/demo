@@ -22,6 +22,11 @@ export class LobbyManager {
 
   /** votes[roomId][playerId] = mapId */
   private votes: Map<string, Map<string, string>> = new Map();
+  private readonly backendFingerprint: string;
+
+  constructor(backendFingerprint = 'backend-unknown') {
+    this.backendFingerprint = backendFingerprint;
+  }
 
   onGameStart(fn: (room: LobbyRoom) => void): void {
     this.onStartFn = fn;
@@ -338,6 +343,7 @@ export class LobbyManager {
       lobby: {
         roomId: room.id,
         roomName: room.name,
+        backendFingerprint: this.backendFingerprint,
         players: Array.from(room.players.values()).map(({ ws: _ws, ...rest }) => rest),
         selectedMap: room.selectedMap,
         selectedMode: room.selectedMode,

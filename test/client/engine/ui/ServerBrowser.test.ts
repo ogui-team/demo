@@ -19,7 +19,7 @@ describe('ServerBrowser', () => {
     playerId = 'player1'
     private listeners = new Map<string, Set<Function>>()
     lastLobbyState: LobbyState | null = null
-    lastJoin?: { wsUrl: string; playerName: string; roomId?: string }
+    lastJoin?: { wsUrl: string; playerName: string; roomId?: string; allowLateJoin?: boolean }
     lastHost?: { wsUrl: string; playerName: string; config: unknown }
     lastReady?: boolean
     lastAction?: { action: string; data: unknown }
@@ -55,8 +55,8 @@ describe('ServerBrowser', () => {
       ]
     }
 
-    joinRoom(wsUrl: string, playerName: string, roomId?: string): void {
-      this.lastJoin = { wsUrl, playerName, roomId }
+    joinRoom(wsUrl: string, playerName: string, roomId?: string, allowLateJoin?: boolean): void {
+      this.lastJoin = { wsUrl, playerName, roomId, allowLateJoin }
     }
 
     hostRoom(wsUrl: string, playerName: string, config: unknown): void {
@@ -175,7 +175,7 @@ describe('ServerBrowser', () => {
     browser.destroy()
   })
 
-  it('filters in-progress rooms to avoid accidental late-join start', async () => {
+  it('requires explicit join-in-progress action for in-game rooms', async () => {
     const fakeClient = new FakeServerBrowserClient()
     fakeClient.fetchServers = vi.fn(async () => ([
       {
@@ -213,10 +213,14 @@ describe('ServerBrowser', () => {
     )
 
     await browser.refreshServers()
-    expect((browser as any).servers.map((server: ServerInfo) => server.id)).toEqual(['waiting-room'])
+    expect((browser as any).servers.map((server: ServerInfo) => server.id)).toEqual(['live-room', 'waiting-room'])
 
     ;(browser as any)._handleAction('join')
-    expect(fakeClient.lastJoin?.roomId).toBe('waiting-room')
+    expect(fakeClient.lastJoin).toBeUndefined()
+
+    ;(browser as any)._handleAction('join_in_progress')
+    expect(fakeClient.lastJoin?.roomId).toBe('live-room')
+    expect(fakeClient.lastJoin?.allowLateJoin).toBe(true)
     browser.destroy()
   })
 })
