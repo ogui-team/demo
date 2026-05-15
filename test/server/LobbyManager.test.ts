@@ -203,4 +203,16 @@ describe('LobbyManager', () => {
     expect(room.players.get('p1')?.archetypeId).toBe('tattered-shaman')
     expect(room.players.get('p1')?.appearance).toEqual(cloneTropicalHorrorArchetypeAppearance('tattered-shaman'))
   })
+
+  it('rebroadcasts current room state when requested', () => {
+    const room = lobby.createRoom()
+    lobby.joinRoom(ws1, room.id, 'p1', 'Alice')
+    vi.mocked(ws1.send).mockClear()
+
+    const sent = lobby.broadcastRoomState(room.id)
+
+    expect(sent).toBe(true)
+    expect(ws1.send).toHaveBeenCalledTimes(1)
+    expect(String(vi.mocked(ws1.send).mock.calls[0][0])).toContain('LOBBY_UPDATE')
+  })
 })

@@ -1,6 +1,7 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
 import { ServerBrowser } from '../../../../client/src/4-runtime/ui/ServerBrowser'
 import type { ServerInfo, LobbyState } from '../../../../client/src/3-network/network/MultiplayerClient'
+import { NetworkConnectionResolver } from '../../../../client/src/3-network/network/NetworkConnectionResolver'
 
 describe('ServerBrowser', () => {
   beforeEach(() => {
@@ -96,7 +97,7 @@ describe('ServerBrowser', () => {
     expect(document.body.textContent).toContain('JOIN')
 
     ;(browser as any)._handleAction('join')
-    expect(fakeClient.lastJoin?.wsUrl).toBe('ws://localhost:8080')
+    expect(fakeClient.lastJoin?.wsUrl).toBe(new NetworkConnectionResolver().resolveWebSocketUrl())
     expect(fakeClient.lastJoin?.roomId).toBe('server1')
 
     browser.destroy()

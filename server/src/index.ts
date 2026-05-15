@@ -461,6 +461,9 @@ wss.on('connection', (ws: WebSocket, req) => {
           identitySnapshot: authResult.context.identitySnapshot,
           protocol: roomProtocol,
         }));
+        // Send a guaranteed post-ack lobby snapshot so host UI can render
+        // itself reliably even if timing drops the pre-ack update.
+        lobbyManager.broadcastRoomState(room.id);
         console.log(`[Server] Player ${playerId} hosted lobby ${room.id}`);
         break;
       }
@@ -504,10 +507,30 @@ wss.on('connection', (ws: WebSocket, req) => {
           }
         }
 
-        // Normal lobby join — fall back to getOrCreateRoom if room is gone or full
-        const room = (candidate && candidate.status !== 'in_game' && candidate.players.size < candidate.maxPlayers)
-          ? candidate
-          : lobbyManager.getOrCreateRoom('map_default', 'ffa');
+        let room = candidate;
+        if (requestedRoomId) {
+          if (!room || room.status === 'in_game' || room.players.size >= room.maxPlayers) {
+            ws.send(JSON.stringify({
+              type: 'ERROR',
+              code: 'ROOM_UNAVAILABLE',
+              message: 'Requested room is unavailable',
+            }));
+            break;
+          }
+        } else {
+          room = lobbyManager
+            .listRooms()
+            .find((listedRoom) => listedRoom.status === 'waiting' && listedRoom.players.size < listedRoom.maxPlayers);
+
+          if (!room) {
+            ws.send(JSON.stringify({
+              type: 'ERROR',
+              code: 'NO_ROOMS_AVAILABLE',
+              message: 'No hosted rooms available to join',
+            }));
+            break;
+          }
+        }
 
         const roomProtocol = createRoomProtocol(room.id, room.selectedMap);
         if (!validateClientProtocol(ws, msg.protocol as Record<string, unknown> | undefined, roomProtocol)) {
@@ -540,6 +563,9 @@ wss.on('connection', (ws: WebSocket, req) => {
           identitySnapshot: authResult.context.identitySnapshot,
           protocol: roomProtocol,
         }));
+        // Send a guaranteed post-ack lobby snapshot so UI always renders with
+        // final player/room identity even if the pre-ack update was missed.
+        lobbyManager.broadcastRoomState(room.id);
         console.log(`[Server] Player ${playerId} joined lobby ${room.id}`);
         break;
       }

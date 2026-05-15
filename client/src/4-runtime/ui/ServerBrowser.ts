@@ -491,7 +491,8 @@ export class ServerBrowser {
       });
       return;
     }
-    this.client.joinRoom(this.config.wsUrl, playerName, server.id);
+    const resolver = new NetworkConnectionResolver();
+    this.client.joinRoom(resolver.resolveWebSocketUrl(), playerName, server.id);
   }
 
   private _showHostDialog(): void {

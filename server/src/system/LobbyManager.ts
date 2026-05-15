@@ -226,6 +226,16 @@ export class LobbyManager {
     return Array.from(this.rooms.values());
   }
 
+  broadcastRoomState(roomId: string): boolean {
+    this.pruneDisconnectedRooms();
+    const room = this.rooms.get(roomId);
+    if (!room) {
+      return false;
+    }
+    this._broadcastLobbyState(room);
+    return true;
+  }
+
   pruneDisconnectedRooms(): void {
     for (const [roomId, room] of this.rooms.entries()) {
       for (const [playerId, player] of room.players.entries()) {

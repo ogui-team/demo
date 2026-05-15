@@ -25,32 +25,6 @@ import {
   type TropicalHorrorArchetypeId,
 } from '../../../2-systems/ArchetypeDefinitions';
 
-function getDefaultServerHttpUrl(): string {
-  if (typeof window === 'undefined' || typeof window.location === 'undefined') {
-    return '';
-  }
-  const location = window.location;
-  const currentPort = location.port;
-  const targetPort = !currentPort || currentPort === '80' || currentPort === '443' || currentPort === '8080'
-    ? currentPort
-    : '8080';
-  const suffix = targetPort ? `:${targetPort}` : '';
-  return `${location.protocol}//${location.hostname}${suffix}`.replace(/\/$/, '');
-}
-
-function getDefaultServerWsUrl(): string {
-  if (typeof window === 'undefined' || typeof window.location === 'undefined') {
-    return '';
-  }
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const currentPort = window.location.port;
-  const targetPort = !currentPort || currentPort === '80' || currentPort === '443' || currentPort === '8080'
-    ? currentPort
-    : '8080';
-  const suffix = targetPort ? `:${targetPort}` : '';
-  return `${protocol}//${window.location.hostname}${suffix}`;
-}
-
 interface SessionLifecycleAdapter {
   handleLocalPlayerActualized(payload: {
     playerId: string | null;
@@ -137,6 +111,7 @@ export class MultiplayerRuntimeCoordinator {
   private readonly serverHttpUrl: string;
   private readonly serverWsUrl: string;
   private readonly metricsBaseUrlOverride: string | null;
+  private readonly networkResolver: NetworkConnectionResolver;
 
   private sessionLifecycleCoordinator: SessionLifecycleAdapter | null = null;
   private gameLaunchCoordinator: GameLaunchAdapter | null = null;
@@ -172,8 +147,9 @@ export class MultiplayerRuntimeCoordinator {
     this.runtimeQueryParams = typeof window !== 'undefined'
       ? new URLSearchParams(window.location.search)
       : null;
-    this.serverHttpUrl = this.runtimeQueryParams?.get('serverHttpUrl') ?? getDefaultServerHttpUrl();
-    this.serverWsUrl = this.runtimeQueryParams?.get('serverWsUrl') ?? getDefaultServerWsUrl();
+    this.networkResolver = new NetworkConnectionResolver();
+    this.serverHttpUrl = this.runtimeQueryParams?.get('serverHttpUrl') ?? this.networkResolver.resolveHttpUrl();
+    this.serverWsUrl = this.runtimeQueryParams?.get('serverWsUrl') ?? this.networkResolver.resolveWebSocketUrl();
     this.metricsBaseUrlOverride = this.runtimeQueryParams?.get('metricsBaseUrl') ?? null;
   }
 
@@ -183,6 +159,14 @@ export class MultiplayerRuntimeCoordinator {
 
   getServerWsUrl(): string {
     return this.serverWsUrl;
+  }
+
+  private resolveRuntimeWsUrl(): string {
+    return this.runtimeQueryParams?.get('serverWsUrl') ?? this.networkResolver.resolveWebSocketUrl();
+  }
+
+  private resolveRuntimeHttpUrl(): string {
+    return this.runtimeQueryParams?.get('serverHttpUrl') ?? this.networkResolver.resolveHttpUrl();
   }
 
   getMetricsBaseUrlOverride(): string | null {
@@ -388,7 +372,7 @@ export class MultiplayerRuntimeCoordinator {
       };
 
       this.onMpClient('lobby_update', handleLobbyUpdate);
-      this.mpClient.hostRoom(this.serverWsUrl, config.playerName, {
+      this.mpClient.hostRoom(this.resolveRuntimeWsUrl(), config.playerName, {
         name: config.roomName,
         map: config.map,
         mode: config.mode ?? 'ffa',
@@ -421,16 +405,15 @@ export class MultiplayerRuntimeCoordinator {
 
       this.onMpClient('lobby_update', handleLobbyUpdate);
       if (config.roomId) {
-        this.mpClient.joinRoom(this.serverWsUrl, config.playerName, config.roomId);
+        this.mpClient.joinRoom(this.resolveRuntimeWsUrl(), config.playerName, config.roomId);
         return;
       }
 
-      const resolver = new NetworkConnectionResolver();
-      const httpUrl = resolver.resolveHttpUrl();
+      const httpUrl = this.resolveRuntimeHttpUrl();
       void this.mpClient.fetchServers(httpUrl).then((servers) => {
         const target = servers.find((server) => server.id !== 'auto');
         if (!target) return;
-        this.mpClient.joinRoom(this.serverWsUrl, config.playerName, target.id);
+        this.mpClient.joinRoom(this.resolveRuntimeWsUrl(), config.playerName, target.id);
       });
     });
   }

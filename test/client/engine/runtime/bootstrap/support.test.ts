@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach } from 'vitest'
-import { readNumber, getDefaultServerHttpUrl, getDefaultServerWsUrl, getHalfExtentsFromRenderData } from '@engine/runtime/bootstrap/support'
+import { readNumber, getDefaultServerHttpUrl, getDefaultServerWsUrl, getHalfExtentsFromRenderData } from '../../../../../client/src/4-runtime/runtime/bootstrap/support'
 
 describe('bootstrap support utilities', () => {
   beforeEach(() => {
@@ -22,6 +22,20 @@ describe('bootstrap support utilities', () => {
   it('builds default HTTP and WS URLs', () => {
     expect(getDefaultServerHttpUrl()).toBe('https://example.com:8080')
     expect(getDefaultServerWsUrl()).toBe('wss://example.com:8080')
+  })
+
+  it('keeps same-origin defaults for hosted non-local ports', () => {
+    Object.defineProperty(window, 'location', {
+      value: {
+        protocol: 'https:',
+        hostname: 'play.myengine.dev',
+        port: '',
+      },
+      writable: true,
+    })
+
+    expect(getDefaultServerHttpUrl()).toBe('https://play.myengine.dev')
+    expect(getDefaultServerWsUrl()).toBe('wss://play.myengine.dev')
   })
 
   it('computes half extents for all supported mesh types', () => {
