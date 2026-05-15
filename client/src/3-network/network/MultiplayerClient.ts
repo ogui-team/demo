@@ -218,6 +218,7 @@ type EventMap = {
   connection_lost: { reason: string; code?: number; wasClean?: boolean };
   lobby_update: LobbyState;
   game_start: { map: string; mode: string; sessionId: string; late?: boolean };
+  sync_required: { map: string; mode: string; sessionId: string; late?: boolean };
   authoritative_snapshot: AuthoritativeSnapshotPayload;
   full_sync_data: {
     playerId: string | null;
@@ -624,6 +625,10 @@ export class MultiplayerClient {
     this._send({ type: 'FULL_SYNC_REQ' });
   }
 
+  markGameplayReady(): void {
+    this._inGame = true;
+  }
+
   sendWorldObjectPlace(obj: WorldObjectData): void {
     this._send({ type: 'ACTION', action: 'WORLD_OBJECT_PLACE', data: obj });
   }
@@ -977,7 +982,7 @@ export class MultiplayerClient {
           }
         }
         this._applyIdentitySnapshot(msg.identitySnapshot);
-        this._inGame = true;
+        this._inGame = false;
         this._entitySyncCache.clear();
         logEvent('network', `GAME_START ${msg.map ?? 'unknown'}`);
         console.log('[MultiplayerClient] GAME_START', {
@@ -997,6 +1002,7 @@ export class MultiplayerClient {
           this._connected = true;
           this.emit('connected', { playerId: this._playerId, roomId: this._roomId, hosted: false });
         }
+        this.emit('sync_required', { map: msg.map, mode: msg.mode, sessionId: msg.sessionId, late: !!msg.late });
         this.emit('game_start', { map: msg.map, mode: msg.mode, sessionId: msg.sessionId, late: !!msg.late });
         break;
       case 'AUTHORITATIVE_SNAPSHOT':

@@ -103,6 +103,15 @@ interface BufferedRemoteSnapshot {
   timestamp: number;
 }
 
+type PlayerModelBindingState = 'pending' | 'initializing' | 'bound';
+
+interface EntityRegistryEntry {
+  playerId: string;
+  entityId: string;
+  state: PlayerModelBindingState;
+  lastSeenAt: number;
+}
+
 /** Per-player runtime record managed by this system. */
 interface PlayerRecord {
   /** EntityManager entity that drives the three.js mesh. */
@@ -138,7 +147,6 @@ interface PlayerRecord {
 }
 
 // Material palette — one material per player colour slot; reused across model parts.
-const REMOTE_BODY_COLORS  = [0x4a8fc0, 0xc04a4a, 0x4ac04a, 0xc09a20, 0x9a4ac0, 0x20b0b0];
 const DEAD_COLOR           = 0x555555;
 const WALK_SPEED_THRESHOLD = 0.08;
 const WALK_SPEED_NORMALIZER = 3.5;
@@ -179,6 +187,7 @@ export class PlayerModelSystem implements CharacterDashboardSource {
   private characterDashboardPanel: CharacterDashboardPanel | null = null;
   private players:        Map<string, PlayerRecord> = new Map();
   private playerGroups:   Map<string, THREE.Group>  = new Map(); // THREE.Group per player
+  private readonly entityRegistry: Map<string, EntityRegistryEntry> = new Map();
   /** StateManager unsubscribe callbacks keyed by remote playerId. */
   private appearanceUnsubs: Map<string, () => void> = new Map();
   /** Unsubscribe for the LOCAL player's appearance StateManager subscription. */
@@ -242,6 +251,7 @@ export class PlayerModelSystem implements CharacterDashboardSource {
         localPlayerEntityId: this.localPlayerEntity?.id ?? null,
         localAvatarVisible: this.localAvatarVisible,
         hasSystemContext: this.systemContext !== null,
+        entityRegistrySize: this.entityRegistry.size,
         samplePlayerIds: [...this.players.keys()].slice(0, 12),
       },
       localAppearance: this.localAppearance,
@@ -447,6 +457,62 @@ export class PlayerModelSystem implements CharacterDashboardSource {
 
   // ─── Spawn ─────────────────────────────────────────────────────────────────
 
+  isEntityRegistryEmpty(): boolean {
+    return this.entityRegistry.size === 0;
+  }
+
+  isEntityRegistryReady(playerId: string | null | undefined): boolean {
+    if (!playerId) {
+      return false;
+    }
+    const entry = this.entityRegistry.get(playerId);
+    return !!entry && entry.state === 'bound';
+  }
+
+  private upsertEntityRegistryEntry(playerId: string, entityId: string, state: PlayerModelBindingState): EntityRegistryEntry {
+    const now = Engine.time.now();
+    const existing = this.entityRegistry.get(playerId);
+    const next: EntityRegistryEntry = {
+      playerId,
+      entityId,
+      state,
+      lastSeenAt: now,
+    };
+    if (existing && existing.state === 'bound' && state !== 'bound') {
+      next.state = 'bound';
+      next.entityId = existing.entityId;
+    }
+    this.entityRegistry.set(playerId, next);
+    return next;
+  }
+
+  private deriveManifestEntityId(payload: NetworkPlayerPayload): string | null {
+    if (typeof payload.id === 'string' && payload.id.length > 0) {
+      return payload.id;
+    }
+    return null;
+  }
+
+  private refreshEntityRegistryFromSnapshot(entities: NetworkPlayerPayload[], snapshotTimestamp: number): void {
+    for (const payload of entities) {
+      if (payload.type && payload.type !== 'player') {
+        continue;
+      }
+      const playerId = typeof payload.id === 'string' ? payload.id : null;
+      if (!playerId || playerId === this.localPlayerId) {
+        continue;
+      }
+      const manifestEntityId = this.deriveManifestEntityId(payload);
+      if (!manifestEntityId) {
+        continue;
+      }
+      const state: PlayerModelBindingState = this.players.has(playerId) ? 'bound' : 'pending';
+      const entry = this.upsertEntityRegistryEntry(playerId, manifestEntityId, state);
+      entry.lastSeenAt = snapshotTimestamp;
+      this.entityRegistry.set(playerId, entry);
+    }
+  }
+
   /**
    * Spawn a fully assembled low-poly character model for a remote player.
    * Does nothing if this playerId is the local player or already spawned.
@@ -454,6 +520,14 @@ export class PlayerModelSystem implements CharacterDashboardSource {
   spawnPlayer(playerId: string, position: Vector3, rotation: Vector3): void {
     if (playerId === this.localPlayerId) return;
     if (this.players.has(playerId))     return;
+
+    const registryEntry = this.entityRegistry.get(playerId);
+    if (!registryEntry) {
+      return;
+    }
+    if (registryEntry.state === 'pending') {
+      this.upsertEntityRegistryEntry(playerId, registryEntry.entityId, 'initializing');
+    }
 
     console.log('[SpawnDiagnostics] PLAYER SPAWN REQUEST', {
       source: 'player_model_system',
@@ -481,15 +555,13 @@ export class PlayerModelSystem implements CharacterDashboardSource {
     });
     this.entityRenderer.syncEntity(entity);
 
-    // Build the visual THREE.Group — prefer appearance saved in StateManager
-    // (written when we receive a PLAYER_APPEARANCE message from that client)
-    // and fall back to the deterministic colour-slot palette only when no
-    // appearance has arrived yet.
+    // Build the visual THREE.Group from authoritative/state appearance only.
     const savedAppearance = this.stateManager.get(`player.${playerId}.appearance`);
-    const spawnAppearance: Partial<AvatarAppearance> =
-      savedAppearance && typeof savedAppearance === 'object'
-        ? (savedAppearance as Partial<AvatarAppearance>)
-        : { bodyColor: REMOTE_BODY_COLORS[this.players.size % REMOTE_BODY_COLORS.length] };
+    if (!savedAppearance || typeof savedAppearance !== 'object') {
+      this.upsertEntityRegistryEntry(playerId, registryEntry.entityId, 'pending');
+      return;
+    }
+    const spawnAppearance: Partial<AvatarAppearance> = savedAppearance as Partial<AvatarAppearance>;
     const group = createAvatarGroup(spawnAppearance);
     group.position.set(position.x, this.toVisualGroundY(position.y), position.z);
     group.rotation.set(0, rotation.y, 0);
@@ -519,6 +591,7 @@ export class PlayerModelSystem implements CharacterDashboardSource {
       lastSeenSnapshotTimestamp: Engine.time.now(),
     };
     this.players.set(playerId, record);
+    this.upsertEntityRegistryEntry(playerId, registryEntry.entityId, 'bound');
     console.log('[SpawnDiagnostics] ENTITY CREATED', {
       source: 'player_model_system',
       playerId,
@@ -562,6 +635,7 @@ export class PlayerModelSystem implements CharacterDashboardSource {
    * Spawns players that don't exist yet, queues transform updates for those that do.
    */
   syncFromPayload(entities: NetworkPlayerPayload[], snapshotTimestamp = Engine.time.now()): void {
+    this.refreshEntityRegistryFromSnapshot(entities, snapshotTimestamp);
     const seenRemotePlayerIds = new Set<string>();
     for (const we of entities) {
       try {
@@ -578,9 +652,17 @@ export class PlayerModelSystem implements CharacterDashboardSource {
           throw new Error(`FATAL_PREFAB_MISSING: invalid player payload type (${String(we.type)})`);
         }
 
+        const registryEntry = this.entityRegistry.get(we.id);
+        if (!registryEntry) {
+          continue;
+        }
+
         const existing = this.players.get(we.id);
         if (!existing) {
           if (!we.position || !we.rotation) continue;
+          if (registryEntry.state === 'pending') {
+            this.upsertEntityRegistryEntry(we.id, registryEntry.entityId, 'initializing');
+          }
           const pos: Vector3 = we.position;
           const rot: Vector3 = we.rotation;
           this.spawnPlayer(we.id, pos, rot);
@@ -597,9 +679,11 @@ export class PlayerModelSystem implements CharacterDashboardSource {
           }
           if (created) {
             created.lastSeenSnapshotTimestamp = snapshotTimestamp;
+            this.upsertEntityRegistryEntry(we.id, registryEntry.entityId, 'bound');
           }
         } else {
           seenRemotePlayerIds.add(we.id);
+          this.upsertEntityRegistryEntry(we.id, registryEntry.entityId, 'bound');
           existing.lastSeenSnapshotTimestamp = snapshotTimestamp;
           if (Object.prototype.hasOwnProperty.call(we, 'statusMovementModifier')) {
             existing.statusMovementModifier = we.statusMovementModifier ?? null;
@@ -826,6 +910,7 @@ export class PlayerModelSystem implements CharacterDashboardSource {
 
     // Clean up StateManager entries
     this.stateManager.set(`players.${playerId}`, undefined as any);
+    this.entityRegistry.delete(playerId);
     gameBus.emit('playerModelRemoved', {
       playerId,
       entityId: removedEntityId,
@@ -843,6 +928,7 @@ export class PlayerModelSystem implements CharacterDashboardSource {
 
   handleRespawn(playerId: string, position: Vector3, rotation: Vector3 = { x: 0, y: 0, z: 0 }): void {
     if (!this.players.has(playerId)) {
+      this.upsertEntityRegistryEntry(playerId, playerId, 'initializing');
       this.spawnPlayer(playerId, position, rotation);
       return;
     }

@@ -62,6 +62,8 @@ interface HitFeedbackAdapter {
   showKillConfirm(targetId: string): void;
 }
 
+type SyncGateState = 'locked' | 'waiting_manifest' | 'ready';
+
 /**
  * Narrow runtime authority capability exposed to multiplayer coordinators.
  * Keeps the controller boundary limited to state transitions, mode control, and session intent.
@@ -128,6 +130,8 @@ export class MultiplayerRuntimeCoordinator {
   private readonly mpClientDisposers: Array<() => void> = [];
   private readonly gameModeDisposers: Array<() => void> = [];
   private wired = false;
+  private syncGateState: SyncGateState = 'locked';
+  private pendingSyncStart: { map: string; mode: string; sessionId: string; late?: boolean } | null = null;
 
   constructor(config: MultiplayerRuntimeCoordinatorConfig) {
     this.engineController = config.engineController;
@@ -236,10 +240,15 @@ export class MultiplayerRuntimeCoordinator {
   }
 
   private shouldProcessAuthoritativeSnapshots(): boolean {
+    if (this.syncGateState === 'locked' && this.mpClient.connected) {
+      return false;
+    }
     return this.worldRuntime.getLocalPlayerBootstrapCoordinator().isAwaitingAuthoritativeSpawn()
       || this.engineController.is('starting')
       || this.engineController.is('in_game')
       || this.engineController.is('post_game')
+      || this.syncGateState === 'waiting_manifest'
+      || this.syncGateState === 'ready'
       || this.mpClient.inGame
       || !this.mpClient.connected;
   }
@@ -256,6 +265,7 @@ export class MultiplayerRuntimeCoordinator {
   }
 
   startInputSending(): void {
+    if (this.syncGateState !== 'ready') return;
     if (this.worldRuntime.getLocalPlayerBootstrapCoordinator().isAwaitingAuthoritativeSpawn()) return;
     this.inputSendEnabled = true;
     this.inputSendAccumulator = 0;
@@ -323,6 +333,8 @@ export class MultiplayerRuntimeCoordinator {
     this.lastGameStartAt = 0;
     this.lastGameStartSessionId = null;
     this.lastRoundStartAt = 0;
+    this.syncGateState = 'locked';
+    this.pendingSyncStart = null;
   }
 
   markRoundStart(): void {
@@ -339,6 +351,8 @@ export class MultiplayerRuntimeCoordinator {
 
   prepareMultiplayerLobby(reason: string): void {
     this.stopInputSending();
+    this.syncGateState = 'locked';
+    this.pendingSyncStart = null;
     if (this.mpClient.connected) {
       this.mpClient.disconnect();
     }
@@ -532,11 +546,19 @@ export class MultiplayerRuntimeCoordinator {
       }
       this.networkSyncSystem.applyAuthoritativeSnapshot(this.toReplicationSnapshot(payload));
       this.playerModelSystem.syncFromPayload(payload.entities, payload.timestamp ?? Engine.time.now());
+      if (this.syncGateState === 'waiting_manifest' && this.playerModelSystem.isEntityRegistryEmpty()) {
+        this.worldRuntime.getLocalPlayerBootstrapCoordinator().requestAuthoritativeSpawnSync();
+        this.stopInputSending();
+      }
+      this.tryPromoteSyncGate('authoritative_snapshot');
       this.worldRuntime.injectAuthoritativeSnapshotBinding(
         this.mpClient.playerId,
         payload.entities.map((entity: any) => ({ id: entity.id, isPlayerControlled: entity.isPlayerControlled })),
       );
       this.worldRuntime.updateAuthoritativeSnapshotTracking(payload);
+      if (this.syncGateState !== 'ready') {
+        return;
+      }
       const localEntity = this.worldRuntime.findLocalAuthoritativeSnapshotEntity(payload.entities);
       const localTransform = this.networkSyncSystem.getLocalPlayerTransform();
       if (this.worldRuntime.getLocalPlayerBootstrapCoordinator().isAwaitingAuthoritativeSpawn() && (localEntity?.position || localTransform?.position)) {
@@ -577,6 +599,8 @@ export class MultiplayerRuntimeCoordinator {
       Engine.getStateManagerInstance()?.set('player.local.appearance', currentAppearance);
       // Broadcast our appearance to any peers already in the room.
       this.mpClient.sendAppearance(currentAppearance);
+      this.syncGateState = 'locked';
+      this.pendingSyncStart = null;
       this.sessionLifecycleCoordinator?.handleConnected(data);
     });
 
@@ -585,12 +609,18 @@ export class MultiplayerRuntimeCoordinator {
       this.playerModelSystem?.onServerTickSync(data.tickRate);
     });
 
-    this.onMpClient('game_start', (data) => {
+    this.onMpClient('sync_required', (data) => {
       this.mpClient.requestFullSync();
-      this.handleGameStart(data);
+      this.beginSyncGate(data);
+    });
+
+    this.onMpClient('game_start', (data) => {
+      this.beginSyncGate(data);
     });
 
     this.onMpClient('disconnected', () => {
+      this.syncGateState = 'locked';
+      this.pendingSyncStart = null;
       this.sessionLifecycleCoordinator?.handleDisconnected();
     });
 
@@ -802,6 +832,10 @@ export class MultiplayerRuntimeCoordinator {
   }
 
   handleGameStart(data: { map: string; mode: string; sessionId: string; late?: boolean }): void {
+    if (this.syncGateState !== 'ready') {
+      this.pendingSyncStart = { ...data };
+      return;
+    }
     if (!data.late) {
       const activeRoomId = this.mpClient.roomId;
       if (!activeRoomId || activeRoomId !== data.sessionId) {
@@ -819,6 +853,7 @@ export class MultiplayerRuntimeCoordinator {
     logEvent('network', `Game start on ${data.map} (${data.mode})`);
     this.lastGameStartAt = Engine.time.now();
     this.lastGameStartSessionId = data.sessionId;
+    this.mpClient.markGameplayReady();
     this.gameLaunchCoordinator?.startMultiplayerMatch(data);
 
     const cachedSnapshot = this.mpClient.getLastAuthoritativeSnapshot();
@@ -843,6 +878,39 @@ export class MultiplayerRuntimeCoordinator {
         );
       }
     }
+  }
+
+  private beginSyncGate(data: { map: string; mode: string; sessionId: string; late?: boolean }): void {
+    this.pendingSyncStart = { ...data };
+    this.syncGateState = 'waiting_manifest';
+    this.stopInputSending();
+    this.worldRuntime.getLocalPlayerBootstrapCoordinator().requestAuthoritativeSpawnSync();
+    this.tryPromoteSyncGate('sync_required');
+  }
+
+  private tryPromoteSyncGate(source: string): void {
+    if (this.syncGateState !== 'waiting_manifest') {
+      return;
+    }
+
+    const localPlayerId = this.mpClient.playerId;
+    if (!localPlayerId) {
+      return;
+    }
+
+    if (!this.playerModelSystem.isEntityRegistryReady(localPlayerId)) {
+      return;
+    }
+
+    this.syncGateState = 'ready';
+    const pending = this.pendingSyncStart;
+    this.pendingSyncStart = null;
+    if (!pending) {
+      return;
+    }
+
+    logEvent('network', `Sync gate READY via ${source}`);
+    this.handleGameStart(pending);
   }
 
   buildRuntimeIssueSnapshot(): RuntimeIssueSnapshot {
